@@ -28,6 +28,7 @@ from app.ingestion.constants import (
     RECENT_VIDEO_TITLE_LIMIT,
 )
 from app.ingestion.raw_data import YouTubeChannelData
+from app.ingestion.registry import Source, register
 
 YOUTUBE_SEARCH_URL = "https://www.youtube.com/results"
 CHANNEL_FILTER = "EgIQAg%3D%3D"  # YouTube search filter: channels only
@@ -45,6 +46,7 @@ _HEADERS = {
 }
 
 
+@register(Source.YOUTUBE)
 class YouTubeSource(CandidateSource):
     """Discovers YouTube channel candidates relevant to a game's tags.
 
@@ -194,6 +196,8 @@ class YouTubeSource(CandidateSource):
                 active.append(
                     replace(
                         candidate,
+                        last_active_days=days_ago,
+                        text_signals=titles,
                         raw_data=channel_data.model_copy(
                             update={
                                 "last_upload_days_ago": days_ago,
@@ -208,7 +212,13 @@ class YouTubeSource(CandidateSource):
         for candidate in already_known:
             data = YouTubeChannelData.model_validate(candidate.raw_data)
             if data.last_upload_days_ago <= self._config.max_inactive_days:  # type: ignore[operator]
-                active.append(candidate)
+                active.append(
+                    replace(
+                        candidate,
+                        last_active_days=data.last_upload_days_ago,
+                        text_signals=data.recent_video_titles or [],
+                    )
+                )
 
         return active
 
@@ -401,13 +411,6 @@ def _parse_channel_renderer(
 
     audience_size = _parse_subscriber_count(subscriber_text)
 
-    # Hard filter: skip ghost channels and mega channels
-    if audience_size is not None and (
-        audience_size < config.min_subscribers
-        or audience_size > config.max_subscribers
-    ):
-        return None
-
     # Attempt to find email in description
     contact_value: str | None = None
     contact_channel: str | None = None
@@ -448,6 +451,8 @@ def _parse_channel_renderer(
         engagement_rate=None,
         description=description,
         raw_data=raw_data,
+        prospect_type="creator",
+        # last_active_days and text_signals set by _filter_inactive
     )
 
 

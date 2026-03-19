@@ -36,6 +36,7 @@ from app.ingestion.base import (
 )
 from app.ingestion.constants import RECENT_VIDEO_THUMBNAIL_LIMIT
 from app.ingestion.raw_data import YouTubeChannelData
+from app.ingestion.registry import Source, register
 
 log = logging.getLogger(__name__)
 YT_API_BASE = "https://www.googleapis.com/youtube/v3"
@@ -48,6 +49,7 @@ class QuotaExceededError(Exception):
     """Raised when the YouTube Data API daily quota is exhausted."""
 
 
+@register(Source.YOUTUBE_API)
 class YouTubeAPISource(CandidateSource):
     """Discovers YouTube channel candidates using the YouTube Data API v3."""
 
@@ -250,6 +252,7 @@ async def _fetch_recent_videos(
     channel_data = YouTubeChannelData.model_validate(candidate.raw_data)
     return replace(
         candidate,
+        text_signals=titles,
         raw_data=channel_data.model_copy(
             update={
                 "recent_video_titles": titles,
@@ -284,11 +287,6 @@ def _parse_channel_item(
     # Subscriber count
     subscriber_count_str = statistics.get("subscriberCount")
     audience_size = int(subscriber_count_str) if subscriber_count_str else None
-    if audience_size is not None and (
-        audience_size < config.min_subscribers
-        or audience_size > config.max_subscribers
-    ):
-        return None
 
     # Video count
     video_count_str = statistics.get("videoCount")
@@ -356,6 +354,8 @@ def _parse_channel_item(
         engagement_rate=None,
         description=description,
         raw_data=raw_data,
+        prospect_type="creator",
+        # last_active_days and text_signals are set by _fetch_recent_videos
     )
 
 

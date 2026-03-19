@@ -12,12 +12,19 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
+# Import sources package so all sources self-register with the registry
+import app.ingestion.sources  # noqa: F401
 from app.games.models import Game
 from app.games.repository import MessageTemplateRepository
-from app.ingestion.base import CandidateRecord
+from app.ingestion.base import CandidateRecord, CandidateSource
 from app.ingestion.constants import YOUTUBE_DISCOVERY_LIMIT
-from app.ingestion.youtube import YouTubeSource
-from app.ingestion.youtube_api import QuotaExceededError, YouTubeAPISource
+from app.ingestion.registry import Source
+from app.ingestion.sources.reddit import RedditSource
+from app.ingestion.sources.youtube import YouTubeSource
+from app.ingestion.sources.youtube_api import (
+    QuotaExceededError,
+    YouTubeAPISource,
+)
 from app.prospects.models import Prospect
 from app.scoring.engine import score_prospect
 from app.scoring.llm_engine import LLMFitScores, llm_score_batch
@@ -35,23 +42,12 @@ async def run_ingestion(
 ) -> dict:
     """Run the full discovery → scoring → import pipeline for a game.
 
+    Sources are determined by game.discovery_sources (default: youtube + reddit).
     Uses the YouTube Data API if an API key is configured, falling back to
     the scraping source if the key is absent or the daily quota is exhausted.
     """
     template_repo = MessageTemplateRepository(db_path)
     templates = template_repo.list_by_game(game.game_id)
-    youtube_limit = youtube_candidate_limit(limit_per_source)
-
-    if youtube_api_key:
-        log.info("[%s] Discovery source: YouTube Data API", game.name)
-        youtube: YouTubeAPISource | YouTubeSource = YouTubeAPISource(
-            youtube_api_key, cache_dir=youtube_cache_dir or None
-        )
-    else:
-        log.info(
-            "[%s] Discovery source: scraping fallback (no API key)", game.name
-        )
-        youtube = YouTubeSource()
 
     log.info(
         "[%s] LLM scoring: %s",
@@ -61,17 +57,43 @@ async def run_ingestion(
         else "disabled (keyword fallback)",
     )
 
-    results = await asyncio.gather(
-        _run_source(
-            youtube,
-            game,
-            youtube_limit,
-            templates,
-            db_path,
-            anthropic_api_key,
-        ),
-        return_exceptions=True,
-    )
+    # Build the list of (source, per-source limit) pairs based on game.discovery_sources
+    sources: list[tuple[CandidateSource, int]] = []
+    for source_name in game.discovery_sources:
+        if source_name == Source.YOUTUBE:
+            youtube_limit = youtube_candidate_limit(limit_per_source)
+            if youtube_api_key:
+                log.info("[%s] YouTube source: Data API", game.name)
+                sources.append(
+                    (
+                        YouTubeAPISource(
+                            youtube_api_key,
+                            cache_dir=youtube_cache_dir or None,
+                        ),
+                        youtube_limit,
+                    )
+                )
+            else:
+                log.info(
+                    "[%s] YouTube source: scraping fallback (no API key)",
+                    game.name,
+                )
+                sources.append((YouTubeSource(), youtube_limit))
+        elif source_name == Source.REDDIT:
+            log.info("[%s] Reddit source: public JSON API", game.name)
+            sources.append((RedditSource(), limit_per_source))
+        else:
+            log.warning(
+                "[%s] Unknown discovery source %r — skipping",
+                game.name,
+                source_name,
+            )
+
+    tasks = [
+        _run_source(source, game, limit, templates, db_path, anthropic_api_key)
+        for source, limit in sources
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
     totals: dict[str, int] = {"discovered": 0, "scored": 0, "imported": 0}
     for r in results:
@@ -88,7 +110,7 @@ def youtube_candidate_limit(limit_per_source: int) -> int:
 
 
 async def _run_source(
-    source,
+    source: CandidateSource,
     game: Game,
     limit_per_source: int,
     templates: list,
@@ -159,7 +181,7 @@ async def _run_source(
                 )
                 llm_scores.update(new_scores)
                 log.info(
-                    "[%s] LLM scored %d/%d channels",
+                    "[%s] LLM scored %d/%d prospects",
                     game.name,
                     len(new_scores),
                     len(needs_llm),
@@ -208,17 +230,7 @@ async def _run_source(
             continue
 
         # -----------------------------------------------------------------------
-        # 3. Determine suggested action
-        # -----------------------------------------------------------------------
-        if score.final_score >= 0.65:
-            suggested_action = "Approve"
-        elif score.final_score >= 0.45:
-            suggested_action = "Review"
-        else:
-            suggested_action = "Backlog"
-
-        # -----------------------------------------------------------------------
-        # 4. Find best-matching template
+        # 3. Find best-matching template
         # -----------------------------------------------------------------------
         matched_template = _find_template(templates, prospect.platform)
 
@@ -242,7 +254,7 @@ async def _run_source(
                 )
 
         # -----------------------------------------------------------------------
-        # 5. Upsert draft item
+        # 4. Upsert draft item
         # -----------------------------------------------------------------------
         llm = llm_scores.get(prospect.prospect_id)
         score_breakdown_json = json.dumps(
@@ -270,13 +282,12 @@ async def _run_source(
             subject_line=subject_line,
             body_text=body_text,
             priority_score=score.final_score,
-            suggested_action=suggested_action,
             fit_summary=score.fit_summary,
             score_breakdown=score_breakdown_json,
             db_path=db_path,
         )
         counts["imported"] += 1
-        log.debug("[%s]   └─ imported (%s)", game.name, suggested_action)
+        log.debug("[%s]   └─ imported", game.name)
 
     log.info(
         "[%s] Done — discovered %d, scored %d, imported %d",
@@ -293,7 +304,14 @@ def _upsert_prospect(candidate: CandidateRecord, db_path: str) -> Prospect:
     from app.database import get_connection
 
     now = datetime.now(UTC).isoformat()
-    raw_json = json.dumps(candidate.raw_data)
+
+    # Merge normalized cross-source fields into raw_data so scoring engine
+    # can read them without knowing the source's internal data format.
+    raw = dict(candidate.raw_data)
+    raw["last_active_days"] = candidate.last_active_days
+    raw["text_signals"] = candidate.text_signals
+    raw["prospect_type"] = candidate.prospect_type
+    raw_json = json.dumps(raw)
 
     with get_connection(db_path) as conn:
         # Check if prospect already exists by platform + handle
@@ -381,7 +399,6 @@ def _upsert_draft_item(
     subject_line: str | None,
     body_text: str,
     priority_score: float,
-    suggested_action: str,
     fit_summary: str,
     score_breakdown: str,
     db_path: str,
@@ -402,13 +419,12 @@ def _upsert_draft_item(
             conn.execute(
                 """
                 UPDATE draft_items
-                SET priority_score = ?, suggested_action = ?, fit_summary = ?,
-                    score_breakdown = ?, updated_at = ?
+                SET priority_score = ?, fit_summary = ?, score_breakdown = ?,
+                    updated_at = ?
                 WHERE draft_item_id = ?
                 """,
                 (
                     priority_score,
-                    suggested_action,
                     fit_summary,
                     score_breakdown,
                     now,
@@ -421,9 +437,9 @@ def _upsert_draft_item(
                 """
                 INSERT INTO draft_items
                     (draft_item_id, game_id, prospect_id, template_id, subject_line,
-                     body_text, status, priority_score, suggested_action, fit_summary,
+                     body_text, status, priority_score, fit_summary,
                      score_breakdown, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
                 """,
                 (
                     draft_item_id,
@@ -433,7 +449,6 @@ def _upsert_draft_item(
                     subject_line,
                     body_text,
                     priority_score,
-                    suggested_action,
                     fit_summary,
                     score_breakdown,
                     now,
@@ -443,12 +458,12 @@ def _upsert_draft_item(
 
 
 def _has_scoreable_text(prospect: Prospect) -> bool:
-    """True if the channel has enough text for the LLM to make a meaningful judgment."""
+    """True if the prospect has enough text for the LLM to make a meaningful judgment."""
     has_description = bool(
         prospect.description and len(prospect.description.strip()) > 20
     )
-    has_titles = bool(prospect.raw_data.get("recent_video_titles"))
-    return has_description or has_titles
+    has_signals = bool(prospect.raw_data.get("text_signals"))
+    return has_description or has_signals
 
 
 def _load_cached_llm_scores(

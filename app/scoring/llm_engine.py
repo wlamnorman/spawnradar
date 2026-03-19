@@ -82,26 +82,32 @@ async def _score_one(
     prospect: Prospect,
 ) -> LLMFitScores:
     """Ask Haiku to rate one channel across genre, audience, and format fit."""
-    video_titles = prospect.raw_data.get("recent_video_titles", [])
-    titles_text = (
-        "\n".join(f"- {t}" for t in video_titles[:5])
-        if video_titles
+    # text_signals is the normalized field (video titles, recent posts, etc.).
+    # Fall back to recent_video_titles for prospects ingested before this field.
+    text_signals = (
+        prospect.raw_data.get("text_signals")
+        or prospect.raw_data.get("recent_video_titles", [])
+    )
+    signals_text = (
+        "\n".join(f"- {t}" for t in text_signals[:5])
+        if text_signals
         else "Not available"
     )
     description = (prospect.description or "No description provided.").strip()
 
-    prompt = f"""You are evaluating whether a YouTube channel is a good outreach target for an indie game.
+    prompt = f"""You are evaluating whether a content creator or community is a good outreach target for an indie game.
 
 GAME
 Name: {game.name}
 Genre tags: {", ".join(game.genre_tags) or "none"}
 Audience tags: {", ".join(game.audience_tags) or "none"}
 
-CHANNEL
+PROSPECT
+Platform: {prospect.platform}
 Name: {prospect.display_name}
 Description: {description}
-Recent video titles:
-{titles_text}
+Recent content:
+{signals_text}
 
 Return a JSON object with exactly these fields:
 - "genre_fit": float 0.0–1.0 — does this channel cover games in this genre or adjacent ones?

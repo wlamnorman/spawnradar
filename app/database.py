@@ -42,6 +42,14 @@ def initialize_database(db_path: str) -> None:
             )
         conn.commit()
 
+        # Migration: add discovery_sources column to existing databases
+        try:
+            conn.execute(
+                "ALTER TABLE games ADD COLUMN discovery_sources TEXT NOT NULL DEFAULT '[\"youtube\",\"reddit\"]'"
+            )
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
 
 @contextmanager

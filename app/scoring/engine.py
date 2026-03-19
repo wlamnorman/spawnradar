@@ -67,8 +67,11 @@ def score_prospect(
     """
     raw = prospect.raw_data
 
-    # Build a rich text corpus: profile text + video titles
-    video_titles = " ".join(raw.get("recent_video_titles", []))
+    # Build a rich text corpus: profile text + source-specific content signals
+    # text_signals is the normalized field; fall back to recent_video_titles for
+    # prospects ingested before this field was introduced.
+    signals = raw.get("text_signals") or raw.get("recent_video_titles", [])
+    signal_text = " ".join(signals)
     search_text = " ".join(
         filter(
             None,
@@ -76,7 +79,7 @@ def score_prospect(
                 prospect.display_name,
                 prospect.handle,
                 prospect.description or "",
-                video_titles,
+                signal_text,
             ],
         )
     ).lower()
@@ -117,9 +120,11 @@ def score_prospect(
     format_fit = format_fit_override if format_fit_override is not None else 0.5
 
     # -----------------------------------------------------------------------
-    # Activity score — derived from last upload recency in raw_data
+    # Activity score — derived from last_active_days (normalized cross-source)
+    # Falls back to last_upload_days_ago for prospects ingested before this field.
     # -----------------------------------------------------------------------
-    activity_score = _score_activity(raw.get("last_upload_days_ago"))
+    last_active = raw.get("last_active_days") if raw.get("last_active_days") is not None else raw.get("last_upload_days_ago")
+    activity_score = _score_activity(last_active)
 
     # -----------------------------------------------------------------------
     # Platform fit

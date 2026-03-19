@@ -1,7 +1,9 @@
 """Games domain models."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from app.ingestion.registry import Source
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,7 @@ class Game:
     created_at: str
     updated_at: str
     discovery_schedule: str = "manual"
+    discovery_sources: list[Source] = field(default_factory=lambda: [Source.YOUTUBE, Source.REDDIT])
 
 
 @dataclass(frozen=True)

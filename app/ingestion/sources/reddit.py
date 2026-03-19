@@ -14,6 +14,7 @@ import httpx
 from app.games.models import Game
 from app.ingestion.base import CandidateRecord, CandidateSource
 from app.ingestion.raw_data import RedditSubredditData, RedditThreadData
+from app.ingestion.registry import Source, register
 
 _REDDIT_BASE = "https://www.reddit.com"
 _HEADERS = {
@@ -22,6 +23,7 @@ _HEADERS = {
 }
 
 
+@register(Source.REDDIT)
 class RedditSource(CandidateSource):
     """Discovers Reddit subreddits and relevant threads for a game.
 
@@ -150,6 +152,8 @@ def _parse_subreddit(data: dict) -> CandidateRecord | None:
         over18=data.get("over18", False),
     ).model_dump()
 
+    text_signals = [description] if description else []
+
     return CandidateRecord(
         platform="reddit",
         handle=handle,
@@ -161,6 +165,8 @@ def _parse_subreddit(data: dict) -> CandidateRecord | None:
         engagement_rate=None,
         description=description[:500] if description else None,
         raw_data=raw_data,
+        prospect_type="community",
+        text_signals=text_signals,
     )
 
 
@@ -193,6 +199,8 @@ def _parse_thread(data: dict) -> CandidateRecord | None:
         permalink=permalink,
     ).model_dump()
 
+    text_signals = [s for s in [title, description] if s]
+
     return CandidateRecord(
         platform="reddit",
         handle=handle,
@@ -204,4 +212,6 @@ def _parse_thread(data: dict) -> CandidateRecord | None:
         engagement_rate=None,
         description=description,
         raw_data=raw_data,
+        prospect_type="community",
+        text_signals=text_signals,
     )

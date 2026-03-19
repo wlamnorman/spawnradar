@@ -50,16 +50,12 @@
       ? `<div class="video-thumbnails">${videoThumbs}</div>`
       : "";
 
-    const actionPill = item.suggested_action
-      ? `<span class="pill pill-action pill-${escHtml(item.suggested_action.toLowerCase())}">${escHtml(item.suggested_action)}</span>`
-      : "";
-
     const contactPill = item.contact_channel
       ? `<span class="pill">${escHtml(item.contact_channel)}</span>`
       : "";
 
-    const audienceSpan = item.audience_size
-      ? `<span class="subtle">${Number(item.audience_size).toLocaleString()} followers</span>`
+    const audienceText = item.audience_size
+      ? `${Number(item.audience_size).toLocaleString()} followers`
       : "";
 
     const fitSummary = item.fit_summary
@@ -127,9 +123,8 @@
           </div>
           <div class="meta-row">
             <span class="pill pill-platform">${escHtml(item.platform)}</span>
-            ${actionPill}
             ${contactPill}
-            ${audienceSpan}
+            ${audienceText ? `<span class="subtle prospect-followers">${escHtml(audienceText)}</span>` : ""}
           </div>
         </div>
         <div class="score-badge ${scoreClass}">
@@ -140,12 +135,17 @@
       ${videoThumbsHtml}
       ${fitSummary}
       ${scoreSnapshot}
-      ${subjectField}
-      <div class="form-group">
-        <label class="field-label">Message</label>
-        <textarea class="draft-body">${escHtml(item.body_text)}</textarea>
-      </div>
       ${whySelectedHtml}
+      <details class="message-accordion">
+        <summary>Message draft</summary>
+        <div class="message-accordion-body">
+          ${subjectField}
+          <div class="form-group">
+            <label class="field-label">Message</label>
+            <textarea class="draft-body">${escHtml(item.body_text)}</textarea>
+          </div>
+        </div>
+      </details>
     </article>`;
   }
 
@@ -272,8 +272,6 @@
           list.appendChild(card);
         }
 
-        attachCardListeners(card);
-
         // Brief fade-in animation
         card.style.opacity = "0";
         card.style.transition = "opacity 0.4s ease";
@@ -308,7 +306,5 @@
     poll();
   }
 
-  // Expose for use from inline scripts in templates
-  window.attachCardListeners = attachCardListeners;
   window.startDiscoveryPolling = startDiscoveryPolling;
 })();

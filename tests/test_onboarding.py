@@ -193,9 +193,9 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
                 """
                 INSERT INTO draft_items
                     (draft_item_id, game_id, prospect_id, body_text, status,
-                     priority_score, suggested_action, fit_summary, score_breakdown,
+                     priority_score, fit_summary, score_breakdown,
                      created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     draft_item_id,
@@ -204,7 +204,6 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
                     "Hi RogueLikeRabbit,\n\nI'd love to share Star Tactician with you.",
                     "queued",
                     0.7,
-                    "Approve",
                     "Strong match for strategy players.",
                     json.dumps(
                         {
@@ -229,3 +228,5 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
     assert response.text.count('class="video-thumbnail"') == 6
     assert "score-dim-card" in response.text
     assert "<summary>Score breakdown</summary>" not in response.text
+    assert '<details class="message-accordion">' in response.text
+    assert "<summary>Message draft</summary>" in response.text

@@ -994,14 +994,14 @@ textarea {
 }
 
 .prospect-name {
-    margin: 0 0 10px;
+    margin: 0;
     font-size: 19px;
     font-weight: 700;
     letter-spacing: -0.01em;
 }
 
 .prospect-name a {
-    color: #0f172a;
+    color: #6366f1;
 }
 .prospect-name a:hover {
     color: #6366f1;
@@ -1013,6 +1013,12 @@ textarea {
     font-size: 14px;
     color: #94a3b8;
     margin-left: 8px;
+}
+
+.prospect-followers {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .meta-row {
@@ -1072,13 +1078,13 @@ textarea {
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
-    margin-right: 12px;
     border: 1px solid #e2e8f0;
 }
 
 .prospect-name-row {
     display: flex;
     align-items: center;
+    gap: 12px;
     margin-bottom: 10px;
 }
 
@@ -1212,6 +1218,57 @@ textarea {
 
 .reasons-list li {
     margin-bottom: 4px;
+}
+
+.message-accordion {
+    margin-top: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.message-accordion summary {
+    padding: 14px 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    list-style: none;
+    user-select: none;
+}
+
+.message-accordion summary::after {
+    content: "▾";
+    font-size: 28px;
+    line-height: 1;
+    color: #64748b;
+    transition: transform 0.15s ease;
+}
+
+.message-accordion summary::-webkit-details-marker {
+    display: none;
+}
+
+.message-accordion[open] summary {
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.message-accordion[open] summary::after {
+    transform: rotate(180deg);
+}
+
+.message-accordion-body {
+    padding: 18px;
+    background: #ffffff;
+}
+
+.message-accordion .form-group:last-child {
+    margin-bottom: 0;
 }
 
 /* Action row */

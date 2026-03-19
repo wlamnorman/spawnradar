@@ -1,4 +1,5 @@
 """Prospect domain models."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ class Prospect:
     """A discovered marketing prospect (YouTube channel or Reddit community)."""
 
     prospect_id: str
-    platform: str          # youtube | reddit
+    platform: str  # youtube | reddit
     handle: str
     display_name: str
     profile_url: str | None
@@ -33,9 +34,8 @@ class DraftItem:
     template_id: str | None
     subject_line: str | None
     body_text: str
-    status: str            # queued | approved | rejected | snoozed | sent
+    status: str  # queued | approved | rejected | snoozed | sent
     priority_score: float
-    suggested_action: str | None
     fit_summary: str | None
     score_breakdown: dict  # deserialized from JSON
     last_edited_at: str | None
@@ -49,7 +49,7 @@ class Outcome:
 
     outcome_id: str
     draft_item_id: str
-    outcome_type: str      # approved | rejected | snoozed | sent
+    outcome_type: str  # approved | rejected | snoozed | sent
     notes: str | None
     created_at: str
 

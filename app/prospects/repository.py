@@ -1,4 +1,5 @@
 """Database operations for prospects, draft items, and outcomes."""
+
 from __future__ import annotations
 
 import json
@@ -35,7 +36,8 @@ class DraftItemRepository:
         """Fetch a draft item by primary key."""
         with get_connection(self._db_path) as conn:
             row = conn.execute(
-                "SELECT * FROM draft_items WHERE draft_item_id = ?", (draft_item_id,)
+                "SELECT * FROM draft_items WHERE draft_item_id = ?",
+                (draft_item_id,),
             ).fetchone()
         if row is None:
             return None
@@ -70,7 +72,7 @@ class DraftItemRepository:
                 SELECT
                     d.draft_item_id, d.game_id, d.prospect_id, d.template_id,
                     d.subject_line, d.body_text, d.status, d.priority_score,
-                    d.suggested_action, d.fit_summary, d.score_breakdown,
+                    d.fit_summary, d.score_breakdown,
                     d.last_edited_at, d.created_at AS draft_created_at,
                     d.updated_at AS draft_updated_at,
                     p.prospect_id AS p_prospect_id, p.platform, p.handle,
@@ -98,7 +100,6 @@ class DraftItemRepository:
                 body_text=row["body_text"],
                 status=row["status"],
                 priority_score=row["priority_score"],
-                suggested_action=row["suggested_action"],
                 fit_summary=row["fit_summary"],
                 score_breakdown=json.loads(row["score_breakdown"] or "{}"),
                 last_edited_at=row["last_edited_at"],
@@ -231,7 +232,6 @@ def _row_to_draft(row: Any) -> DraftItem:
         body_text=row["body_text"],
         status=row["status"],
         priority_score=row["priority_score"],
-        suggested_action=row["suggested_action"],
         fit_summary=row["fit_summary"],
         score_breakdown=json.loads(row["score_breakdown"] or "{}"),
         last_edited_at=row["last_edited_at"],

@@ -51,9 +51,9 @@ def _insert_draft_item(db_path, game_id, prospect_id, **kwargs):
             """
             INSERT INTO draft_items
                 (draft_item_id, game_id, prospect_id, template_id, subject_line,
-                 body_text, status, priority_score, suggested_action, fit_summary,
+                 body_text, status, priority_score, fit_summary,
                  score_breakdown, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 draft_item_id,
@@ -64,7 +64,6 @@ def _insert_draft_item(db_path, game_id, prospect_id, **kwargs):
                 kwargs.get("body_text", "Hello, check out our game!"),
                 kwargs.get("status", "queued"),
                 kwargs.get("priority_score", 0.5),
-                kwargs.get("suggested_action", "Review"),
                 kwargs.get("fit_summary", "Good fit"),
                 json.dumps(kwargs.get("score_breakdown", {})),
                 now,

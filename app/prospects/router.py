@@ -99,7 +99,6 @@ async def queue_api(
                 )[:RECENT_VIDEO_THUMBNAIL_LIMIT],
                 "status": item.draft.status,
                 "priority_score": item.draft.priority_score,
-                "suggested_action": item.draft.suggested_action,
                 "fit_summary": item.draft.fit_summary,
                 "subject_line": item.draft.subject_line,
                 "body_text": item.draft.body_text,

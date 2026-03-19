@@ -7,6 +7,14 @@ from typing import Any
 
 from app.database import get_connection
 from app.games.models import Asset, Game, MessageTemplate
+from app.ingestion.registry import Source
+
+
+def _parse_sources(raw: str | None) -> list[Source]:
+    """Deserialize a JSON source list, dropping any unrecognised values."""
+    names: list[str] = json.loads(raw or '["youtube","reddit"]')
+    valid = set(Source)
+    return [Source(n) for n in names if n in valid]
 
 
 def _make_slug(name: str, game_id: str) -> str:
@@ -292,6 +300,7 @@ def _row_to_game(row: Any) -> Game:
         platform_tags=json.loads(row["platform_tags"] or "[]"),
         website_url=row["website_url"],
         discovery_schedule=row["discovery_schedule"] if row["discovery_schedule"] is not None else "manual",
+        discovery_sources=_parse_sources(row["discovery_sources"]),
         status=row["status"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],

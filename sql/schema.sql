@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS games (
     audience_tags      TEXT NOT NULL DEFAULT '[]',   -- JSON array
     platform_tags      TEXT NOT NULL DEFAULT '[]',   -- JSON array
     website_url        TEXT,
-    discovery_schedule TEXT NOT NULL DEFAULT 'manual', -- manual | daily | weekly
+    discovery_schedule TEXT NOT NULL DEFAULT 'manual',           -- manual | daily | weekly
+    discovery_sources  TEXT NOT NULL DEFAULT '["youtube","reddit"]', -- JSON array of source names
     status             TEXT NOT NULL DEFAULT 'active',
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
@@ -98,7 +99,6 @@ CREATE TABLE IF NOT EXISTS draft_items (
     body_text        TEXT NOT NULL,
     status           TEXT NOT NULL DEFAULT 'queued',  -- queued | approved | rejected | snoozed | sent
     priority_score   REAL NOT NULL DEFAULT 0,
-    suggested_action TEXT,
     fit_summary      TEXT,
     score_breakdown  TEXT NOT NULL DEFAULT '{}',
     last_edited_at   TEXT,

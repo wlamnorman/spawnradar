@@ -63,15 +63,10 @@ SpawnRadar{% endblock %} {% block game_switcher %}
                     <span class="pill pill-platform"
                         >{{ prospect.platform }}</span
                     >
-                    {% if draft.suggested_action %}
-                    <span
-                        class="pill pill-action pill-{{ draft.suggested_action | lower }}"
-                        >{{ draft.suggested_action }}</span
-                    >
-                    {% endif %} {% if prospect.contact_channel %}
+                    {% if prospect.contact_channel %}
                     <span class="pill">{{ prospect.contact_channel }}</span>
                     {% endif %} {% if prospect.audience_size %}
-                    <span class="subtle"
+                    <span class="subtle prospect-followers"
                         >{{ "{:,}".format(prospect.audience_size) }}
                         followers</span
                     >
@@ -99,16 +94,12 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             />
             {% endfor %}
         </div>
-        {% endif %}
-
-        {% if draft.fit_summary %}
+        {% endif %} {% if draft.fit_summary %}
         <p class="fit-summary">{{ draft.fit_summary }}</p>
         {% endif %} {% if draft.score_breakdown %}
         <section class="score-snapshot" aria-label="Score breakdown">
             <div class="score-snapshot-header">
                 <h3 class="score-snapshot-title">Score breakdown</h3>
-                <span class="score-snapshot-subtle"
-                >
             </div>
             <div class="score-breakdown-grid">
                 {% if draft.score_breakdown.genre_fit is defined %}
@@ -205,29 +196,33 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             </ul>
             {% endif %}
         </section>
-        {% endif %}
-
-        <!-- Subject line -->
-        {% if draft.subject_line %}
-        <div class="form-group">
-            <label class="field-label">Subject line</label>
-            <input
-                type="text"
-                class="subject-input"
-                value="{{ draft.subject_line }}"
-            />
-        </div>
-        {% endif %}
-
-        <!-- Editable body -->
-        <div class="form-group">
-            <label class="field-label">Message</label>
-            <textarea class="draft-body">{{ draft.body_text }}</textarea>
-        </div>
-
-        {% if draft.score_breakdown and draft.score_breakdown.why_selected %}
+        {% endif %} {% if draft.score_breakdown and
+        draft.score_breakdown.why_selected %}
         <p class="why-selected">{{ draft.score_breakdown.why_selected }}</p>
         {% endif %}
+
+        <details class="message-accordion">
+            <summary>Message draft</summary>
+            <div class="message-accordion-body">
+                {% if draft.subject_line %}
+                <div class="form-group">
+                    <label class="field-label">Subject line</label>
+                    <input
+                        type="text"
+                        class="subject-input"
+                        value="{{ draft.subject_line }}"
+                    />
+                </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label class="field-label">Message</label>
+                    <textarea class="draft-body">
+{{ draft.body_text }}</textarea
+                    >
+                </div>
+            </div>
+        </details>
     </article>
     {% endfor %}
 </div>
@@ -256,7 +251,7 @@ SpawnRadar{% endblock %} {% block game_switcher %}
     style="margin-top: 12px; display: none"
 ></div>
 {% endblock %} {% block scripts %}
-<script src="/static/queue.js?v=5"></script>
+<script src="/static/queue.js?v=6"></script>
 <script>
     async function runDiscovery(gameId) {
         const status =
