@@ -1,0 +1,23 @@
+[project]
+name = "spawnradar"
+version = "0.1.0"
+requires-python = "==3.12.12"
+dynamic = ["dependencies"]
+
+[project.scripts]
+sp = "app.devtools.cli:main"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 3
+timeout_method = "thread"

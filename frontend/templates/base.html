@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+            rel="stylesheet"
+        />
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{% block title %}SpawnRadar{% endblock %}</title>
+        <link rel="stylesheet" href="/static/style.css" />
+        {% block head %}{% endblock %}
+    </head>
+    <body>
+        <nav class="navbar">
+            <div class="navbar-inner">
+                <a href="/" class="navbar-brand">SpawnRadar</a>
+
+                {% if user is defined and user %}
+                <div class="navbar-center">
+                    {% block game_switcher %}{% endblock %}
+                </div>
+                <div class="navbar-right">
+                    <a href="/games" class="nav-link">Dashboard</a>
+                    <a href="/pricing" class="nav-link">Pricing</a>
+                    {% if user.is_admin %}
+                    <a href="/admin" class="nav-link">Admin</a>
+                    {% endif %}
+                    <span class="nav-user">{{ user.email }}</span>
+                    <form
+                        method="post"
+                        action="/auth/logout"
+                        style="display: inline"
+                    >
+                        <button
+                            type="submit"
+                            class="button button-sm secondary"
+                        >
+                            Sign out
+                        </button>
+                    </form>
+                </div>
+                {% else %}
+                <div class="navbar-right">
+                    <a href="/pricing" class="nav-link">Pricing</a>
+                    <a href="/auth/login" class="nav-link">Sign in</a>
+                    <a href="/auth/register" class="nav-link">Register</a>
+                </div>
+                {% endif %}
+            </div>
+        </nav>
+
+        <main class="page-shell">{% block content %}{% endblock %}</main>
+
+        {% block scripts %}{% endblock %}
+    </body>
+</html>

@@ -1,0 +1,184 @@
+"""Business logic for authentication: registration, login, session management."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import bcrypt
+
+from app.auth.models import Session, User
+from app.auth.repository import (
+    PasswordResetTokenRepository,
+    SessionRepository,
+    UserRepository,
+)
+from app.email.service import EmailMessage, EmailService
+
+SESSION_LIFETIME_DAYS = 30
+RESET_TOKEN_LIFETIME_HOURS = 1
+
+
+class AuthService:
+    """Handles user registration, login, and session lifecycle."""
+
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        session_repo: SessionRepository,
+        reset_token_repo: PasswordResetTokenRepository | None = None,
+    ) -> None:
+        self._users = user_repo
+        self._sessions = session_repo
+        self._reset_tokens = reset_token_repo
+
+    def register(self, email: str, password: str) -> User:
+        """Create a new user account.
+
+        Raises ValueError if the email is already registered.
+        """
+        email = email.strip().lower()
+        if not email or not password:
+            raise ValueError("Email and password are required.")
+        if self._users.get_by_email(email) is not None:
+            raise ValueError("An account with that email already exists.")
+
+        hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        user_id = str(uuid.uuid4())
+        return self._users.create(user_id, email, hashed)
+
+    def login(self, email: str, password: str) -> Session:
+        """Verify credentials and create a new session.
+
+        Raises ValueError if credentials are invalid.
+        """
+        email = email.strip().lower()
+        user = self._users.get_by_email(email)
+        if user is None or not bcrypt.checkpw(
+            password.encode(), user.password_hash.encode()
+        ):
+            raise ValueError("Invalid email or password.")
+
+        session_id = str(uuid.uuid4())
+        expires_at = (
+            datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
+        ).isoformat()
+        return self._sessions.create(session_id, user.user_id, expires_at)
+
+    def logout(self, session_id: str) -> None:
+        """Invalidate a session."""
+        self._sessions.delete(session_id)
+
+    def create_session_for_user(self, user_id: str) -> Session:
+        """Create a new session for an existing user."""
+        session_id = str(uuid.uuid4())
+        expires_at = (
+            datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
+        ).isoformat()
+        return self._sessions.create(session_id, user_id, expires_at)
+
+    def get_session(self, session_id: str) -> Session | None:
+        """Return a session if it exists and has not expired, else None."""
+        session = self._sessions.get_by_id(session_id)
+        if session is None:
+            return None
+        if datetime.fromisoformat(session.expires_at) < datetime.now(UTC):
+            self._sessions.delete(session_id)
+            return None
+        return session
+
+    def get_user_for_session(self, session_id: str) -> User | None:
+        """Return the User associated with a valid session, or None."""
+        session = self.get_session(session_id)
+        if session is None:
+            return None
+        return self._users.get_by_id(session.user_id)
+
+    def request_password_reset(
+        self,
+        email: str,
+        email_service: EmailService,
+        base_url: str,
+    ) -> None:
+        """Send a password reset email.
+
+        Silently does nothing if the email is not registered, to avoid
+        leaking whether an account exists.
+        """
+        email = email.strip().lower()
+        user = self._users.get_by_email(email)
+        if user is None or self._reset_tokens is None:
+            return
+
+        token_id = str(uuid.uuid4())
+        expires_at = (
+            datetime.now(UTC) + timedelta(hours=RESET_TOKEN_LIFETIME_HOURS)
+        ).isoformat()
+        self._reset_tokens.create(token_id, user.user_id, expires_at)
+
+        reset_link = f"{base_url}/auth/reset-password?token={token_id}"
+        html = f"""
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+          <h2>Reset your Spawnradar password</h2>
+          <p>We received a request to reset the password for your account.</p>
+          <p style="margin:32px 0">
+            <a href="{reset_link}"
+               style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
+              Reset password
+            </a>
+          </p>
+          <p style="color:#6b7280;font-size:14px">
+            This link expires in {RESET_TOKEN_LIFETIME_HOURS} hour(s).
+            If you did not request a password reset, you can safely ignore this email.
+          </p>
+          <p style="color:#6b7280;font-size:14px">
+            Or copy this link into your browser:<br>
+            <a href="{reset_link}">{reset_link}</a>
+          </p>
+        </div>
+        """
+        text = (
+            f"Reset your Spawnradar password\n\n"
+            f"Visit the link below to reset your password (expires in "
+            f"{RESET_TOKEN_LIFETIME_HOURS} hour(s)):\n\n"
+            f"{reset_link}\n\n"
+            f"If you did not request a password reset, ignore this email."
+        )
+
+        email_service.send(
+            EmailMessage(
+                to=email,
+                subject="Reset your Spawnradar password",
+                html=html,
+                text=text,
+            )
+        )
+
+    def reset_password(self, token_id: str, new_password: str) -> None:
+        """Reset a user's password using a valid reset token.
+
+        Raises ValueError if the token is invalid, expired, or already used.
+        """
+        if self._reset_tokens is None:
+            raise ValueError("Password reset is not configured.")
+
+        token = self._reset_tokens.get_by_id(token_id)
+        if token is None:
+            raise ValueError("This reset link is invalid or has expired.")
+
+        if not new_password:
+            raise ValueError("New password cannot be empty.")
+
+        hashed = bcrypt.hashpw(
+            new_password.encode(), bcrypt.gensalt()
+        ).decode()
+
+        from app.database import get_connection
+
+        with get_connection(self._users._db_path) as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE user_id = ?",
+                (hashed, token.user_id),
+            )
+
+        self._reset_tokens.mark_used(token_id)

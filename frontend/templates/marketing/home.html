@@ -1,0 +1,56 @@
+{% extends "base.html" %} {% block title %}SpawnRadar — Find Players And
+Creators For Your Game{% endblock %} {% block content %}
+<section class="marketing-hero">
+    <div class="marketing-copy">
+        <span class="marketing-kicker">Research-driven game outreach</span>
+        <h1>
+            Find the right creators, communities, and outreach opportunities for
+            your game.
+        </h1>
+        <p class="marketing-lede">
+            SpawnRadar combines structured game data, scoring algorithms, and
+            AI-assisted drafting to help indie game developers discover the
+            right forums, posting opportunities, and creators, then move through
+            a prioritized outreach queue with suggested drafts.
+        </p>
+        <div class="marketing-actions">
+            {% if user %}
+            <a href="/games" class="button">Open Dashboard</a>
+            {% else %}
+            <a href="/auth/register" class="button">Start Free Trial</a>
+            <a href="/pricing" class="button secondary">See Pricing</a>
+            {% endif %}
+        </div>
+        <div class="marketing-proof">
+            <span>No cold spreadsheets.</span>
+            <span>No vague targeting.</span>
+            <span>No sending before review.</span>
+        </div>
+    </div>
+    <div class="marketing-panel">
+        <div class="marketing-stat-card">
+            <strong>Define your game</strong>
+            <p>
+                Capture your genre, description, tags, audience, platform, and
+                messaging in one place.
+            </p>
+        </div>
+        <div class="marketing-stat-card">
+            <strong>Opportunity alerts</strong>
+            <p>
+                Get notified when relevant posting opportunities appear and your
+                game is a strong fit for sharing or joining the conversation.
+            </p>
+        </div>
+        <div class="marketing-stat-card">
+            <strong>Review targeted outreach</strong>
+            <p>
+                Work through a scored queue of suggested outreach drafts shaped
+                by proven outreach principles, so you can send targeted messages
+                instead of generic spam.
+            </p>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

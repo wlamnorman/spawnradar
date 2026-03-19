@@ -1,0 +1,165 @@
+{% extends "base.html" %} {% block title %}Add Game — SpawnRadar{% endblock %}
+{% block content %}
+<div class="form-page">
+    <h1>Add a New Game</h1>
+    <p class="subtle">
+        Tell us about your game so we can find the right audience for it.
+    </p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/games" class="game-form">
+        <div class="form-section">
+            <div class="form-group">
+                <label for="name"
+                    >Game name <span class="required">*</span></label
+                >
+                <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    required
+                    placeholder="e.g. PuzzleQuest Daily"
+                />
+            </div>
+
+            <div class="form-group">
+                <label for="description"
+                    >Description <span class="required">*</span></label
+                >
+                <textarea
+                    id="description"
+                    name="description"
+                    required
+                    rows="4"
+                    placeholder="Describe your game — what it is, what makes it unique, who would love it."
+                ></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="genre_tags"
+                    >Genre tags
+                    <span class="hint">(comma-separated)</span></label
+                >
+                <input
+                    type="text"
+                    id="genre_tags"
+                    name="genre_tags"
+                    placeholder="e.g. puzzle, daily challenge, word game"
+                />
+                <p class="field-hint">
+                    Tags help us find YouTube channels and subreddits that match
+                    your genre.
+                </p>
+                <div id="genre-pill-preview" class="pill-preview"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="audience_tags"
+                    >Audience tags
+                    <span class="hint">(comma-separated)</span></label
+                >
+                <input
+                    type="text"
+                    id="audience_tags"
+                    name="audience_tags"
+                    placeholder="e.g. wordle players, puzzle fans, casual gamers"
+                />
+                <p class="field-hint">
+                    Who plays games like yours? These terms drive search
+                    queries.
+                </p>
+                <div id="audience-pill-preview" class="pill-preview"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Platform</label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input
+                            type="checkbox"
+                            name="platform_tags"
+                            value="browser"
+                        />
+                        Browser
+                    </label>
+                    <label class="checkbox-label">
+                        <input
+                            type="checkbox"
+                            name="platform_tags"
+                            value="mobile"
+                        />
+                        Mobile
+                    </label>
+                    <label class="checkbox-label">
+                        <input
+                            type="checkbox"
+                            name="platform_tags"
+                            value="PC"
+                        />
+                        PC / Steam
+                    </label>
+                    <label class="checkbox-label">
+                        <input
+                            type="checkbox"
+                            name="platform_tags"
+                            value="console"
+                        />
+                        Console
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="website_url"
+                    >Website URL <span class="hint">(optional)</span></label
+                >
+                <input
+                    type="text"
+                    id="website_url"
+                    name="website_url"
+                    placeholder="https://mygame.com"
+                />
+            </div>
+            <div class="form-group">
+                <label for="discovery_schedule">Discovery schedule</label>
+                <select id="discovery_schedule" name="discovery_schedule">
+                    <option value="manual" selected>Manual only</option>
+                    <option value="daily">Daily (3am UTC)</option>
+                    <option value="weekly">Weekly (Monday 3am UTC)</option>
+                </select>
+                <p class="field-hint">
+                    Automatic discovery runs in the background on this schedule.
+                </p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="button">
+                Save & Continue to Setup →
+            </button>
+            <a href="/games" class="button secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+    function updatePills(inputId, previewId) {
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+        input.addEventListener("input", () => {
+            const tags = input.value
+                .split(",")
+                .map((t) => t.trim())
+                .filter((t) => t);
+            preview.innerHTML = tags
+                .map((t) => `<span class="tag-pill">${t}</span>`)
+                .join("");
+        });
+    }
+    updatePills("genre_tags", "genre-pill-preview");
+    updatePills("audience_tags", "audience-pill-preview");
+</script>
+{% endblock %}
