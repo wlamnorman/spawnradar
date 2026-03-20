@@ -12,6 +12,7 @@ Add a new member to Source at the same time so callers get a typed constant
 instead of a bare string. Because Source inherits from str, values serialize
 to/from JSON and SQLite transparently.
 """
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -27,8 +28,16 @@ class Source(StrEnum):
     """Canonical names for all supported ingestion sources."""
 
     YOUTUBE_API = "youtube_api"  # YouTube Data API v3 (quota-limited)
-    YOUTUBE     = "youtube"      # YouTube scraping fallback
-    REDDIT      = "reddit"       # Reddit public JSON API
+    YOUTUBE = "youtube"  # YouTube scraping fallback
+    REDDIT = "reddit"  # Reddit public JSON API
+    BLUESKY = "bluesky"  # Bluesky public API
+
+
+DEFAULT_DISCOVERY_SOURCES = [
+    Source.YOUTUBE,
+    Source.REDDIT,
+    Source.BLUESKY,
+]
 
 
 _SOURCES: dict[Source, type[CandidateSource]] = {}

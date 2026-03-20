@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.config import Settings
 from app.database import get_connection, initialize_database
@@ -76,6 +77,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "clear-queues",
         help="Delete all draft queue items and their outcomes from the database.",
+    )
+    subparsers.add_parser(
+        "rm-db",
+        help="Delete the local SQLite database file and related WAL/SHM files.",
     )
     return parser
 
@@ -190,6 +195,23 @@ def run_clear_queues(db_path: str) -> CommandResult:
     )
 
 
+def run_rm_db(db_path: str) -> CommandResult:
+    """Delete the local SQLite database file and sidecar files."""
+    removed = 0
+    db_file = Path(db_path)
+    for path in (db_file, Path(f"{db_path}-shm"), Path(f"{db_path}-wal")):
+        if path.exists():
+            path.unlink()
+            removed += 1
+    if removed == 0:
+        return CommandResult(message=f"No database files found at {db_path}.")
+    suffix = "file" if removed == 1 else "files"
+    return CommandResult(
+        message=f"Removed {removed} database {suffix} for {db_path}.",
+        deleted_count=removed,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
     args = build_parser().parse_args(argv)
@@ -199,6 +221,8 @@ def main(argv: list[str] | None = None) -> int:
         result = run_strife_of_stars(args.db_path)
     elif args.command == "clear-queues":
         result = run_clear_queues(args.db_path)
+    elif args.command == "rm-db":
+        result = run_rm_db(args.db_path)
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 

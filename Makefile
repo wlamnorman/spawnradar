@@ -1,8 +1,10 @@
-.PHONY: install check run reset-db help deploy
+.PHONY: install check lint test typecheck run reset-db help deploy
 
 PYTHON  := .venv/bin/python
 UVICORN := .venv/bin/uvicorn
 PYTEST  := .venv/bin/pytest
+RUFF    := .venv/bin/ruff
+BASEDPYRIGHT := .venv/bin/basedpyright
 
 HOST := 0.0.0.0
 PORT := 8000
@@ -13,9 +15,17 @@ install:
 	pip3 install -r dev-requirements.txt
 	pip3 install -r requirements.txt
 
-check:
-	$(PYTHON) -m pytest #--durations=0 --durations-min=0
-	$(RUFF) check wikiquests
+check: lint typecheck test
+
+
+lint:
+	$(RUFF) check app tests --fix
+
+test:
+	$(PYTEST)
+
+typecheck:
+	$(BASEDPYRIGHT)
 
 deploy:
 	@set -e; \
@@ -45,27 +55,23 @@ define STOP_PORT
 	fi
 endef
 
-## Start fresh: wipe DB, kill any existing server, open browser, run with reload
+## Start local server, keep existing DB, open browser, run with reload
 dev:
 	$(STOP_PORT)
-	@rm -f data/spawnradar.sqlite3
-	@$(PYTHON) -c "from app.database import initialize_database; initialize_database('data/spawnradar.sqlite3')"
 	@$(PYTHON) -m app.devtools.seed_dev data/spawnradar.sqlite3
 	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 wikiquests
 	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 strife-of-stars
-	@echo "Database reset. Starting server at $(URL)"
+	@echo "Starting server at $(URL)"
 	$(OPEN_BROWSER_DELAYED)
 	exec env DEV_AUTO_LOGIN=1 $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
 
-## Start fresh: wipe DB, kill any existing server, open browser, run with reload
+## Start local server, keep existing DB, open browser, run with reload
 run:
 	$(STOP_PORT)
-	@rm -f data/spawnradar.sqlite3
-	@$(PYTHON) -c "from app.database import initialize_database; initialize_database('data/spawnradar.sqlite3')"
 	@$(PYTHON) -m app.devtools.seed_dev data/spawnradar.sqlite3
 	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 wikiquests
 	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 strife-of-stars
-	@echo "Database reset. Starting server at $(URL)"
+	@echo "Starting server at $(URL)"
 	$(OPEN_BROWSER_DELAYED)
 	exec env DEV_AUTO_LOGIN=1 $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
 

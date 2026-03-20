@@ -91,9 +91,10 @@ def billing_service(sub_repo, game_repo):
     return BillingService(
         sub_repo,
         game_repo,
-        stripe_secret_key="sk_test",
-        stripe_starter_price_id="price_starter_test",
-        stripe_pro_price_id="price_pro_test",
+        ls_api_key="test_api_key",
+        ls_store_id="123",
+        ls_starter_variant_id="variant_starter",
+        ls_pro_variant_id="variant_pro",
     )
 
 

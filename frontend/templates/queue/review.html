@@ -94,9 +94,9 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             />
             {% endfor %}
         </div>
-        {% endif %} {% if draft.fit_summary %}
-        <p class="fit-summary">{{ draft.fit_summary }}</p>
-        {% endif %} {% if draft.score_breakdown %}
+        {% endif %} {% if draft.fit_summary or (draft.score_breakdown and
+        draft.score_breakdown.why_selected) %} {% endif %} {% if
+        draft.score_breakdown %}
         <section class="score-snapshot" aria-label="Score breakdown">
             <div class="score-snapshot-header">
                 <h3 class="score-snapshot-title">Score breakdown</h3>
@@ -196,9 +196,24 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             </ul>
             {% endif %}
         </section>
-        {% endif %} {% if draft.score_breakdown and
-        draft.score_breakdown.why_selected %}
-        <p class="why-selected">{{ draft.score_breakdown.why_selected }}</p>
+        {% endif %} {% if draft.fit_summary or (draft.score_breakdown and
+        draft.score_breakdown.why_selected) %}
+        <section class="queue-insights" aria-label="Match insights">
+            {% if draft.fit_summary %}
+            <article class="insight-card">
+                <h3 class="insight-card-title">Quick take</h3>
+                <p class="insight-card-body">{{ draft.fit_summary }}</p>
+            </article>
+            {% endif %} {% if draft.score_breakdown and
+            draft.score_breakdown.why_selected %}
+            <article class="insight-card">
+                <h3 class="insight-card-title">Detailed rationale</h3>
+                <p class="insight-card-body">
+                    {{ draft.score_breakdown.why_selected }}
+                </p>
+            </article>
+            {% endif %}
+        </section>
         {% endif %}
 
         <details class="message-accordion">
@@ -231,8 +246,8 @@ SpawnRadar{% endblock %} {% block game_switcher %}
 <div class="empty-queue">
     <h2>Queue is empty</h2>
     <p class="subtle">
-        No prospects are queued for review. Run discovery to find YouTube
-        creators and Reddit communities matching your game's audience.
+        No prospects are queued for review. Run discovery to find creators,
+        communities, and posting opportunities matching your game's audience.
     </p>
     <button class="button" onclick="runDiscovery('{{ game.game_id }}')">
         Run Discovery

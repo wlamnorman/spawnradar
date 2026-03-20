@@ -9,17 +9,17 @@ from fastapi.templating import Jinja2Templates
 from app.auth.dependencies import require_user
 from app.auth.models import User
 from app.auth.service import AuthService
+from app.config import Settings
+from app.dependencies import (
+    get_auth_service,
+    get_email_service,
+    get_settings,
+    get_templates,
+)
 from app.devtools.bootstrap import ensure_dev_user
+from app.email.service import EmailService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _templates(request: Request) -> Jinja2Templates:
-    return request.app.state.templates
-
-
-def _auth_service(request: Request) -> AuthService:
-    return request.app.state.auth_service
 
 
 # ---------------------------------------------------------------------------
@@ -28,10 +28,14 @@ def _auth_service(request: Request) -> AuthService:
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request) -> HTMLResponse:
+async def login_page(
+    request: Request,
+    templates: Jinja2Templates = Depends(get_templates),
+) -> HTMLResponse:
     """Render the login form."""
-    tpl = _templates(request)
-    return tpl.TemplateResponse(request, "auth/login.html", {"error": None})
+    return templates.TemplateResponse(
+        request, "auth/login.html", {"error": None}
+    )
 
 
 @router.post("/login")
@@ -39,14 +43,14 @@ async def login_post(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    auth: AuthService = Depends(get_auth_service),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> RedirectResponse:
     """Handle login form submission."""
-    auth = _auth_service(request)
-    tpl = _templates(request)
     try:
         session = auth.login(email, password)
     except ValueError as exc:
-        response = tpl.TemplateResponse(
+        response = templates.TemplateResponse(
             request, "auth/login.html", {"error": str(exc)}, status_code=400
         )
         return response  # type: ignore[return-value]
@@ -68,10 +72,14 @@ async def login_post(
 
 
 @router.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request) -> HTMLResponse:
+async def register_page(
+    request: Request,
+    templates: Jinja2Templates = Depends(get_templates),
+) -> HTMLResponse:
     """Render the registration form."""
-    tpl = _templates(request)
-    return tpl.TemplateResponse(request, "auth/register.html", {"error": None})
+    return templates.TemplateResponse(
+        request, "auth/register.html", {"error": None}
+    )
 
 
 @router.post("/register")
@@ -79,15 +87,15 @@ async def register_post(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    auth: AuthService = Depends(get_auth_service),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> RedirectResponse:
     """Handle registration form submission."""
-    auth = _auth_service(request)
-    tpl = _templates(request)
     try:
         auth.register(email, password)
         session = auth.login(email, password)
     except ValueError as exc:
-        response = tpl.TemplateResponse(
+        response = templates.TemplateResponse(
             request, "auth/register.html", {"error": str(exc)}, status_code=400
         )
         return response  # type: ignore[return-value]
@@ -104,14 +112,17 @@ async def register_post(
 
 
 @router.get("/dev-login")
-async def dev_login(request: Request) -> RedirectResponse:
+async def dev_login(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> RedirectResponse:
     """Create a session for the local dev user when explicitly enabled."""
-    settings = request.app.state.settings
     if not settings.dev_auto_login:
         return RedirectResponse(url="/auth/login", status_code=303)
 
     user = ensure_dev_user(settings.db_path)
-    session = _auth_service(request).create_session_for_user(user.user_id)
+    session = auth_service.create_session_for_user(user.user_id)
     redirect = RedirectResponse(url="/", status_code=303)
     redirect.set_cookie(
         "session_id",
@@ -132,9 +143,9 @@ async def dev_login(request: Request) -> RedirectResponse:
 async def logout_post(
     request: Request,
     user: User = Depends(require_user),
+    auth: AuthService = Depends(get_auth_service),
 ) -> RedirectResponse:
     """Clear the session cookie and redirect to login."""
-    auth = _auth_service(request)
     session_id = request.cookies.get("session_id")
     if session_id:
         auth.logout(session_id)
@@ -151,11 +162,12 @@ async def logout_post(
 
 @router.get("/forgot-password", response_class=HTMLResponse)
 async def forgot_password_page(
-    request: Request, sent: str = ""
+    request: Request,
+    sent: str = "",
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the forgot-password form."""
-    tpl = _templates(request)
-    return tpl.TemplateResponse(
+    return templates.TemplateResponse(
         request, "auth/forgot_password.html", {"sent": sent == "1"}
     )
 
@@ -164,12 +176,12 @@ async def forgot_password_page(
 async def forgot_password_post(
     request: Request,
     email: str = Form(...),
+    auth: AuthService = Depends(get_auth_service),
+    email_service: EmailService = Depends(get_email_service),
+    settings: Settings = Depends(get_settings),
 ) -> RedirectResponse:
     """Handle forgot-password form submission."""
-    auth = _auth_service(request)
-    email_service = request.app.state.email_service
-    base_url: str = request.app.state.settings.base_url
-    auth.request_password_reset(email, email_service, base_url)
+    auth.request_password_reset(email, email_service, settings.base_url)
     return RedirectResponse(
         url="/auth/forgot-password?sent=1", status_code=303
     )
@@ -182,11 +194,12 @@ async def forgot_password_post(
 
 @router.get("/reset-password", response_class=HTMLResponse)
 async def reset_password_page(
-    request: Request, token: str = ""
+    request: Request,
+    token: str = "",
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the reset-password form."""
-    tpl = _templates(request)
-    return tpl.TemplateResponse(
+    return templates.TemplateResponse(
         request, "auth/reset_password.html", {"token": token, "error": None}
     )
 
@@ -197,13 +210,12 @@ async def reset_password_post(
     token: str = Form(...),
     new_password: str = Form(...),
     confirm_password: str = Form(...),
+    auth: AuthService = Depends(get_auth_service),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> RedirectResponse:
     """Handle reset-password form submission."""
-    auth = _auth_service(request)
-    tpl = _templates(request)
-
     if new_password != confirm_password:
-        response = tpl.TemplateResponse(
+        response = templates.TemplateResponse(
             request,
             "auth/reset_password.html",
             {"token": token, "error": "Passwords do not match."},
@@ -214,7 +226,7 @@ async def reset_password_post(
     try:
         auth.reset_password(token, new_password)
     except ValueError as exc:
-        response = tpl.TemplateResponse(
+        response = templates.TemplateResponse(
             request,
             "auth/reset_password.html",
             {"token": token, "error": str(exc)},

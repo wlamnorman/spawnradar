@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 
-TRIAL_DAYS = 3
+TRIAL_DAYS = 7
 
 
 class Tier(StrEnum):
@@ -22,7 +24,7 @@ TIER_LIMITS: dict[Tier, dict[str, int]] = {
 
 TIER_PRICES: dict[Tier, int] = {
     Tier.STARTER: 10,
-    Tier.PRO: 25,
+    Tier.PRO: 49,
 }
 
 PUBLIC_TIERS: list[Tier] = [Tier.STARTER, Tier.PRO]
@@ -34,10 +36,10 @@ class Subscription:
 
     subscription_id: str
     user_id: str
-    stripe_customer_id: str | None
-    stripe_subscription_id: str | None
+    ls_customer_id: str | None
+    ls_subscription_id: str | None
     tier: Tier
-    status: str  # active | cancelled | past_due
+    status: str  # active | cancelled | past_due | paused
     current_period_end: str | None
     trial_ends_at: str | None
     created_at: str
@@ -45,11 +47,8 @@ class Subscription:
 
     @property
     def is_trialing(self) -> bool:
-        from datetime import UTC, datetime
-
-        if self.trial_ends_at is None:
-            return False
-        if self.tier == Tier.PRO:
+        """Return True if the user is within a Starter trial period."""
+        if self.trial_ends_at is None or self.tier == Tier.PRO:
             return False
         return datetime.fromisoformat(self.trial_ends_at) > datetime.now(UTC)
 
@@ -63,8 +62,5 @@ class Subscription:
         """Days left in trial, or None if not trialing."""
         if not self.is_trialing or self.trial_ends_at is None:
             return None
-        import math
-        from datetime import UTC, datetime
-
         delta = datetime.fromisoformat(self.trial_ends_at) - datetime.now(UTC)
         return max(0, math.ceil(delta.total_seconds() / 86400))

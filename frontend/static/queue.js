@@ -58,11 +58,8 @@
       ? `${Number(item.audience_size).toLocaleString()} followers`
       : "";
 
-    const fitSummary = item.fit_summary
-      ? `<p class="fit-summary">${escHtml(item.fit_summary)}</p>`
-      : "";
-
     const breakdown = item.score_breakdown || {};
+    const fitSummary = (item.fit_summary || "").trim();
     const dims = [
       ["Genre fit", breakdown.genre_fit],
       ["Audience fit", breakdown.audience_fit],
@@ -107,9 +104,27 @@
       : "";
 
     const whySelected = (breakdown.why_selected || "").trim();
-    const whySelectedHtml = whySelected
-      ? `<p class="why-selected">${escHtml(whySelected)}</p>`
-      : "";
+    const insightsHtml =
+      fitSummary || whySelected
+        ? `<section class="queue-insights" aria-label="Match insights">
+          ${
+            fitSummary
+              ? `<article class="insight-card">
+            <h3 class="insight-card-title">Quick take</h3>
+            <p class="insight-card-body">${escHtml(fitSummary)}</p>
+          </article>`
+              : ""
+          }
+          ${
+            whySelected
+              ? `<article class="insight-card">
+            <h3 class="insight-card-title">Detailed rationale</h3>
+            <p class="insight-card-body">${escHtml(whySelected)}</p>
+          </article>`
+              : ""
+          }
+        </section>`
+        : "";
 
     return `<article class="queue-card" id="card-${escHtml(item.draft_item_id)}" data-draft-id="${escHtml(item.draft_item_id)}">
       <div class="queue-topline">
@@ -133,9 +148,8 @@
         </div>
       </div>
       ${videoThumbsHtml}
-      ${fitSummary}
       ${scoreSnapshot}
-      ${whySelectedHtml}
+      ${insightsHtml}
       <details class="message-accordion">
         <summary>Message draft</summary>
         <div class="message-accordion-body">

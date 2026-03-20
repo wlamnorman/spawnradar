@@ -1,7 +1,7 @@
 """SQLite database connection and schema initialization."""
+
 from __future__ import annotations
 
-import re
 import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -9,10 +9,7 @@ from pathlib import Path
 
 
 def initialize_database(db_path: str) -> None:
-    """Create the database file and apply the schema if tables do not exist.
-
-    Safe to call on every startup — uses IF NOT EXISTS guards in SQL.
-    """
+    """Create the database file and apply the current schema."""
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -22,34 +19,6 @@ def initialize_database(db_path: str) -> None:
     with sqlite3.connect(str(path)) as conn:
         conn.executescript(schema_sql)
         conn.commit()
-
-        # Migration: add slug column to existing databases
-        try:
-            conn.execute("ALTER TABLE games ADD COLUMN slug TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
-        # Backfill slugs for any games that don't have one yet
-        rows = conn.execute(
-            "SELECT game_id, name FROM games WHERE slug IS NULL"
-        ).fetchall()
-        for row in rows:
-            game_id, name = row[0], row[1]
-            slug_name = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-            slug = f"{slug_name}-{game_id[:8]}"
-            conn.execute(
-                "UPDATE games SET slug = ? WHERE game_id = ?", (slug, game_id)
-            )
-        conn.commit()
-
-        # Migration: add discovery_sources column to existing databases
-        try:
-            conn.execute(
-                "ALTER TABLE games ADD COLUMN discovery_sources TEXT NOT NULL DEFAULT '[\"youtube\",\"reddit\"]'"
-            )
-            conn.commit()
-        except sqlite3.OperationalError:
-            pass  # Column already exists
 
 
 @contextmanager

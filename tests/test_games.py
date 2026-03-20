@@ -2,6 +2,7 @@
 
 from app.games.models import Asset, Game, MessageTemplate
 from app.ingestion.pipeline import youtube_candidate_limit
+from app.ingestion.registry import Source
 
 
 def test_create_game_stores_and_returns_game(game_service, registered_user):
@@ -35,6 +36,26 @@ def test_create_game_returns_correct_tags(game_service, registered_user):
     assert "wordle fans" in game.audience_tags
     assert "browser" in game.platform_tags
     assert "mobile" in game.platform_tags
+
+
+def test_new_games_default_to_youtube_reddit_and_bluesky(
+    game_service, registered_user
+):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="Signal Game",
+        description="Testing discovery source defaults",
+        genre_tags_raw="strategy",
+        audience_tags_raw="indie players",
+        platform_tags=["pc"],
+        website_url=None,
+    )
+
+    assert game.discovery_sources == [
+        Source.YOUTUBE,
+        Source.REDDIT,
+        Source.BLUESKY,
+    ]
 
 
 def test_genre_tags_parsed_from_comma_separated_string(

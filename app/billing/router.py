@@ -29,7 +29,7 @@ async def billing_pricing_redirect() -> RedirectResponse:
 
 
 # ---------------------------------------------------------------------------
-# Stripe checkout
+# Lemon Squeezy checkout
 # ---------------------------------------------------------------------------
 
 
@@ -39,18 +39,18 @@ async def checkout(
     request: Request,
     user: User = Depends(require_user),
 ) -> RedirectResponse:
-    """Start a Stripe Checkout session for the given tier."""
+    """Start a Lemon Squeezy checkout session for the given tier."""
     if tier not in ("starter", "pro"):
         raise HTTPException(status_code=400, detail="Invalid tier.")
 
     billing = _billing_service(request)
-    if not billing.stripe_enabled:
+    if not billing.ls_enabled:
         raise HTTPException(
             status_code=503,
-            detail="Billing is not configured. Set STRIPE_SECRET_KEY.",
+            detail="Billing is not configured. Set LEMONSQUEEZY_API_KEY.",
         )
 
-    url = billing.create_checkout_session(user.user_id, tier)
+    url = await billing.create_checkout_url(user.user_id, tier)
     if not url:
         raise HTTPException(
             status_code=503, detail="Could not create checkout session."
@@ -69,8 +69,7 @@ async def checkout_success(
     request: Request,
     user: User = Depends(require_user),
 ) -> RedirectResponse:
-    """Handle post-checkout redirect from Stripe."""
-    # Stripe will update the subscription via webhook; just redirect to games
+    """Handle post-checkout redirect from Lemon Squeezy."""
     return RedirectResponse(url="/games", status_code=303)
 
 
@@ -84,15 +83,15 @@ async def customer_portal(
     request: Request,
     user: User = Depends(require_user),
 ) -> RedirectResponse:
-    """Redirect to the Stripe Customer Portal for subscription management."""
+    """Redirect to the Lemon Squeezy customer portal for subscription management."""
     billing = _billing_service(request)
-    if not billing.stripe_enabled:
+    if not billing.ls_enabled:
         raise HTTPException(
             status_code=503,
             detail="Billing is not configured.",
         )
 
-    url = billing.create_portal_session(user.user_id)
+    url = await billing.get_portal_url(user.user_id)
     if not url:
         raise HTTPException(
             status_code=400, detail="No billing account found."
@@ -107,17 +106,17 @@ async def customer_portal(
 
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request) -> JSONResponse:
-    """Handle incoming Stripe webhook events."""
+async def ls_webhook(request: Request) -> JSONResponse:
+    """Handle incoming Lemon Squeezy webhook events."""
     payload = await request.body()
-    sig_header = request.headers.get("stripe-signature", "")
+    signature = request.headers.get("x-signature", "")
 
     billing = _billing_service(request)
     settings = request.app.state.settings
 
     try:
-        billing.handle_stripe_webhook(
-            payload, sig_header, settings.stripe_webhook_secret
+        billing.handle_webhook(
+            payload, signature, settings.ls_webhook_secret
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

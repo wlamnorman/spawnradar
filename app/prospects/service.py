@@ -1,4 +1,5 @@
 """Business logic for draft management: queue actions, status transitions."""
+
 from __future__ import annotations
 
 import uuid
@@ -28,7 +29,7 @@ class ProspectService:
 
     def get_queue(self, game_id: str) -> list[ReviewQueueItem]:
         """Return queued draft items for a game, ordered by priority score."""
-        return self._drafts.list_queued_simple(game_id)
+        return self._drafts.list_queued(game_id)
 
     def apply_action(
         self,

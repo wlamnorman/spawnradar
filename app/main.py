@@ -7,11 +7,13 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.admin.router import router as admin_router
+from app.auth.dependencies import get_current_user
+from app.auth.models import User
 from app.auth.repository import (
     PasswordResetTokenRepository,
     SessionRepository,
@@ -25,6 +27,7 @@ from app.billing.router import router as billing_router
 from app.billing.service import BillingService
 from app.config import Settings
 from app.database import initialize_database
+from app.dependencies import get_billing_service, get_templates
 from app.email.service import EmailService
 from app.games.repository import (
     AssetRepository,
@@ -40,7 +43,9 @@ from app.prospects.repository import (
 )
 from app.prospects.router import router as prospects_router
 from app.prospects.service import ProspectService
+from app.routes.blog import router as blog_router
 from app.routes.health import router as health_router
+from app.routes.seo import router as seo_router
 from app.scheduler.setup import create_scheduler
 
 # Configure logging for our app modules.
@@ -96,9 +101,10 @@ async def lifespan(app: FastAPI):
     billing_service = BillingService(
         sub_repo=sub_repo,
         game_repo=game_repo,
-        stripe_secret_key=settings.stripe_secret_key,
-        stripe_starter_price_id=settings.stripe_starter_price_id,
-        stripe_pro_price_id=settings.stripe_pro_price_id,
+        ls_api_key=settings.ls_api_key,
+        ls_store_id=settings.ls_store_id,
+        ls_starter_variant_id=settings.ls_starter_variant_id,
+        ls_pro_variant_id=settings.ls_pro_variant_id,
         base_url=settings.base_url,
     )
     prospect_service = ProspectService(draft_repo, outcome_repo)
@@ -112,10 +118,14 @@ async def lifespan(app: FastAPI):
     app.state.game_service = game_service
     app.state.billing_service = billing_service
     app.state.prospect_service = prospect_service
+    app.state.user_repo = user_repo
+    app.state.session_repo = session_repo
+    app.state.subscription_repo = sub_repo
     app.state.game_repo = game_repo
     app.state.asset_repo = asset_repo
     app.state.template_repo = template_repo
     app.state.prospect_repo = prospect_repo
+    app.state.draft_repo = draft_repo
     app.state.templates = templates
 
     scheduler = create_scheduler(settings.db_path)
@@ -148,6 +158,8 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health_router)
+    app.include_router(seo_router)
+    app.include_router(blog_router)
     app.include_router(auth_router)
     app.include_router(games_router)
     app.include_router(prospects_router)
@@ -155,36 +167,32 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
 
     @app.get("/")
-    async def root(request: Request):
+    async def root(
+        request: Request,
+        user: User | None = Depends(get_current_user),
+        templates: Jinja2Templates = Depends(get_templates),
+    ):
         """Render the public landing page."""
-        session_id = request.cookies.get("session_id")
-        user = None
-        if session_id:
-            user = request.app.state.auth_service.get_user_for_session(
-                session_id
-            )
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             request,
             "marketing/home.html",
             {"user": user},
         )
 
     @app.get("/pricing")
-    async def pricing(request: Request):
+    async def pricing(
+        request: Request,
+        user: User | None = Depends(get_current_user),
+        templates: Jinja2Templates = Depends(get_templates),
+        billing_service: BillingService = Depends(get_billing_service),
+    ):
         """Render the public pricing page."""
-        session_id = request.cookies.get("session_id")
-        user = None
-        if session_id:
-            user = request.app.state.auth_service.get_user_for_session(
-                session_id
-            )
-
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             request,
             "billing/pricing.html",
             {
                 "user": user,
-                "stripe_enabled": request.app.state.billing_service.stripe_enabled,
+                "billing_enabled": billing_service.ls_enabled,
                 "tier_limits": TIER_LIMITS,
                 "tier_prices": TIER_PRICES,
                 "tiers": PUBLIC_TIERS,

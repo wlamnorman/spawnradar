@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Blog — SpawnRadar{% endblock %}
+{% block head %}
+<meta name="description" content="Practical guides on creator outreach, game marketing, and finding your audience as an indie developer." />
+{% endblock %}
+{% block content %}
+<div class="blog-index-shell">
+    <header class="blog-index-header">
+        <h1>SpawnRadar Blog</h1>
+        <p>Practical guides on creator outreach and game marketing for indie developers.</p>
+    </header>
+
+    <div class="blog-post-list">
+        {% for post in posts %}
+        <article class="blog-card">
+            <div class="blog-card-meta">
+                <span class="blog-card-date">{{ post.date }}</span>
+                <span class="blog-card-read-time">{{ post.read_time }}</span>
+            </div>
+            <h2 class="blog-card-title">
+                <a href="/blog/{{ post.slug }}">{{ post.title }}</a>
+            </h2>
+            <p class="blog-card-excerpt">{{ post.excerpt }}</p>
+            <a href="/blog/{{ post.slug }}" class="blog-card-link">Read more →</a>
+        </article>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

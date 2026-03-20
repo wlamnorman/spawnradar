@@ -53,12 +53,30 @@ from app.ingestion.sources import bluesky, reddit, youtube, youtube_api
 
 This is what causes `@register(Source.BLUESKY)` to actually run at startup.
 
-### 4. Wire up the pipeline — `app/ingestion/pipeline.py`
+### 4. Register the import and build contract
 
-Add an `elif source_name == Source.BLUESKY:` branch in `run_ingestion` that
-instantiates the source and appends `(BlueskySource(...), limit_per_source)` to
-the sources list. Pass any required credentials through `run_ingestion`'s
-signature (follow the pattern used for `youtube_api_key`).
+Most new sources do **not** need a new `elif` branch in the pipeline anymore.
+The pipeline builds registered sources through `CandidateSource.build(...)`.
+
+That means the default path is:
+
+- add the enum member in `app/ingestion/registry.py`
+- create the source file with `@register(...)`
+- import the module in `app/ingestion/sources/__init__.py`
+
+Only do extra pipeline work if the source needs special runtime resolution,
+like YouTube preferring `YOUTUBE_API` over `YOUTUBE` when an API key exists.
+
+If the source needs credentials or custom construction, override the classmethod:
+
+```python
+from app.ingestion.base import CandidateSource, SourceRuntime
+
+class BlueskySource(CandidateSource):
+    @classmethod
+    def build(cls, runtime: SourceRuntime) -> "BlueskySource":
+        return cls()
+```
 
 ### 5. (Optional) Add a typed raw_data model — `app/ingestion/raw_data.py`
 

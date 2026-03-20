@@ -8,23 +8,15 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_user
 from app.auth.models import User
+from app.dependencies import get_game_repo, get_prospect_service, get_templates
 from app.games.repository import GameRepository
 from app.ingestion.constants import RECENT_VIDEO_THUMBNAIL_LIMIT
+from app.prospects.presenter import ReviewQueuePresenter
 from app.prospects.service import ProspectService
 
 router = APIRouter(tags=["prospects"])
 
-
-def _templates(request: Request) -> Jinja2Templates:
-    return request.app.state.templates
-
-
-def _prospect_service(request: Request) -> ProspectService:
-    return request.app.state.prospect_service
-
-
-def _game_repo(request: Request) -> GameRepository:
-    return request.app.state.game_repo
+_QUEUE_PRESENTER = ReviewQueuePresenter()
 
 
 # ---------------------------------------------------------------------------
@@ -37,18 +29,20 @@ async def review_queue(
     slug: str,
     request: Request,
     user: User = Depends(require_user),
+    game_repo: GameRepository = Depends(get_game_repo),
+    prospect_service: ProspectService = Depends(get_prospect_service),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the priority review queue for a game."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    svc = _prospect_service(request)
-    queue_items = svc.get_queue(game.game_id)
+    queue_items = _QUEUE_PRESENTER.for_template(
+        prospect_service.get_queue(game.game_id)
+    )
 
-    tpl = _templates(request)
-    return tpl.TemplateResponse(
+    return templates.TemplateResponse(
         request,
         "queue/review.html",
         {
@@ -70,42 +64,15 @@ async def queue_api(
     game_id: str,
     request: Request,
     user: User = Depends(require_user),
+    game_repo: GameRepository = Depends(get_game_repo),
+    prospect_service: ProspectService = Depends(get_prospect_service),
 ) -> JSONResponse:
     """Return JSON queue data for a game."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_id(game_id)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    svc = _prospect_service(request)
-    queue_items = svc.get_queue(game_id)
-
-    payload = []
-    for item in queue_items:
-        raw = item.prospect.raw_data
-        payload.append(
-            {
-                "draft_item_id": item.draft.draft_item_id,
-                "prospect_id": item.prospect.prospect_id,
-                "platform": item.prospect.platform,
-                "handle": item.prospect.handle,
-                "display_name": item.prospect.display_name,
-                "profile_url": item.prospect.profile_url,
-                "contact_channel": item.prospect.contact_channel,
-                "audience_size": item.prospect.audience_size,
-                "avatar_url": raw.get("avatar_url"),
-                "recent_video_thumbnails": raw.get(
-                    "recent_video_thumbnails", []
-                )[:RECENT_VIDEO_THUMBNAIL_LIMIT],
-                "status": item.draft.status,
-                "priority_score": item.draft.priority_score,
-                "fit_summary": item.draft.fit_summary,
-                "subject_line": item.draft.subject_line,
-                "body_text": item.draft.body_text,
-                "score_breakdown": item.draft.score_breakdown,
-            }
-        )
-
+    payload = _QUEUE_PRESENTER.for_api(prospect_service.get_queue(game_id))
     return JSONResponse({"items": payload})
 
 
@@ -114,6 +81,7 @@ async def draft_action(
     draft_item_id: str,
     request: Request,
     user: User = Depends(require_user),
+    prospect_service: ProspectService = Depends(get_prospect_service),
 ) -> JSONResponse:
     """Apply an action to a draft item.
 
@@ -124,9 +92,8 @@ async def draft_action(
     body_text = body.get("body_text")
     notes = str(body.get("notes", "")).strip() or None
 
-    svc = _prospect_service(request)
     try:
-        svc.apply_action(
+        prospect_service.apply_action(
             draft_item_id,
             action=action,
             body_text=body_text if isinstance(body_text, str) else None,

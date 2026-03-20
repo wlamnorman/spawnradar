@@ -3,6 +3,7 @@
 Uses Reddit's public .json endpoints — no authentication required for
 publicly accessible subreddits and posts.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -13,6 +14,7 @@ import httpx
 
 from app.games.models import Game
 from app.ingestion.base import CandidateRecord, CandidateSource
+from app.ingestion.query_builder import build_basic_queries
 from app.ingestion.raw_data import RedditSubredditData, RedditThreadData
 from app.ingestion.registry import Source, register
 
@@ -32,17 +34,21 @@ class RedditSource(CandidateSource):
     post in; threads show active community conversations.
     """
 
-    def __init__(self, delay_seconds: float = 1.0, timeout_seconds: float = 20.0) -> None:
+    def __init__(
+        self, delay_seconds: float = 1.0, timeout_seconds: float = 20.0
+    ) -> None:
         self._delay = delay_seconds
         self._timeout = timeout_seconds
 
     async def discover(self, game: Game, limit: int) -> list[CandidateRecord]:
         """Return up to *limit* Reddit prospects (subreddits + threads)."""
-        queries = _build_queries(game)
+        queries = build_basic_queries(game)
         seen_handles: set[str] = set()
         results: list[CandidateRecord] = []
 
-        async with httpx.AsyncClient(headers=_HEADERS, timeout=self._timeout) as client:
+        async with httpx.AsyncClient(
+            headers=_HEADERS, timeout=self._timeout
+        ) as client:
             for i, query in enumerate(queries):
                 if len(results) >= limit:
                     break
@@ -112,18 +118,6 @@ class RedditSource(CandidateSource):
 # ---------------------------------------------------------------------------
 
 
-def _build_queries(game: Game) -> list[str]:
-    """Build search queries from game tags."""
-    queries: list[str] = []
-    for tag in game.genre_tags:
-        queries.append(tag)
-    for tag in game.audience_tags:
-        queries.append(tag)
-    if not queries:
-        queries.append(game.name)
-    return queries
-
-
 def _iter_children(data: Any):
     """Yield each child dict from a Reddit listing response."""
     if not isinstance(data, dict):
@@ -142,7 +136,9 @@ def _parse_subreddit(data: dict) -> CandidateRecord | None:
 
     handle = f"r/{name}"
     title = str(data.get("title", name)).strip()
-    description = str(data.get("public_description", "") or data.get("description", "") or "").strip()
+    description = str(
+        data.get("public_description", "") or data.get("description", "") or ""
+    ).strip()
     subscribers = data.get("subscribers")
     profile_url = f"{_REDDIT_BASE}/r/{name}"
 

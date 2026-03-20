@@ -1,17 +1,41 @@
-"""Billing business logic: tier limits, Stripe checkout, webhook handling.
+"""Billing business logic: tier limits, Lemon Squeezy checkout, webhook handling.
 
-The Stripe integration degrades gracefully: if STRIPE_SECRET_KEY is not set,
-checkout and portal operations return an error message rather than crashing.
+The Lemon Squeezy integration degrades gracefully: if LEMONSQUEEZY_API_KEY is
+not set, checkout and portal operations return an empty string rather than
+crashing.
+
+Webhook signature verification: HMAC-SHA256 of the raw request body, compared
+against the X-Signature header value.
 """
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+import logging
 import uuid
-from datetime import UTC, datetime
+
+import httpx
 
 from app.billing.models import TIER_LIMITS, TRIAL_DAYS, Subscription, Tier
 from app.billing.repository import SubscriptionRepository
 from app.games.repository import GameRepository
+
+log = logging.getLogger(__name__)
+
+_LS_API_BASE = "https://api.lemonsqueezy.com/v1"
+
+# Lemon Squeezy status → our internal status
+_LS_STATUS_MAP: dict[str, str] = {
+    "on_trial": "trialing",
+    "active": "active",
+    "past_due": "past_due",
+    "unpaid": "past_due",
+    "cancelled": "cancelled",
+    "expired": "cancelled",
+    "paused": "paused",
+}
 
 
 class BillingService:
@@ -21,31 +45,36 @@ class BillingService:
         self,
         sub_repo: SubscriptionRepository,
         game_repo: GameRepository,
-        stripe_secret_key: str = "",
-        stripe_starter_price_id: str = "",
-        stripe_pro_price_id: str = "",
+        ls_api_key: str = "",
+        ls_store_id: str = "",
+        ls_starter_variant_id: str = "",
+        ls_pro_variant_id: str = "",
         base_url: str = "http://localhost:8000",
     ) -> None:
         self._subs = sub_repo
         self._games = game_repo
-        self._stripe_key = stripe_secret_key
-        self._starter_price = stripe_starter_price_id
-        self._pro_price = stripe_pro_price_id
+        self._api_key = ls_api_key
+        self._store_id = ls_store_id
+        self._starter_variant = ls_starter_variant_id
+        self._pro_variant = ls_pro_variant_id
         self._base_url = base_url
 
     @property
-    def stripe_enabled(self) -> bool:
-        """Return True if Stripe is configured."""
-        return bool(self._stripe_key)
+    def ls_enabled(self) -> bool:
+        """Return True if Lemon Squeezy is configured."""
+        return bool(self._api_key)
+
+    # ------------------------------------------------------------------
+    # Subscription access
+    # ------------------------------------------------------------------
 
     def get_or_create_subscription(self, user_id: str) -> Subscription:
         """Return the user's subscription, creating a Starter trial if absent."""
         sub = self._subs.get_by_user(user_id)
         if sub is not None:
             return sub
-        sub_id = str(uuid.uuid4())
         return self._subs.create(
-            sub_id, user_id, Tier.STARTER, trial_days=TRIAL_DAYS
+            str(uuid.uuid4()), user_id, Tier.STARTER, trial_days=TRIAL_DAYS
         )
 
     def check_game_limit(self, user_id: str) -> bool:
@@ -60,159 +89,174 @@ class BillingService:
         sub = self.get_or_create_subscription(user_id)
         return TIER_LIMITS[sub.effective_tier]["prospects_per_run"]
 
-    def create_checkout_session(self, user_id: str, tier: str) -> str:
-        """Create a Stripe Checkout session and return its URL.
+    # ------------------------------------------------------------------
+    # Lemon Squeezy API calls
+    # ------------------------------------------------------------------
 
-        Returns an empty string if Stripe is not configured.
+    async def create_checkout_url(self, user_id: str, tier: str) -> str:
+        """Create a Lemon Squeezy checkout and return its URL.
+
+        Returns an empty string if Lemon Squeezy is not configured or if
+        variant / store IDs are missing.
         """
-        if not self.stripe_enabled:
+        if not self.ls_enabled:
             return ""
 
-        import stripe  # type: ignore
-
-        stripe.api_key = self._stripe_key
-
-        price_id = (
-            self._starter_price if tier == "starter" else self._pro_price
+        variant_id = (
+            self._starter_variant if tier == "starter" else self._pro_variant
         )
-        if not price_id:
+        if not variant_id or not self._store_id:
             return ""
 
-        sub = self.get_or_create_subscription(user_id)
-        customer_id = sub.stripe_customer_id
-
-        params: dict = {
-            "mode": "subscription",
-            "line_items": [{"price": price_id, "quantity": 1}],
-            "success_url": f"{self._base_url}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
-            "cancel_url": f"{self._base_url}/billing",
-            "metadata": {"user_id": user_id},
+        payload = {
+            "data": {
+                "type": "checkouts",
+                "attributes": {
+                    "checkout_data": {
+                        "custom": {"user_id": user_id},
+                    },
+                    "product_options": {
+                        "redirect_url": f"{self._base_url}/billing/success",
+                    },
+                },
+                "relationships": {
+                    "store": {"data": {"type": "stores", "id": self._store_id}},
+                    "variant": {"data": {"type": "variants", "id": variant_id}},
+                },
+            }
         }
-        if tier == "starter":
-            params["subscription_data"] = {"trial_period_days": TRIAL_DAYS}
-        if customer_id:
-            params["customer"] = customer_id
 
-        session = stripe.checkout.Session.create(**params)
-        return session.url or ""
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{_LS_API_BASE}/checkouts",
+                json=payload,
+                headers=self._headers(),
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
-    def create_portal_session(self, user_id: str) -> str:
-        """Create a Stripe Customer Portal session and return its URL."""
-        if not self.stripe_enabled:
+        return data["data"]["attributes"].get("url", "")
+
+    async def get_portal_url(self, user_id: str) -> str:
+        """Return the Lemon Squeezy customer portal URL for the user.
+
+        Returns an empty string if the user has no LS subscription yet.
+        """
+        if not self.ls_enabled:
             return ""
-
-        import stripe  # type: ignore
-
-        stripe.api_key = self._stripe_key
 
         sub = self.get_or_create_subscription(user_id)
-        if not sub.stripe_customer_id:
+        if not sub.ls_subscription_id:
             return ""
 
-        session = stripe.billing_portal.Session.create(
-            customer=sub.stripe_customer_id,
-            return_url=f"{self._base_url}/billing",
-        )
-        return session.url or ""
-
-    def handle_stripe_webhook(
-        self, payload: bytes, sig_header: str, webhook_secret: str
-    ) -> None:
-        """Process an incoming Stripe webhook event.
-
-        Updates the local subscription record based on the event type.
-        """
-        if not self.stripe_enabled:
-            return
-
-        import stripe  # type: ignore
-
-        stripe.api_key = self._stripe_key
-
-        try:
-            event = stripe.Webhook.construct_event(
-                payload, sig_header, webhook_secret
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_LS_API_BASE}/subscriptions/{sub.ls_subscription_id}",
+                headers=self._headers(),
             )
-        except Exception as exc:
-            if exc.__class__.__name__ == "SignatureVerificationError":
-                raise ValueError("Invalid Stripe webhook signature.") from exc
-            raise
+            resp.raise_for_status()
+            data = resp.json()
 
-        event_type = event["type"]
-        data_obj = event["data"]["object"]
+        urls = data["data"]["attributes"].get("urls", {})
+        return urls.get("customer_portal", "")
 
-        if event_type in (
-            "customer.subscription.created",
-            "customer.subscription.updated",
-        ):
-            self._sync_subscription(data_obj)
-        elif event_type == "customer.subscription.deleted":
-            self._cancel_subscription(data_obj)
+    # ------------------------------------------------------------------
+    # Webhook handling
+    # ------------------------------------------------------------------
 
-    def _sync_subscription(self, stripe_sub: dict) -> None:
-        """Update local subscription from a Stripe subscription object."""
-        customer_id = stripe_sub.get("customer")
-        sub_id = stripe_sub.get("id")
-        status = stripe_sub.get("status", "active")
-        period_end = stripe_sub.get("current_period_end")
-        period_end_iso = self._utc_timestamp_to_iso(period_end)
-
-        # Determine tier from price ID
-        items = stripe_sub.get("items", {}).get("data", [])
-        tier = Tier.STARTER
-        for item in items:
-            price_id = item.get("price", {}).get("id", "")
-            if price_id == self._starter_price:
-                tier = Tier.STARTER
-            elif price_id == self._pro_price:
-                tier = Tier.PRO
-
-        # Find user by Stripe customer ID
-        user_id = self._find_user_by_customer(customer_id)
-        if user_id is None:
-            # Try metadata
-            metadata = stripe_sub.get("metadata", {})
-            user_id = metadata.get("user_id")
-        if user_id is None:
+    def handle_webhook(
+        self, payload: bytes, signature: str, webhook_secret: str
+    ) -> None:
+        """Process an incoming Lemon Squeezy webhook event."""
+        if not self.ls_enabled:
             return
 
-        self._subs.update_from_stripe(
+        if not self._verify_signature(payload, signature, webhook_secret):
+            raise ValueError("Invalid Lemon Squeezy webhook signature.")
+
+        event = json.loads(payload)
+        event_name = event.get("meta", {}).get("event_name", "")
+
+        if event_name in (
+            "subscription_created",
+            "subscription_updated",
+            "subscription_resumed",
+            "subscription_unpaused",
+            "subscription_paused",
+        ):
+            self._sync_subscription(event)
+        elif event_name in ("subscription_cancelled", "subscription_expired"):
+            self._cancel_subscription(event)
+
+    def _sync_subscription(self, event: dict) -> None:  # type: ignore[type-arg]
+        """Update local subscription from a Lemon Squeezy subscription event."""
+        meta = event.get("meta", {})
+        data = event.get("data", {})
+        attrs = data.get("attributes", {})
+
+        ls_sub_id = str(data.get("id", ""))
+        ls_customer_id = str(attrs.get("customer_id", ""))
+        ls_status = attrs.get("status", "active")
+        status = _LS_STATUS_MAP.get(ls_status, "active")
+        variant_id = str(attrs.get("variant_id", ""))
+        renews_at = attrs.get("renews_at")
+
+        tier = Tier.PRO if variant_id == self._pro_variant else Tier.STARTER
+
+        user_id = self._resolve_user_id(meta, ls_customer_id)
+        if not user_id:
+            return
+
+        self._subs.update_from_ls(
             user_id,
-            stripe_customer_id=customer_id,
-            stripe_subscription_id=sub_id,
+            ls_customer_id=ls_customer_id,
+            ls_subscription_id=ls_sub_id,
             tier=tier,
             status=status,
-            current_period_end=period_end_iso,
+            current_period_end=renews_at,
         )
 
-    def _cancel_subscription(self, stripe_sub: dict) -> None:
-        """Mark local subscription as cancelled."""
-        customer_id = stripe_sub.get("customer")
-        user_id = self._find_user_by_customer(customer_id)
-        if user_id is None:
+    def _cancel_subscription(self, event: dict) -> None:  # type: ignore[type-arg]
+        """Mark a subscription as cancelled and revert tier to Starter."""
+        meta = event.get("meta", {})
+        attrs = event.get("data", {}).get("attributes", {})
+        ls_customer_id = str(attrs.get("customer_id", ""))
+
+        user_id = self._resolve_user_id(meta, ls_customer_id)
+        if not user_id:
             return
-        self._subs.update_from_stripe(
-            user_id, status="cancelled", tier=Tier.STARTER
-        )
 
-    def _find_user_by_customer(self, customer_id: str | None) -> str | None:
-        """Look up a user_id by their Stripe customer ID."""
-        if not customer_id:
-            return None
-        from app.database import get_connection
+        self._subs.update_from_ls(user_id, status="cancelled", tier=Tier.STARTER)
 
-        # Access db_path via sub_repo
-        db_path = self._subs._db_path  # type: ignore[attr-defined]
-        with get_connection(db_path) as conn:
-            row = conn.execute(
-                "SELECT user_id FROM subscriptions WHERE stripe_customer_id = ? LIMIT 1",
-                (customer_id,),
-            ).fetchone()
-        return row["user_id"] if row else None
+    def _resolve_user_id(self, meta: dict, ls_customer_id: str) -> str | None:  # type: ignore[type-arg]
+        """Return a user_id from webhook metadata or a customer-ID lookup."""
+        user_id: str | None = meta.get("custom_data", {}).get("user_id")
+        if not user_id:
+            sub = self._subs.get_by_ls_customer(ls_customer_id)
+            if sub:
+                user_id = sub.user_id
+        if not user_id:
+            log.warning(
+                "LS webhook: could not resolve user for customer %s", ls_customer_id
+            )
+        return user_id
 
-    @staticmethod
-    def _utc_timestamp_to_iso(timestamp: object) -> str | None:
-        """Convert a Stripe UTC epoch timestamp to an ISO-8601 string."""
-        if not isinstance(timestamp, int) or timestamp <= 0:
-            return None
-        return datetime.fromtimestamp(timestamp, UTC).isoformat()
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _verify_signature(
+        self, payload: bytes, signature: str, secret: str
+    ) -> bool:
+        """Verify an HMAC-SHA256 webhook signature from Lemon Squeezy."""
+        expected = hmac.new(
+            secret.encode(), payload, hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
+        }

@@ -21,12 +21,15 @@ from app.ingestion.base import (
     DEFAULT_YOUTUBE_CONFIG,
     CandidateRecord,
     CandidateSource,
+    SourceRuntime,
     YouTubeConfig,
 )
 from app.ingestion.constants import (
     RECENT_VIDEO_THUMBNAIL_LIMIT,
     RECENT_VIDEO_TITLE_LIMIT,
+    YOUTUBE_DISCOVERY_LIMIT,
 )
+from app.ingestion.query_builder import TaggedQuery, build_tagged_queries
 from app.ingestion.raw_data import YouTubeChannelData
 from app.ingestion.registry import Source, register
 
@@ -71,6 +74,15 @@ class YouTubeSource(CandidateSource):
         self._timeout = timeout_seconds
         self._config = config
 
+    @classmethod
+    def build(cls, runtime: SourceRuntime) -> YouTubeSource:
+        del runtime
+        return cls()
+
+    @classmethod
+    def effective_limit(cls, requested_limit: int) -> int:
+        return min(requested_limit, YOUTUBE_DISCOVERY_LIMIT)
+
     async def discover(self, game: Game, limit: int) -> list[CandidateRecord]:
         """Return up to *limit* active YouTube channel candidates for *game*."""
         queries = _build_queries(game)
@@ -83,12 +95,16 @@ class YouTubeSource(CandidateSource):
         async with httpx.AsyncClient(
             headers=_HEADERS, timeout=self._timeout
         ) as client:
-            for i, (query, genre_tag, audience_tag) in enumerate(queries):
+            for i, tagged_query in enumerate(queries):
                 if len(candidates) >= collect_target:
                     break
                 try:
                     batch = await self._search_channels(
-                        client, query, limit, genre_tag, audience_tag
+                        client,
+                        tagged_query.text,
+                        limit,
+                        tagged_query.source_genre_tag,
+                        tagged_query.source_audience_tag,
                     )
                 except Exception:
                     continue
@@ -309,36 +325,20 @@ def _parse_relative_time_to_days(text: str) -> int | None:
 # ---------------------------------------------------------------------------
 
 
-def _build_queries(game: Game) -> list[tuple[str, str | None, str | None]]:
-    """Build search queries as (query, source_genre_tag, source_audience_tag).
-
-    Multiple query templates per tag increase the diversity of channels found,
-    while the source tag is carried through so scoring can credit the match.
-    """
-    queries: list[tuple[str, str | None, str | None]] = []
-    seen: set[str] = set()
-
-    def add(q: str, genre: str | None, audience: str | None) -> None:
-        if q not in seen:
-            seen.add(q)
-            queries.append((q, genre, audience))
-
-    for tag in game.genre_tags:
-        add(f"{tag} games", tag, None)
-        add(f"indie {tag} game", tag, None)
-        add(f"{tag} game review", tag, None)
-
-    for tag in game.audience_tags:
-        add(f"{tag} games", None, tag)
-        add(f"indie games {tag}", None, tag)
-
-    # Always include a direct game-name search
-    add(game.name, None, None)
-
-    if not queries:
-        queries.append((game.name, None, None))
-
-    return queries
+def _build_queries(game: Game) -> list[TaggedQuery]:
+    """Build search queries as (query, source_genre_tag, source_audience_tag)."""
+    return build_tagged_queries(
+        game,
+        genre_templates=(
+            "{tag} games",
+            "indie {tag} game",
+            "{tag} game review",
+        ),
+        audience_templates=(
+            "{tag} games",
+            "indie games {tag}",
+        ),
+    )
 
 
 def _extract_initial_data(html: str) -> dict[str, Any]:

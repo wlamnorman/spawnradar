@@ -1,8 +1,9 @@
-"""Tests for the local SpawnPoint developer CLI."""
+"""Tests for the local SpawnRadar developer CLI."""
 
 import json
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 from app.auth.repository import UserRepository
 from app.database import get_connection
@@ -12,6 +13,7 @@ from app.devtools.cli import (
     WIKIQUESTS_DESCRIPTION,
     main,
     run_clear_queues,
+    run_rm_db,
     run_strife_of_stars,
     run_wikiquests,
 )
@@ -184,6 +186,32 @@ def test_run_clear_queues_removes_draft_items_and_outcomes(
     assert outcome_count == 0
 
 
+def test_run_rm_db_removes_database_and_sidecar_files(db_path):
+    wal_path = f"{db_path}-wal"
+    shm_path = f"{db_path}-shm"
+
+    with open(wal_path, "w", encoding="utf-8") as fh:
+        fh.write("wal")
+    with open(shm_path, "w", encoding="utf-8") as fh:
+        fh.write("shm")
+
+    result = run_rm_db(db_path)
+
+    assert result.deleted_count == 3
+    assert not Path(db_path).exists()
+    assert not Path(wal_path).exists()
+    assert not Path(shm_path).exists()
+
+
+def test_run_rm_db_reports_when_files_do_not_exist(tmp_path):
+    missing_db = str(tmp_path / "missing.sqlite3")
+
+    result = run_rm_db(missing_db)
+
+    assert result.deleted_count is None
+    assert result.message == f"No database files found at {missing_db}."
+
+
 def test_main_wikiquests_returns_zero_and_writes_game(db_path):
     exit_code = main(["--db-path", db_path, "wikiquests"])
 
@@ -202,3 +230,10 @@ def test_main_strife_of_stars_returns_zero_and_writes_game(db_path):
 
     assert exit_code == 0
     assert any(game.name == "Strife Of Stars" for game in games)
+
+
+def test_main_rm_db_returns_zero_and_removes_database(db_path):
+    exit_code = main(["--db-path", db_path, "rm-db"])
+
+    assert exit_code == 0
+    assert not Path(db_path).exists()

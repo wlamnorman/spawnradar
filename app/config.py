@@ -15,10 +15,11 @@ class Settings:
 
     db_path: str
     secret_key: str
-    stripe_secret_key: str
-    stripe_webhook_secret: str
-    stripe_starter_price_id: str
-    stripe_pro_price_id: str
+    ls_api_key: str
+    ls_webhook_secret: str
+    ls_store_id: str
+    ls_starter_variant_id: str
+    ls_pro_variant_id: str
     base_url: str
     resend_api_key: str
     smtp_host: str
@@ -47,12 +48,11 @@ class Settings:
             secret_key=os.environ.get(
                 "SECRET_KEY", "dev-secret-key-change-in-production"
             ),
-            stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", ""),
-            stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", ""),
-            stripe_starter_price_id=os.environ.get(
-                "STRIPE_STARTER_PRICE_ID", ""
-            ),
-            stripe_pro_price_id=os.environ.get("STRIPE_PRO_PRICE_ID", ""),
+            ls_api_key=os.environ.get("LEMONSQUEEZY_API_KEY", ""),
+            ls_webhook_secret=os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", ""),
+            ls_store_id=os.environ.get("LEMONSQUEEZY_STORE_ID", ""),
+            ls_starter_variant_id=os.environ.get("LEMONSQUEEZY_STARTER_VARIANT_ID", ""),
+            ls_pro_variant_id=os.environ.get("LEMONSQUEEZY_PRO_VARIANT_ID", ""),
             base_url=os.environ.get("BASE_URL", "http://localhost:8000"),
             resend_api_key=os.environ.get("RESEND_API_KEY", ""),
             smtp_host=os.environ.get("SMTP_HOST", ""),

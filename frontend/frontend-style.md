@@ -9,7 +9,7 @@ SpawnRadar's default visual direction comes from the public home page:
 
 ## Design Tokens
 
-The shared color tokens live in [frontend/static/style.css](/Users/wlam/code/spawnpoint/frontend/static/style.css#L5) under `:root`.
+The shared color tokens live in [frontend/static/style.css](/Users/wlam/code/SpawnRadar/frontend/static/style.css#L5) under `:root`.
 
 Use these first before adding any new hex values:
 

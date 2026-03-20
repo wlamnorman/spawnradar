@@ -7,7 +7,6 @@ duplicate prospects or draft items (uses UPSERT on natural keys).
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -16,15 +15,13 @@ from datetime import UTC, datetime
 import app.ingestion.sources  # noqa: F401
 from app.games.models import Game
 from app.games.repository import MessageTemplateRepository
-from app.ingestion.base import CandidateRecord, CandidateSource
+from app.ingestion.base import CandidateRecord, CandidateSource, SourceRuntime
 from app.ingestion.constants import YOUTUBE_DISCOVERY_LIMIT
-from app.ingestion.registry import Source
-from app.ingestion.sources.reddit import RedditSource
-from app.ingestion.sources.youtube import YouTubeSource
+from app.ingestion.registry import Source, get_source
 from app.ingestion.sources.youtube_api import (
     QuotaExceededError,
-    YouTubeAPISource,
 )
+from app.json_codec import dump_json, load_json_object
 from app.prospects.models import Prospect
 from app.scoring.engine import score_prospect
 from app.scoring.llm_engine import LLMFitScores, llm_score_batch
@@ -48,6 +45,10 @@ async def run_ingestion(
     """
     template_repo = MessageTemplateRepository(db_path)
     templates = template_repo.list_by_game(game.game_id)
+    runtime = SourceRuntime(
+        youtube_api_key=youtube_api_key,
+        youtube_cache_dir=youtube_cache_dir,
+    )
 
     log.info(
         "[%s] LLM scoring: %s",
@@ -57,40 +58,18 @@ async def run_ingestion(
         else "disabled (keyword fallback)",
     )
 
-    # Build the list of (source, per-source limit) pairs based on game.discovery_sources
-    sources: list[tuple[CandidateSource, int]] = []
-    for source_name in game.discovery_sources:
-        if source_name == Source.YOUTUBE:
-            youtube_limit = youtube_candidate_limit(limit_per_source)
-            if youtube_api_key:
-                log.info("[%s] YouTube source: Data API", game.name)
-                sources.append(
-                    (
-                        YouTubeAPISource(
-                            youtube_api_key,
-                            cache_dir=youtube_cache_dir or None,
-                        ),
-                        youtube_limit,
-                    )
-                )
-            else:
-                log.info(
-                    "[%s] YouTube source: scraping fallback (no API key)",
-                    game.name,
-                )
-                sources.append((YouTubeSource(), youtube_limit))
-        elif source_name == Source.REDDIT:
-            log.info("[%s] Reddit source: public JSON API", game.name)
-            sources.append((RedditSource(), limit_per_source))
-        else:
-            log.warning(
-                "[%s] Unknown discovery source %r — skipping",
-                game.name,
-                source_name,
-            )
+    sources = _build_sources(game, runtime, limit_per_source)
 
     tasks = [
-        _run_source(source, game, limit, templates, db_path, anthropic_api_key)
+        _run_source(
+            source,
+            game,
+            limit,
+            templates,
+            db_path,
+            anthropic_api_key,
+            runtime,
+        )
         for source, limit in sources
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -109,6 +88,76 @@ def youtube_candidate_limit(limit_per_source: int) -> int:
     return min(limit_per_source, YOUTUBE_DISCOVERY_LIMIT)
 
 
+def _build_sources(
+    game: Game,
+    runtime: SourceRuntime,
+    limit_per_source: int,
+) -> list[tuple[CandidateSource, int]]:
+    """Build source instances for the game's configured discovery sources."""
+    sources: list[tuple[CandidateSource, int]] = []
+
+    for source_name in game.discovery_sources:
+        effective_source_name = _resolve_source_name(source_name, runtime)
+        try:
+            source_cls = get_source(effective_source_name)
+            source = source_cls.build(runtime)
+        except KeyError:
+            log.warning(
+                "[%s] Unknown discovery source %r — skipping",
+                game.name,
+                effective_source_name,
+            )
+            continue
+        except ValueError as exc:
+            log.warning(
+                "[%s] Could not initialize %s source: %s",
+                game.name,
+                effective_source_name.value,
+                exc,
+            )
+            continue
+
+        source_limit = source_cls.effective_limit(limit_per_source)
+        _log_selected_source(game.name, source_name, effective_source_name)
+        sources.append((source, source_limit))
+
+    return sources
+
+
+def _resolve_source_name(
+    source_name: Source, runtime: SourceRuntime
+) -> Source:
+    """Resolve aliases like YouTube → YouTube API when credentials exist."""
+    if source_name == Source.YOUTUBE and runtime.youtube_api_key:
+        return Source.YOUTUBE_API
+    return source_name
+
+
+def _log_selected_source(
+    game_name: str,
+    requested_source: Source,
+    effective_source: Source,
+) -> None:
+    """Emit a concise log line for the source variant used this run."""
+    if requested_source == Source.YOUTUBE:
+        if effective_source == Source.YOUTUBE_API:
+            log.info("[%s] YouTube source: Data API", game_name)
+        else:
+            log.info(
+                "[%s] YouTube source: scraping fallback (no API key)",
+                game_name,
+            )
+        return
+
+    labels = {
+        Source.REDDIT: "Reddit source: public JSON API",
+        Source.BLUESKY: "Bluesky source: public XRPC API",
+    }
+    log.info(
+        "[%s] %s", game_name, labels.get(effective_source, effective_source)
+    )
+
+
 async def _run_source(
     source: CandidateSource,
     game: Game,
@@ -116,6 +165,7 @@ async def _run_source(
     templates: list,
     db_path: str,
     anthropic_api_key: str = "",
+    runtime: SourceRuntime | None = None,
 ) -> dict:
     """Discover, score, and import prospects for a single source.
 
@@ -136,7 +186,9 @@ async def _run_source(
             game.name,
         )
         try:
-            candidates = await YouTubeSource().discover(game, limit_per_source)
+            fallback_cls = get_source(Source.YOUTUBE)
+            fallback_source = fallback_cls.build(runtime or SourceRuntime())
+            candidates = await fallback_source.discover(game, limit_per_source)
         except Exception as e:
             log.error("[%s] Scraping fallback also failed: %s", game.name, e)
             return counts
@@ -204,6 +256,7 @@ async def _run_source(
             genre_fit_override=llm.genre_fit if llm else None,
             audience_fit_override=llm.audience_fit if llm else None,
             format_fit_override=llm.format_fit if llm else None,
+            platform_fit_override=llm.platform_fit if llm else None,
             fit_summary_override=llm.fit_summary if llm else None,
             why_selected_override=llm.why_selected if llm else None,
         )
@@ -257,7 +310,7 @@ async def _run_source(
         # 4. Upsert draft item
         # -----------------------------------------------------------------------
         llm = llm_scores.get(prospect.prospect_id)
-        score_breakdown_json = json.dumps(
+        score_breakdown_json = dump_json(
             {
                 "genre_fit": score.genre_fit,
                 "audience_fit": score.audience_fit,
@@ -311,7 +364,7 @@ def _upsert_prospect(candidate: CandidateRecord, db_path: str) -> Prospect:
     raw["last_active_days"] = candidate.last_active_days
     raw["text_signals"] = candidate.text_signals
     raw["prospect_type"] = candidate.prospect_type
-    raw_json = json.dumps(raw)
+    raw_json = dump_json(raw)
 
     with get_connection(db_path) as conn:
         # Check if prospect already exists by platform + handle
@@ -385,7 +438,7 @@ def _upsert_prospect(candidate: CandidateRecord, db_path: str) -> Prospect:
         audience_size=row["audience_size"],
         engagement_rate=row["engagement_rate"],
         description=row["description"],
-        raw_data=json.loads(row["raw_data"] or "{}"),
+        raw_data=load_json_object(row["raw_data"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -490,13 +543,14 @@ def _load_cached_llm_scores(
         ).fetchall()
 
     for row in rows:
-        breakdown = json.loads(row["score_breakdown"] or "{}")
+        breakdown = load_json_object(row["score_breakdown"])
         if not breakdown.get("llm_scored"):
             continue
         cached[row["prospect_id"]] = LLMFitScores(
             genre_fit=float(breakdown.get("genre_fit", 0.0)),
             audience_fit=float(breakdown.get("audience_fit", 0.0)),
             format_fit=float(breakdown.get("format_fit", 0.5)),
+            platform_fit=float(breakdown.get("platform_fit", 0.5)),
             fit_summary=row["fit_summary"] or "",
             why_selected=breakdown.get("why_selected", ""),
         )

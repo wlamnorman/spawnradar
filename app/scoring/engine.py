@@ -1,10 +1,14 @@
 """Tag-driven scoring engine.
 
-Computes how well a prospect matches a game's audience profile across six
-dimensions. LLM-computed overrides (genre_fit, audience_fit, format_fit,
-why_selected) replace keyword-based calculations when available.
+Computes how well a prospect matches a game's audience profile across seven
+dimensions. LLM-computed overrides replace keyword-based calculations when
+available.
 
-Weights (must sum to 1.0):
+Weights vary by prospect_type (read from raw_data) so that Reddit communities
+and Bluesky developers are judged on dimensions that are meaningful for them,
+rather than against a model designed for YouTube channels.
+
+creator  (YouTube channels, default)
   genre_fit       0.25  — does this channel cover this genre?
   audience_fit    0.20  — does their audience match our players?
   format_fit      0.15  — does their format suit this type of game? (LLM only)
@@ -12,7 +16,26 @@ Weights (must sum to 1.0):
   contactability  0.10  — can we actually reach them?
   audience_size   0.10  — are they in the indie outreach sweet spot?
   platform_fit    0.05  — do platform tags appear in their content?
+
+community  (Reddit subreddits/threads)
+  genre_fit       0.35  — is this community about the right topic?
+  audience_fit    0.25  — do members match the game's target players?
+  format_fit      0.00  — N/A: communities have no content format
+  activity_score  0.05  — hard to measure; low weight
+  contactability  0.05  — always high for Reddit; barely discriminates
+  audience_size   0.20  — bigger community = more reach
+  platform_fit    0.10  — PC/mobile/etc. community focus matters
+
+developer  (Bluesky indie devs)
+  genre_fit       0.30  — do they make/discuss similar games?
+  audience_fit    0.15  — their audience is mostly other devs
+  format_fit      0.10  — devlogs are relevant but not primary signal
+  activity_score  0.25  — active posters are better cross-promo targets
+  contactability  0.15  — can we actually reach them?
+  audience_size   0.00  — most devs have tiny followings; not useful
+  platform_fit    0.05  — platform relevance
 """
+
 from __future__ import annotations
 
 import math
@@ -23,29 +46,55 @@ if TYPE_CHECKING:
     from app.games.models import Game
     from app.prospects.models import Prospect
 
-_WEIGHT_GENRE = 0.25
-_WEIGHT_AUDIENCE = 0.20
-_WEIGHT_FORMAT = 0.15
-_WEIGHT_ACTIVITY = 0.15
-_WEIGHT_CONTACTABILITY = 0.10
-_WEIGHT_AUDIENCE_SIZE = 0.10
-_WEIGHT_PLATFORM = 0.05
+# ---------------------------------------------------------------------------
+# Per-prospect-type weight tables (each must sum to 1.0)
+# ---------------------------------------------------------------------------
+
+_WEIGHTS: dict[str, dict[str, float]] = {
+    "creator": {
+        "genre": 0.25,
+        "audience": 0.20,
+        "format": 0.15,
+        "activity": 0.15,
+        "contactability": 0.10,
+        "audience_size": 0.10,
+        "platform": 0.05,
+    },
+    "community": {
+        "genre": 0.35,
+        "audience": 0.25,
+        "format": 0.00,
+        "activity": 0.05,
+        "contactability": 0.05,
+        "audience_size": 0.20,
+        "platform": 0.10,
+    },
+    "developer": {
+        "genre": 0.30,
+        "audience": 0.15,
+        "format": 0.10,
+        "activity": 0.25,
+        "contactability": 0.15,
+        "audience_size": 0.00,
+        "platform": 0.05,
+    },
+}
 
 
 @dataclass(frozen=True)
 class ScoreBreakdown:
     """Per-dimension scores and an overall score for a prospect/game pair."""
 
-    genre_fit: float           # 0–1: how well prospect matches game's genre_tags
-    audience_fit: float        # 0–1: how well prospect matches game's audience_tags
-    format_fit: float          # 0–1: does their content format suit this game type?
-    activity_score: float      # 0–1: how recently/frequently they upload
-    platform_fit: float        # 0–1: platform match
-    contactability: float      # 0–1: how reachable this prospect is
-    audience_size_score: float # 0–1: normalized audience size
-    final_score: float         # weighted combination of the above
-    fit_summary: str           # human-readable sentence
-    why_selected: str          # specific reason this channel was picked
+    genre_fit: float  # 0–1: how well prospect matches game's genre_tags
+    audience_fit: float  # 0–1: how well prospect matches game's audience_tags
+    format_fit: float  # 0–1: does their content format suit this game type?
+    activity_score: float  # 0–1: how recently/frequently they upload
+    platform_fit: float  # 0–1: platform match
+    contactability: float  # 0–1: how reachable this prospect is
+    audience_size_score: float  # 0–1: normalized audience size
+    final_score: float  # weighted combination of the above
+    fit_summary: str  # human-readable sentence
+    why_selected: str  # specific reason this channel was picked
     reasons: list[str] = field(default_factory=list)  # matching signal details
 
 
@@ -56,16 +105,25 @@ def score_prospect(
     genre_fit_override: float | None = None,
     audience_fit_override: float | None = None,
     format_fit_override: float | None = None,
+    platform_fit_override: float | None = None,
     fit_summary_override: str | None = None,
     why_selected_override: str | None = None,
 ) -> ScoreBreakdown:
     """Compute a ScoreBreakdown for a prospect against a game's tag profile.
 
-    LLM overrides (genre_fit, audience_fit, format_fit, fit_summary,
-    why_selected) replace the keyword/heuristic calculations for those
-    dimensions when provided. All other dimensions are always computed locally.
+    LLM overrides (genre_fit, audience_fit, format_fit, platform_fit,
+    fit_summary, why_selected) replace the keyword/heuristic calculations
+    when provided. All other dimensions are always computed locally.
+
+    Weights are selected based on the prospect's type (creator / community /
+    developer) stored in raw_data, so Reddit communities and Bluesky devs
+    are scored against dimensions that are meaningful for their format.
     """
     raw = prospect.raw_data
+
+    # Select weight table based on prospect type (default: creator/YouTube)
+    prospect_type = str(raw.get("prospect_type", "creator"))
+    w = _WEIGHTS.get(prospect_type, _WEIGHTS["creator"])
 
     # Build a rich text corpus: profile text + source-specific content signals
     # text_signals is the normalized field; fall back to recent_video_titles for
@@ -97,9 +155,11 @@ def score_prospect(
         genre_fit = genre_fit_override
     else:
         genre_fit = _tag_match_score(
-            game.genre_tags, search_text,
+            game.genre_tags,
+            search_text,
             {source_genre_tag} if source_genre_tag else set(),
-            reasons, "genre",
+            reasons,
+            "genre",
         )
 
     # -----------------------------------------------------------------------
@@ -109,29 +169,44 @@ def score_prospect(
         audience_fit = audience_fit_override
     else:
         audience_fit = _tag_match_score(
-            game.audience_tags, search_text,
+            game.audience_tags,
+            search_text,
             {source_audience_tag} if source_audience_tag else set(),
-            reasons, "audience",
+            reasons,
+            "audience",
         )
 
     # -----------------------------------------------------------------------
     # Format fit — LLM only; defaults to 0.5 (neutral) when not available
     # -----------------------------------------------------------------------
-    format_fit = format_fit_override if format_fit_override is not None else 0.5
+    format_fit = (
+        format_fit_override if format_fit_override is not None else 0.5
+    )
 
     # -----------------------------------------------------------------------
     # Activity score — derived from last_active_days (normalized cross-source)
     # Falls back to last_upload_days_ago for prospects ingested before this field.
     # -----------------------------------------------------------------------
-    last_active = raw.get("last_active_days") if raw.get("last_active_days") is not None else raw.get("last_upload_days_ago")
+    last_active = (
+        raw.get("last_active_days")
+        if raw.get("last_active_days") is not None
+        else raw.get("last_upload_days_ago")
+    )
     activity_score = _score_activity(last_active)
 
     # -----------------------------------------------------------------------
-    # Platform fit
+    # Platform fit — LLM override when available, else keyword matching
     # -----------------------------------------------------------------------
-    platform_fit = _tag_match_score(
-        game.platform_tags, search_text, set(), reasons, "platform",
-    )
+    if platform_fit_override is not None:
+        platform_fit = platform_fit_override
+    else:
+        platform_fit = _tag_match_score(
+            game.platform_tags,
+            search_text,
+            set(),
+            reasons,
+            "platform",
+        )
 
     # -----------------------------------------------------------------------
     # Contactability
@@ -139,10 +214,8 @@ def score_prospect(
     contactability = 0.3  # base score just for being discoverable
     if prospect.contact_channel:
         contactability += 0.3
-        reasons.append(f"Contact channel available: {prospect.contact_channel}")
     if prospect.contact_value:
         contactability += 0.2
-        reasons.append(f"Contact value present: {prospect.contact_value}")
     if prospect.profile_url:
         contactability += 0.2
     contactability = min(contactability, 1.0)
@@ -153,16 +226,16 @@ def score_prospect(
     audience_size_score = _normalize_audience_size(prospect.audience_size)
 
     # -----------------------------------------------------------------------
-    # Weighted final score
+    # Weighted final score (weights selected by prospect_type)
     # -----------------------------------------------------------------------
     final_score = (
-        genre_fit       * _WEIGHT_GENRE
-        + audience_fit  * _WEIGHT_AUDIENCE
-        + format_fit    * _WEIGHT_FORMAT
-        + activity_score * _WEIGHT_ACTIVITY
-        + contactability * _WEIGHT_CONTACTABILITY
-        + audience_size_score * _WEIGHT_AUDIENCE_SIZE
-        + platform_fit  * _WEIGHT_PLATFORM
+        genre_fit * w["genre"]
+        + audience_fit * w["audience"]
+        + format_fit * w["format"]
+        + activity_score * w["activity"]
+        + contactability * w["contactability"]
+        + audience_size_score * w["audience_size"]
+        + platform_fit * w["platform"]
     )
     final_score = round(min(final_score, 1.0), 4)
 
@@ -246,7 +319,9 @@ def _tag_match_score(
             reasons.append(f"{dimension.capitalize()} match: '{tag}'")
         elif tag_lower in query_tags_lower:
             matched += 0.85
-            reasons.append(f"{dimension.capitalize()} (search context): '{tag}'")
+            reasons.append(
+                f"{dimension.capitalize()} (search context): '{tag}'"
+            )
 
     return min(matched / len(tags), 1.0)
 

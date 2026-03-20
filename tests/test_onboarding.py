@@ -212,7 +212,10 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
                             "platform_fit": 1.0,
                             "contactability": 0.75,
                             "audience_size_score": 0.63,
+                            "why_selected": "Audience and format align strongly with the game's target players.",
                             "reasons": [
+                                "Contact channel available: reddit_post",
+                                "Contact value present: https://reddit.example/post",
                                 "Recent uploads feature adjacent tactics games.",
                             ],
                         }
@@ -227,6 +230,14 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
     assert response.status_code == 200
     assert response.text.count('class="video-thumbnail"') == 6
     assert "score-dim-card" in response.text
+    assert 'class="queue-insights"' in response.text
+    assert "Quick take" in response.text
+    assert "Detailed rationale" in response.text
+    assert "Contact channel available: reddit_post" not in response.text
+    assert (
+        "Contact value present: https://reddit.example/post"
+        not in response.text
+    )
     assert "<summary>Score breakdown</summary>" not in response.text
     assert '<details class="message-accordion">' in response.text
     assert "<summary>Message draft</summary>" in response.text

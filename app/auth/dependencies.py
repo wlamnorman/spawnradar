@@ -1,20 +1,18 @@
 """FastAPI dependencies for authentication."""
+
 from __future__ import annotations
 
 from fastapi import Cookie, Depends, HTTPException, Request
 
 from app.auth.models import User
 from app.auth.service import AuthService
-
-
-def _get_auth_service(request: Request) -> AuthService:
-    return request.app.state.auth_service
+from app.dependencies import get_auth_service
 
 
 async def get_current_user(
     request: Request,
     session_id: str | None = Cookie(default=None),
-    auth_service: AuthService = Depends(_get_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> User | None:
     """Return the authenticated user from the session cookie, or None."""
     if session_id is None:
@@ -25,7 +23,7 @@ async def get_current_user(
 async def require_user(
     request: Request,
     session_id: str | None = Cookie(default=None),
-    auth_service: AuthService = Depends(_get_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
     """FastAPI dependency that enforces authentication.
 

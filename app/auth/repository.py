@@ -1,5 +1,8 @@
 """Database operations for users and sessions."""
+
 from __future__ import annotations
+
+import sqlite3
 
 from app.auth.models import PasswordResetToken, Session, User
 from app.database import get_connection
@@ -11,7 +14,13 @@ class UserRepository:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
-    def create(self, user_id: str, email: str, password_hash: str, is_admin: bool = False) -> User:
+    def create(
+        self,
+        user_id: str,
+        email: str,
+        password_hash: str,
+        is_admin: bool = False,
+    ) -> User:
         """Insert a new user and return the created record."""
         with get_connection(self._db_path) as conn:
             conn.execute(
@@ -58,7 +67,9 @@ class SessionRepository:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
-    def create(self, session_id: str, user_id: str, expires_at: str) -> Session:
+    def create(
+        self, session_id: str, user_id: str, expires_at: str
+    ) -> Session:
         """Insert a new session and return the record."""
         with get_connection(self._db_path) as conn:
             conn.execute(
@@ -83,7 +94,9 @@ class SessionRepository:
     def delete(self, session_id: str) -> None:
         """Delete a session (logout)."""
         with get_connection(self._db_path) as conn:
-            conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+            conn.execute(
+                "DELETE FROM sessions WHERE session_id = ?", (session_id,)
+            )
 
     def delete_expired(self) -> None:
         """Prune sessions that have passed their expiry timestamp."""
@@ -99,7 +112,9 @@ class PasswordResetTokenRepository:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
-    def create(self, token_id: str, user_id: str, expires_at: str) -> PasswordResetToken:
+    def create(
+        self, token_id: str, user_id: str, expires_at: str
+    ) -> PasswordResetToken:
         """Insert a new reset token and return the record."""
         with get_connection(self._db_path) as conn:
             conn.execute(
@@ -136,7 +151,7 @@ class PasswordResetTokenRepository:
             )
 
 
-def _row_to_user(row: object) -> User:
+def _row_to_user(row: sqlite3.Row) -> User:
     return User(
         user_id=row["user_id"],
         email=row["email"],
@@ -147,7 +162,7 @@ def _row_to_user(row: object) -> User:
     )
 
 
-def _row_to_session(row: object) -> Session:
+def _row_to_session(row: sqlite3.Row) -> Session:
     return Session(
         session_id=row["session_id"],
         user_id=row["user_id"],
@@ -156,7 +171,7 @@ def _row_to_session(row: object) -> Session:
     )
 
 
-def _row_to_reset_token(row: object) -> PasswordResetToken:
+def _row_to_reset_token(row: sqlite3.Row) -> PasswordResetToken:
     return PasswordResetToken(
         token_id=row["token_id"],
         user_id=row["user_id"],

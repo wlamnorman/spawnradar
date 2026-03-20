@@ -21,3 +21,10 @@ dependencies = { file = ["requirements.txt"] }
 testpaths = ["tests"]
 timeout = 3
 timeout_method = "thread"
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+include = ["app", "tests"]
+venvPath = "."
+venv = ".venv"

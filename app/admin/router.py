@@ -1,4 +1,5 @@
 """Admin routes — restricted to is_admin users."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
@@ -9,26 +10,27 @@ from app.auth.dependencies import require_admin
 from app.auth.models import User
 from app.auth.repository import UserRepository
 from app.billing.repository import SubscriptionRepository
+from app.dependencies import (
+    get_game_repo,
+    get_subscription_repo,
+    get_templates,
+    get_user_repo,
+)
 from app.games.repository import GameRepository
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-def _templates(request: Request) -> Jinja2Templates:
-    return request.app.state.templates
 
 
 @router.get("", response_class=HTMLResponse)
 async def admin_dashboard(
     request: Request,
     user: User = Depends(require_admin),
+    templates: Jinja2Templates = Depends(get_templates),
+    user_repo: UserRepository = Depends(get_user_repo),
+    game_repo: GameRepository = Depends(get_game_repo),
+    sub_repo: SubscriptionRepository = Depends(get_subscription_repo),
 ) -> HTMLResponse:
     """Admin overview: all users, their games and subscription tiers."""
-    db_path = request.app.state.settings.db_path
-    user_repo = UserRepository(db_path)
-    game_repo = GameRepository(db_path)
-    sub_repo = SubscriptionRepository(db_path)
-
     users = user_repo.list_all()
     # Build per-user stats
     rows = []
@@ -37,8 +39,7 @@ async def admin_dashboard(
         sub = sub_repo.get_by_user(u.user_id)
         rows.append({"user": u, "games": games, "subscription": sub})
 
-    tpl = _templates(request)
-    return tpl.TemplateResponse(
+    return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
         {"user": user, "rows": rows},

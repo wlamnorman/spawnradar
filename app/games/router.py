@@ -15,39 +15,27 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_user
 from app.auth.models import User
+from app.billing.service import BillingService
+from app.config import Settings
+from app.dependencies import (
+    get_asset_repo,
+    get_billing_service,
+    get_draft_repo,
+    get_game_repo,
+    get_game_service,
+    get_settings,
+    get_template_repo,
+    get_templates,
+)
 from app.games.repository import (
     AssetRepository,
     GameRepository,
     MessageTemplateRepository,
 )
 from app.games.service import GameService
+from app.prospects.repository import DraftItemRepository
 
 router = APIRouter(tags=["games"])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _templates(request: Request) -> Jinja2Templates:
-    return request.app.state.templates
-
-
-def _game_service(request: Request) -> GameService:
-    return request.app.state.game_service
-
-
-def _game_repo(request: Request) -> GameRepository:
-    return request.app.state.game_repo
-
-
-def _asset_repo(request: Request) -> AssetRepository:
-    return request.app.state.asset_repo
-
-
-def _template_repo(request: Request) -> MessageTemplateRepository:
-    return request.app.state.template_repo
 
 
 def _platform_tags_from_form(request_form: object) -> list[str]:
@@ -69,27 +57,22 @@ def _platform_tags_from_form(request_form: object) -> list[str]:
 async def list_games(
     request: Request,
     user: User = Depends(require_user),
+    game_repo: GameRepository = Depends(get_game_repo),
+    draft_repo: DraftItemRepository = Depends(get_draft_repo),
+    billing_service: BillingService = Depends(get_billing_service),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the dashboard showing all of the user's games."""
-    game_repo = _game_repo(request)
     games = game_repo.list_by_user(user.user_id)
 
     # Get queue counts for each game
-    from app.prospects.repository import DraftItemRepository
-
-    draft_repo = DraftItemRepository(request.app.state.settings.db_path)
     queue_counts = {
         g.game_id: draft_repo.count_queued(g.game_id) for g in games
     }
 
-    subscription = (
-        request.app.state.billing_service.get_or_create_subscription(
-            user.user_id
-        )
-    )
+    subscription = billing_service.get_or_create_subscription(user.user_id)
 
-    tpl = _templates(request)
-    return tpl.TemplateResponse(
+    return templates.TemplateResponse(
         request,
         "games/list.html",
         {
@@ -110,10 +93,10 @@ async def list_games(
 async def new_game_page(
     request: Request,
     user: User = Depends(require_user),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the new game form."""
-    tpl = _templates(request)
-    return tpl.TemplateResponse(
+    return templates.TemplateResponse(
         request,
         "games/create.html",
         {"user": user, "error": None},
@@ -130,16 +113,17 @@ async def create_game_post(
     audience_tags: str = Form(default=""),
     website_url: str = Form(default=""),
     discovery_schedule: str = Form(default="manual"),
+    billing_service: BillingService = Depends(get_billing_service),
+    game_service: GameService = Depends(get_game_service),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> RedirectResponse:
     """Handle game creation form submission."""
     form = await request.form()
     platform_tags = _platform_tags_from_form(form)
 
     # Check subscription limit
-    billing = request.app.state.billing_service
-    if not billing.check_game_limit(user.user_id):
-        tpl = _templates(request)
-        return tpl.TemplateResponse(
+    if not billing_service.check_game_limit(user.user_id):
+        return templates.TemplateResponse(
             request,
             "games/create.html",
             {
@@ -149,9 +133,8 @@ async def create_game_post(
             status_code=400,
         )  # type: ignore[return-value]
 
-    svc = _game_service(request)
     try:
-        game = svc.create_game(
+        game = game_service.create_game(
             user_id=user.user_id,
             name=name,
             description=description,
@@ -162,8 +145,7 @@ async def create_game_post(
             discovery_schedule=discovery_schedule,
         )
     except ValueError as exc:
-        tpl = _templates(request)
-        return tpl.TemplateResponse(
+        return templates.TemplateResponse(
             request,
             "games/create.html",
             {"user": user, "error": str(exc)},
@@ -183,20 +165,20 @@ async def game_setup_page(
     slug: str,
     request: Request,
     user: User = Depends(require_user),
+    game_repo: GameRepository = Depends(get_game_repo),
+    template_repo: MessageTemplateRepository = Depends(get_template_repo),
+    asset_repo: AssetRepository = Depends(get_asset_repo),
+    templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the game setup page with tags, templates, and assets."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    template_repo = _template_repo(request)
-    asset_repo = _asset_repo(request)
     templates_list = template_repo.list_by_game(game.game_id)
     assets = asset_repo.list_by_game(game.game_id)
 
-    tpl = _templates(request)
-    return tpl.TemplateResponse(
+    return templates.TemplateResponse(
         request,
         "games/setup.html",
         {
@@ -220,19 +202,19 @@ async def update_game_post(
     audience_tags: str = Form(default=""),
     website_url: str = Form(default=""),
     discovery_schedule: str = Form(default="manual"),
+    game_repo: GameRepository = Depends(get_game_repo),
+    game_service: GameService = Depends(get_game_service),
 ) -> RedirectResponse:
     """Handle game info update form submission."""
     form = await request.form()
     platform_tags = _platform_tags_from_form(form)
 
-    game_repo = _game_repo(request)
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    svc = _game_service(request)
     try:
-        svc.update_game(
+        game_service.update_game(
             game_id=game.game_id,
             user_id=user.user_id,
             name=name,
@@ -263,16 +245,16 @@ async def create_template_post(
     channel: str = Form(...),
     subject_template: str = Form(default=""),
     body_template: str = Form(...),
+    game_repo: GameRepository = Depends(get_game_repo),
+    game_service: GameService = Depends(get_game_service),
 ) -> RedirectResponse:
     """Add a new message template to the game."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    svc = _game_service(request)
     try:
-        svc.add_template(
+        game_service.add_template(
             game_id=game.game_id,
             user_id=user.user_id,
             name=name,
@@ -292,16 +274,16 @@ async def delete_template_post(
     template_id: str,
     request: Request,
     user: User = Depends(require_user),
+    game_repo: GameRepository = Depends(get_game_repo),
+    game_service: GameService = Depends(get_game_service),
 ) -> RedirectResponse:
     """Delete a message template."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    svc = _game_service(request)
     try:
-        svc.delete_template(template_id, game.game_id, user.user_id)
+        game_service.delete_template(template_id, game.game_id, user.user_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -322,16 +304,16 @@ async def create_asset_post(
     title: str = Form(...),
     body: str = Form(default=""),
     url: str = Form(default=""),
+    game_repo: GameRepository = Depends(get_game_repo),
+    game_service: GameService = Depends(get_game_service),
 ) -> RedirectResponse:
     """Add a promotional asset to the game."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    svc = _game_service(request)
     try:
-        svc.add_asset(
+        game_service.add_asset(
             game_id=game.game_id,
             user_id=user.user_id,
             asset_type=asset_type,
@@ -351,16 +333,16 @@ async def delete_asset_post(
     asset_id: str,
     request: Request,
     user: User = Depends(require_user),
+    game_repo: GameRepository = Depends(get_game_repo),
+    game_service: GameService = Depends(get_game_service),
 ) -> RedirectResponse:
     """Delete an asset."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    svc = _game_service(request)
     try:
-        svc.delete_asset(asset_id, game.game_id, user.user_id)
+        game_service.delete_asset(asset_id, game.game_id, user.user_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -378,16 +360,16 @@ async def run_ingestion_api(
     request: Request,
     background_tasks: BackgroundTasks,
     user: User = Depends(require_user),
+    game_repo: GameRepository = Depends(get_game_repo),
+    billing_service: BillingService = Depends(get_billing_service),
+    settings: Settings = Depends(get_settings),
 ) -> JSONResponse:
     """Trigger the discovery + scoring pipeline for a game (runs in background)."""
-    game_repo = _game_repo(request)
     game = game_repo.get_by_id(game_id)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
-    billing = request.app.state.billing_service
-    limit = billing.get_prospects_limit(user.user_id)
-    settings = request.app.state.settings
+    limit = billing_service.get_prospects_limit(user.user_id)
 
     from app.ingestion.pipeline import run_ingestion
 

@@ -137,6 +137,28 @@ def test_contactability_increases_with_contact_value():
     assert score_with.contactability > score_no.contactability
 
 
+def test_contactability_details_do_not_appear_in_reasons():
+    game = _make_game(genre_tags=["puzzle"])
+    prospect = _make_prospect(
+        description="puzzle tactics game",
+        contact_channel="reddit_post",
+        contact_value="https://reddit.example/post",
+        profile_url="https://reddit.example/post",
+    )
+
+    result = score_prospect(game, prospect)
+
+    assert result.contactability > 0.3
+    assert not any(
+        reason.startswith("Contact channel available:")
+        for reason in result.reasons
+    )
+    assert not any(
+        reason.startswith("Contact value present:")
+        for reason in result.reasons
+    )
+
+
 def test_audience_size_score_is_zero_for_none():
     game = _make_game(genre_tags=["puzzle"])
     prospect = _make_prospect(audience_size=None)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.billing.models import Subscription, Tier
@@ -25,6 +26,17 @@ class SubscriptionRepository:
             return None
         return _row_to_subscription(row)
 
+    def get_by_ls_customer(self, ls_customer_id: str) -> Subscription | None:
+        """Fetch a subscription by Lemon Squeezy customer ID."""
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM subscriptions WHERE ls_customer_id = ? LIMIT 1",
+                (ls_customer_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_subscription(row)
+
     def create(
         self,
         subscription_id: str,
@@ -32,13 +44,9 @@ class SubscriptionRepository:
         tier: Tier = Tier.STARTER,
         trial_days: int = 7,
     ) -> Subscription:
-        """Create a new subscription for a user."""
-        from datetime import UTC, datetime, timedelta
-
+        """Create a new subscription with an active trial period."""
         now = datetime.now(UTC).isoformat()
-        trial_ends_at = (
-            datetime.now(UTC) + timedelta(days=trial_days)
-        ).isoformat()
+        trial_ends_at = (datetime.now(UTC) + timedelta(days=trial_days)).isoformat()
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
@@ -46,70 +54,46 @@ class SubscriptionRepository:
                     (subscription_id, user_id, tier, status, trial_ends_at, created_at, updated_at)
                 VALUES (?, ?, ?, 'active', ?, ?, ?)
                 """,
-                (
-                    subscription_id,
-                    user_id,
-                    tier.value,
-                    trial_ends_at,
-                    now,
-                    now,
-                ),
+                (subscription_id, user_id, tier.value, trial_ends_at, now, now),
             )
         return self.get_by_user(user_id)  # type: ignore[return-value]
 
-    def update_from_stripe(
+    def update_from_ls(
         self,
         user_id: str,
         *,
-        stripe_customer_id: str | None = None,
-        stripe_subscription_id: str | None = None,
+        ls_customer_id: str | None = None,
+        ls_subscription_id: str | None = None,
         tier: Tier | None = None,
         status: str | None = None,
         current_period_end: str | None = None,
     ) -> None:
-        """Update subscription fields from a Stripe webhook event."""
-        from datetime import UTC, datetime
+        """Update subscription fields from a Lemon Squeezy webhook event.
 
-        now = datetime.now(UTC).isoformat()
+        Only the fields passed as keyword arguments are changed; all others
+        retain their current values.
+        """
         sub = self.get_by_user(user_id)
         if sub is None:
             return
-
-        new_customer_id = (
-            stripe_customer_id
-            if stripe_customer_id is not None
-            else sub.stripe_customer_id
-        )
-        new_sub_id = (
-            stripe_subscription_id
-            if stripe_subscription_id is not None
-            else sub.stripe_subscription_id
-        )
-        new_tier = tier.value if tier is not None else sub.tier.value
-        new_status = status if status is not None else sub.status
-        new_period_end = (
-            current_period_end
-            if current_period_end is not None
-            else sub.current_period_end
-        )
-        preserved_trial_ends_at = sub.trial_ends_at
 
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
                 UPDATE subscriptions
-                SET stripe_customer_id = ?, stripe_subscription_id = ?,
-                    tier = ?, status = ?, current_period_end = ?, trial_ends_at = ?, updated_at = ?
+                SET ls_customer_id = ?, ls_subscription_id = ?,
+                    tier = ?, status = ?, current_period_end = ?,
+                    trial_ends_at = ?, updated_at = ?
                 WHERE subscription_id = ?
                 """,
                 (
-                    new_customer_id,
-                    new_sub_id,
-                    new_tier,
-                    new_status,
-                    new_period_end,
-                    preserved_trial_ends_at,
-                    now,
+                    ls_customer_id if ls_customer_id is not None else sub.ls_customer_id,
+                    ls_subscription_id if ls_subscription_id is not None else sub.ls_subscription_id,
+                    tier.value if tier is not None else sub.tier.value,
+                    status if status is not None else sub.status,
+                    current_period_end if current_period_end is not None else sub.current_period_end,
+                    sub.trial_ends_at,
+                    datetime.now(UTC).isoformat(),
                     sub.subscription_id,
                 ),
             )
@@ -119,8 +103,8 @@ def _row_to_subscription(row: Any) -> Subscription:
     return Subscription(
         subscription_id=row["subscription_id"],
         user_id=row["user_id"],
-        stripe_customer_id=row["stripe_customer_id"],
-        stripe_subscription_id=row["stripe_subscription_id"],
+        ls_customer_id=row["ls_customer_id"],
+        ls_subscription_id=row["ls_subscription_id"],
         tier=Tier(row["tier"]),
         status=row["status"],
         current_period_end=row["current_period_end"],

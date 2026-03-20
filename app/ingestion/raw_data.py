@@ -23,6 +23,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.ingestion.constants import (
+    RECENT_TEXT_SIGNAL_LIMIT,
     RECENT_VIDEO_THUMBNAIL_LIMIT,
     RECENT_VIDEO_TITLE_LIMIT,
 )
@@ -117,4 +118,45 @@ class RedditThreadData(BaseModel):
     num_comments: int = Field(description="Number of comments on the post")
     permalink: str = Field(
         description="Relative Reddit permalink, e.g. /r/foo/comments/…"
+    )
+
+
+class BlueskyActorData(BaseModel):
+    """Raw data from a Bluesky actor search result + recent feed enrichment."""
+
+    source: Literal["bluesky_search"] = "bluesky_search"
+
+    did: str = Field(description="Bluesky DID for the actor")
+    handle: str = Field(description="Bluesky handle, e.g. alice.bsky.social")
+    query: str = Field(description="Search query that surfaced this account")
+    followers_count: int | None = Field(
+        default=None,
+        description="Follower count reported by actor search",
+    )
+    posts_count: int | None = Field(
+        default=None,
+        description="Post count reported by actor search",
+    )
+    avatar_url: str | None = Field(
+        default=None,
+        description="Profile avatar URL from actor search",
+    )
+    source_genre_tag: str | None = Field(
+        default=None,
+        description="The game genre tag whose search query surfaced this account",
+    )
+    source_audience_tag: str | None = Field(
+        default=None,
+        description="The game audience tag whose search query surfaced this account",
+    )
+    last_post_days_ago: int | None = Field(
+        default=None,
+        description="Approximate days since the most recent visible post",
+    )
+    recent_post_texts: list[str] = Field(
+        default_factory=list,
+        description=(
+            f"Text from the {RECENT_TEXT_SIGNAL_LIMIT} most recent Bluesky "
+            "posts used as normalized text signals"
+        ),
     )

@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Set up virtual environment and install dependencies
 pip3 install -r requirements.txt -r dev-requirements.txt
 
-# Start dev server (wipes DB, seeds test data, auto-login enabled, hot reload)
+# Start dev server (keeps DB, seeds dev data, auto-login enabled, hot reload)
 make dev
 
 # Run tests
@@ -23,6 +23,12 @@ make dev
 
 # Lint
 .venv/bin/ruff check app/
+
+# Type-check
+.venv/bin/basedpyright
+
+# Combined repo checks
+make check
 
 # Reset DB only (without starting server)
 make reset-db
@@ -85,3 +91,9 @@ All config is loaded via `app/config.py:Settings.from_env()`, which also reads `
 - Product UI uses white/muted slate surfaces (`--color-bg-surface`, `--color-bg-muted`)
 - Dark `--color-hero-*` palette is for major marketing sections only
 - Shared component styles go in `style.css`; avoid one-off inline colors or page-specific variants
+
+## Agent Workflow
+
+- Run `.venv/bin/basedpyright` before finalizing Python changes
+- For broad changes, prefer `make check`
+- Fix typing issues at the source instead of papering over them with ignores

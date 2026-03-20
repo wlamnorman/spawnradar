@@ -27,8 +27,18 @@ class CandidateRecord:
 
     # Normalized cross-source scoring signals (populated by every source)
     last_active_days: int | None = None  # days since last post/upload/activity
-    text_signals: list[str] = field(default_factory=list)  # recent titles/posts fed to LLM
+    text_signals: list[str] = field(
+        default_factory=list
+    )  # recent titles/posts fed to LLM
     prospect_type: str = "creator"  # creator | community | developer
+
+
+@dataclass(frozen=True)
+class SourceRuntime:
+    """Runtime config passed to source constructors."""
+
+    youtube_api_key: str = ""
+    youtube_cache_dir: str = ""
 
 
 @dataclass(frozen=True)
@@ -44,6 +54,17 @@ DEFAULT_YOUTUBE_CONFIG = YouTubeConfig()
 
 class CandidateSource(ABC):
     """Abstract source that discovers prospect candidates for a game."""
+
+    @classmethod
+    def build(cls, runtime: SourceRuntime) -> CandidateSource:
+        """Construct this source from the shared runtime config."""
+        del runtime
+        return cls()
+
+    @classmethod
+    def effective_limit(cls, requested_limit: int) -> int:
+        """Return the source-specific limit to use for a discovery run."""
+        return requested_limit
 
     @abstractmethod
     async def discover(self, game: Game, limit: int) -> list[CandidateRecord]:

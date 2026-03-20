@@ -15,16 +15,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE TABLE IF NOT EXISTS subscriptions (
-    subscription_id         TEXT PRIMARY KEY,
-    user_id                 TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    stripe_customer_id      TEXT,
-    stripe_subscription_id  TEXT,
-    tier                    TEXT NOT NULL DEFAULT 'free',    -- free | starter | pro
-    status                  TEXT NOT NULL DEFAULT 'active',  -- active | cancelled | past_due | trialing
-    trial_ends_at           TEXT,                            -- NULL means no trial
-    current_period_end      TEXT,
-    created_at              TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at              TEXT NOT NULL DEFAULT (datetime('now'))
+    subscription_id    TEXT PRIMARY KEY,
+    user_id            TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    ls_customer_id     TEXT,
+    ls_subscription_id TEXT,
+    tier               TEXT NOT NULL DEFAULT 'free',    -- free | starter | pro
+    status             TEXT NOT NULL DEFAULT 'active',  -- active | cancelled | past_due | trialing
+    trial_ends_at      TEXT,                            -- NULL means no trial
+    current_period_end TEXT,
+    created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS games (
     platform_tags      TEXT NOT NULL DEFAULT '[]',   -- JSON array
     website_url        TEXT,
     discovery_schedule TEXT NOT NULL DEFAULT 'manual',           -- manual | daily | weekly
-    discovery_sources  TEXT NOT NULL DEFAULT '["youtube","reddit"]', -- JSON array of source names
+    discovery_sources  TEXT NOT NULL DEFAULT '["youtube","reddit","bluesky"]', -- JSON array of source names
     status             TEXT NOT NULL DEFAULT 'active',
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS message_templates (
 
 CREATE TABLE IF NOT EXISTS prospects (
     prospect_id     TEXT PRIMARY KEY,
-    platform        TEXT NOT NULL,   -- youtube | reddit
+    platform        TEXT NOT NULL,   -- youtube | reddit | bluesky
     handle          TEXT NOT NULL,
     display_name    TEXT NOT NULL,
     profile_url     TEXT,

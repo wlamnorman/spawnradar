@@ -1,18 +1,25 @@
 """Database operations for games, assets, and message templates."""
+
 from __future__ import annotations
 
-import json
 import re
-from typing import Any
+import sqlite3
 
 from app.database import get_connection
 from app.games.models import Asset, Game, MessageTemplate
-from app.ingestion.registry import Source
+from app.ingestion.registry import DEFAULT_DISCOVERY_SOURCES, Source
+from app.json_codec import (
+    dump_json,
+    load_json_string_list,
+)
 
 
 def _parse_sources(raw: str | None) -> list[Source]:
     """Deserialize a JSON source list, dropping any unrecognised values."""
-    names: list[str] = json.loads(raw or '["youtube","reddit"]')
+    names = load_json_string_list(
+        raw
+        or dump_json([source.value for source in DEFAULT_DISCOVERY_SOURCES])
+    )
     valid = set(Source)
     return [Source(n) for n in names if n in valid]
 
@@ -48,8 +55,8 @@ class GameRepository:
                 """
                 INSERT INTO games
                     (game_id, user_id, name, description, slug, genre_tags, audience_tags,
-                     platform_tags, website_url, discovery_schedule)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     platform_tags, website_url, discovery_schedule, discovery_sources)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     game_id,
@@ -57,11 +64,14 @@ class GameRepository:
                     name,
                     description,
                     slug,
-                    json.dumps(genre_tags),
-                    json.dumps(audience_tags),
-                    json.dumps(platform_tags),
+                    dump_json(genre_tags),
+                    dump_json(audience_tags),
+                    dump_json(platform_tags),
                     website_url,
                     discovery_schedule,
+                    dump_json(
+                        [source.value for source in DEFAULT_DISCOVERY_SOURCES]
+                    ),
                 ),
             )
         return self.get_by_id(game_id)  # type: ignore[return-value]
@@ -115,10 +125,18 @@ class GameRepository:
         new_name = name if name is not None else game.name
         new_desc = description if description is not None else game.description
         new_genre = genre_tags if genre_tags is not None else game.genre_tags
-        new_audience = audience_tags if audience_tags is not None else game.audience_tags
-        new_platform = platform_tags if platform_tags is not None else game.platform_tags
+        new_audience = (
+            audience_tags if audience_tags is not None else game.audience_tags
+        )
+        new_platform = (
+            platform_tags if platform_tags is not None else game.platform_tags
+        )
         new_url = website_url if website_url is not None else game.website_url
-        new_schedule = discovery_schedule if discovery_schedule is not None else game.discovery_schedule
+        new_schedule = (
+            discovery_schedule
+            if discovery_schedule is not None
+            else game.discovery_schedule
+        )
 
         with get_connection(self._db_path) as conn:
             conn.execute(
@@ -132,9 +150,9 @@ class GameRepository:
                 (
                     new_name,
                     new_desc,
-                    json.dumps(new_genre),
-                    json.dumps(new_audience),
-                    json.dumps(new_platform),
+                    dump_json(new_genre),
+                    dump_json(new_audience),
+                    dump_json(new_platform),
                     new_url,
                     new_schedule,
                     game_id,
@@ -234,7 +252,14 @@ class MessageTemplateRepository:
                     (template_id, game_id, name, channel, subject_template, body_template)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (template_id, game_id, name, channel, subject_template, body_template),
+                (
+                    template_id,
+                    game_id,
+                    name,
+                    channel,
+                    subject_template,
+                    body_template,
+                ),
             )
         return self.get_by_id(template_id)  # type: ignore[return-value]
 
@@ -242,7 +267,8 @@ class MessageTemplateRepository:
         """Fetch a template by primary key."""
         with get_connection(self._db_path) as conn:
             row = conn.execute(
-                "SELECT * FROM message_templates WHERE template_id = ?", (template_id,)
+                "SELECT * FROM message_templates WHERE template_id = ?",
+                (template_id,),
             ).fetchone()
         if row is None:
             return None
@@ -276,7 +302,8 @@ class MessageTemplateRepository:
         """Delete a template by ID."""
         with get_connection(self._db_path) as conn:
             conn.execute(
-                "DELETE FROM message_templates WHERE template_id = ?", (template_id,)
+                "DELETE FROM message_templates WHERE template_id = ?",
+                (template_id,),
             )
 
 
@@ -285,7 +312,7 @@ class MessageTemplateRepository:
 # ---------------------------------------------------------------------------
 
 
-def _row_to_game(row: Any) -> Game:
+def _row_to_game(row: sqlite3.Row) -> Game:
     game_id = row["game_id"]
     name = row["name"]
     slug = row["slug"] or _make_slug(name, game_id)
@@ -295,11 +322,13 @@ def _row_to_game(row: Any) -> Game:
         name=name,
         description=row["description"],
         slug=slug,
-        genre_tags=json.loads(row["genre_tags"] or "[]"),
-        audience_tags=json.loads(row["audience_tags"] or "[]"),
-        platform_tags=json.loads(row["platform_tags"] or "[]"),
+        genre_tags=load_json_string_list(row["genre_tags"]),
+        audience_tags=load_json_string_list(row["audience_tags"]),
+        platform_tags=load_json_string_list(row["platform_tags"]),
         website_url=row["website_url"],
-        discovery_schedule=row["discovery_schedule"] if row["discovery_schedule"] is not None else "manual",
+        discovery_schedule=row["discovery_schedule"]
+        if row["discovery_schedule"] is not None
+        else "manual",
         discovery_sources=_parse_sources(row["discovery_sources"]),
         status=row["status"],
         created_at=row["created_at"],
@@ -307,7 +336,7 @@ def _row_to_game(row: Any) -> Game:
     )
 
 
-def _row_to_asset(row: Any) -> Asset:
+def _row_to_asset(row: sqlite3.Row) -> Asset:
     return Asset(
         asset_id=row["asset_id"],
         game_id=row["game_id"],
@@ -319,7 +348,7 @@ def _row_to_asset(row: Any) -> Asset:
     )
 
 
-def _row_to_template(row: Any) -> MessageTemplate:
+def _row_to_template(row: sqlite3.Row) -> MessageTemplate:
     return MessageTemplate(
         template_id=row["template_id"],
         game_id=row["game_id"],

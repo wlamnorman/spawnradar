@@ -11,6 +11,7 @@ Cost (claude-haiku-4-5):
 All channels in a run are scored concurrently (asyncio.gather), so the
 LLM step adds roughly one API call's latency, not N.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,19 +22,20 @@ from dataclasses import dataclass
 
 import anthropic
 
-log = logging.getLogger(__name__)
-
 from app.games.models import Game
 from app.prospects.models import Prospect
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class LLMFitScores:
-    genre_fit: float       # 0.0–1.0: does this channel cover this genre?
-    audience_fit: float    # 0.0–1.0: does their audience match the game's players?
-    format_fit: float      # 0.0–1.0: does their content format suit this game type?
-    fit_summary: str       # one sentence explaining the overall fit
-    why_selected: str      # plain-English reason shown in the review queue
+    genre_fit: float  # 0.0–1.0: does this channel cover this genre?
+    audience_fit: float  # 0.0–1.0: does their audience match the game's players?
+    format_fit: float  # 0.0–1.0: does their content format suit this game type?
+    platform_fit: float  # 0.0–1.0: does this channel cover the game's platform(s)?
+    fit_summary: str  # one sentence explaining the overall fit
+    why_selected: str  # plain-English reason shown in the review queue
 
 
 _CONCURRENCY = 3  # max simultaneous Haiku requests (free-tier safe)
@@ -71,7 +73,11 @@ async def llm_score_batch(
                 result.format_fit,
             )
         else:
-            log.warning("  LLM scoring failed for %s: %s", prospect.display_name, result)
+            log.warning(
+                "  LLM scoring failed for %s: %s",
+                prospect.display_name,
+                result,
+            )
 
     return scores
 
@@ -84,10 +90,9 @@ async def _score_one(
     """Ask Haiku to rate one channel across genre, audience, and format fit."""
     # text_signals is the normalized field (video titles, recent posts, etc.).
     # Fall back to recent_video_titles for prospects ingested before this field.
-    text_signals = (
-        prospect.raw_data.get("text_signals")
-        or prospect.raw_data.get("recent_video_titles", [])
-    )
+    text_signals = prospect.raw_data.get(
+        "text_signals"
+    ) or prospect.raw_data.get("recent_video_titles", [])
     signals_text = (
         "\n".join(f"- {t}" for t in text_signals[:5])
         if text_signals
@@ -112,7 +117,8 @@ Recent content:
 Return a JSON object with exactly these fields:
 - "genre_fit": float 0.0–1.0 — does this channel cover games in this genre or adjacent ones?
 - "audience_fit": float 0.0–1.0 — does this channel's audience match the game's target players?
-- "format_fit": float 0.0–1.0 — does their content format suit this type of game? (e.g. "I tried this weird browser game" or "can chat beat this?" formats score high for small indie games; deep 45-min critiques of AAA titles score low)
+- "format_fit": float 0.0–1.0 — does their content format suit this type of game? (e.g. "I tried this weird browser game" formats score high for small indie games; deep 45-min critiques of AAA titles score low; for Reddit communities return 0.5)
+- "platform_fit": float 0.0–1.0 — does this creator or community cover the game's target platform(s)? Use the game's platform tags as reference. A channel that frequently covers Steam, PC, or Windows games scores 1.0 for a PC game; a mobile-only channel scores 0.1; a broad gaming channel with no platform focus scores 0.5. If no platform tags are specified, return 0.5.
 - "fit_summary": string — one sentence explaining the overall fit
 - "why_selected": string — plain-English reason why this creator is (or isn't) worth reaching out to, e.g. "Covers browser puzzle games weekly, active community, posts business email in description"
 
@@ -131,6 +137,7 @@ Respond with only the JSON object, no markdown or other text."""
         genre_fit=_clamp(data.get("genre_fit", 0.0)),
         audience_fit=_clamp(data.get("audience_fit", 0.0)),
         format_fit=_clamp(data.get("format_fit", 0.5)),
+        platform_fit=_clamp(data.get("platform_fit", 0.5)),
         fit_summary=str(data.get("fit_summary", "")).strip(),
         why_selected=str(data.get("why_selected", "")).strip(),
     )
