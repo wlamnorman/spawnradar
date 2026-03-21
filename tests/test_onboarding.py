@@ -98,7 +98,7 @@ def test_pricing_page_shows_single_subscription_offer(monkeypatch, tmp_path):
         response = client.get("/pricing")
 
     assert response.status_code == 200
-    assert "One plan for research-driven game outreach." in response.text
+    assert "One plan for efficient game outreach." in response.text
     assert "3-day trial" in response.text
     assert "Billing unavailable" in response.text
     assert "Studio" not in response.text
