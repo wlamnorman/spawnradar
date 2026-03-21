@@ -1,0 +1,436 @@
+{% extends "base.html" %} {% block title %}Setup — {{ game.name }} —
+SpawnRadar{% endblock %} {% block game_switcher %}
+<span class="game-switcher-label">{{ game.name }}</span>
+{% endblock %} {% block content %}
+<div class="setup-header">
+    <div>
+        <h1>{{ game.name }} — Settings</h1>
+        <p class="subtle">
+            Configure tags, outreach templates, and assets for this game.
+        </p>
+    </div>
+    <div class="setup-header-actions">
+        <a href="/games/{{ game.slug }}/queue" class="button">Open Queue</a>
+        <a href="/games" class="button secondary">← All Games</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<section class="setup-section">
+    <h2>Game Info</h2>
+    <form method="post" action="/games/{{ game.slug }}" class="game-form">
+        <div class="form-group">
+            <label for="name">Name</label>
+            <input
+                type="text"
+                id="name"
+                name="name"
+                required
+                value="{{ game.name }}"
+            />
+        </div>
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="6">
+{{ game.description }}</textarea
+            >
+        </div>
+        <div class="form-group">
+            <label>Genre tags</label>
+            <p class="field-hint">
+                Keep primary tags tight, then use secondary tags to broaden
+                coverage. You can still type your own tags even if they are not
+                suggested.
+            </p>
+            <div class="tag-picker-grid">
+                <div class="tag-picker-card">
+                    <label for="genre_primary_tags">Primary genre tags</label>
+                    <input
+                        type="text"
+                        id="genre_primary_tags"
+                        name="genre_primary_tags"
+                        list="genre-tag-catalog"
+                        value="{{ genre_primary_tags_value }}"
+                        data-preview-id="genre-primary-preview"
+                        data-pill-class="tag-genre"
+                    />
+                    <p class="field-hint">
+                        Highest-signal tags for discovery and scoring.
+                    </p>
+                    <div id="genre-primary-preview" class="pill-preview">
+                        {% for tag in game.genre_primary_tags %}
+                        <span class="tag-pill tag-genre">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="tag-suggestion-bank">
+                        {% for tag in featured_genre_tags %}
+                        <button
+                            type="button"
+                            class="tag-suggestion"
+                            data-target="genre_primary_tags"
+                            data-tag="{{ tag }}"
+                        >
+                            {{ tag }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="tag-picker-card">
+                    <label for="genre_secondary_tags"
+                        >Secondary genre tags</label
+                    >
+                    <input
+                        type="text"
+                        id="genre_secondary_tags"
+                        name="genre_secondary_tags"
+                        list="genre-tag-catalog"
+                        value="{{ genre_secondary_tags_value }}"
+                        data-preview-id="genre-secondary-preview"
+                        data-pill-class="tag-genre-secondary"
+                    />
+                    <p class="field-hint">
+                        Supporting genre terms that broaden query coverage.
+                        Freeform tags are fine here too.
+                    </p>
+                    <div id="genre-secondary-preview" class="pill-preview">
+                        {% for tag in game.genre_secondary_tags %}
+                        <span class="tag-pill tag-genre-secondary"
+                            >{{ tag }}</span
+                        >
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Audience tags</label>
+            <p class="field-hint">
+                Use audience tags for player identity, not just genre words. You
+                can still type your own tags even if they are not suggested.
+            </p>
+            <div class="tag-picker-grid">
+                <div class="tag-picker-card">
+                    <label for="audience_primary_tags"
+                        >Primary audience tags</label
+                    >
+                    <input
+                        type="text"
+                        id="audience_primary_tags"
+                        name="audience_primary_tags"
+                        list="audience-tag-catalog"
+                        value="{{ audience_primary_tags_value }}"
+                        data-preview-id="audience-primary-preview"
+                        data-pill-class="tag-audience"
+                    />
+                    <p class="field-hint">
+                        The clearest player groups for this game.
+                    </p>
+                    <div id="audience-primary-preview" class="pill-preview">
+                        {% for tag in game.audience_primary_tags %}
+                        <span class="tag-pill tag-audience">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="tag-suggestion-bank">
+                        {% for tag in featured_audience_tags %}
+                        <button
+                            type="button"
+                            class="tag-suggestion"
+                            data-target="audience_primary_tags"
+                            data-tag="{{ tag }}"
+                        >
+                            {{ tag }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="tag-picker-card">
+                    <label for="audience_secondary_tags"
+                        >Secondary audience tags</label
+                    >
+                    <input
+                        type="text"
+                        id="audience_secondary_tags"
+                        name="audience_secondary_tags"
+                        list="audience-tag-catalog"
+                        value="{{ audience_secondary_tags_value }}"
+                        data-preview-id="audience-secondary-preview"
+                        data-pill-class="tag-audience-secondary"
+                    />
+                    <p class="field-hint">
+                        Adjacent player groups that still matter for discovery.
+                        Freeform tags are fine here too.
+                    </p>
+                    <div id="audience-secondary-preview" class="pill-preview">
+                        {% for tag in game.audience_secondary_tags %}
+                        <span class="tag-pill tag-audience-secondary"
+                            >{{ tag }}</span
+                        >
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Platform</label>
+            <div class="checkbox-group">
+                {% for platform in ['browser', 'mobile', 'PC', 'console'] %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="platform_tags"
+                        value="{{ platform }}"
+                        {%
+                        if
+                        platform
+                        in
+                        game.platform_tags
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ platform }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="website_url">Website URL</label>
+            <input
+                type="text"
+                id="website_url"
+                name="website_url"
+                value="{{ game.website_url or '' }}"
+            />
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button">Save Game Info</button>
+        </div>
+    </form>
+</section>
+
+<section class="setup-section">
+    <h2>Message Templates</h2>
+    <p class="subtle">
+        Templates are rendered with <code>{{creator_name}}</code>,
+        <code>{{game_name}}</code>, and <code>{{fit_reason}}</code> substituted
+        automatically.
+    </p>
+
+    {% if message_templates %}
+    <div class="template-list">
+        {% for tpl in message_templates %}
+        <div class="template-card">
+            <div class="template-header">
+                <div>
+                    <strong>{{ tpl.name }}</strong>
+                    <span class="pill">{{ tpl.channel }}</span>
+                </div>
+                <form
+                    method="post"
+                    action="/games/{{ game.slug }}/templates/{{ tpl.template_id }}/delete"
+                    onsubmit="return confirm('Delete this template?');"
+                >
+                    <button type="submit" class="button button-sm danger">
+                        Delete
+                    </button>
+                </form>
+            </div>
+            {% if tpl.subject_template %}
+            <p class="template-subject subtle">
+                Subject: {{ tpl.subject_template }}
+            </p>
+            {% endif %}
+            <pre class="template-body">{{ tpl.body_template }}</pre>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="subtle empty-state-inline">No templates yet. Add one below.</p>
+    {% endif %}
+
+    <details class="add-section">
+        <summary>Add Template</summary>
+        <form
+            method="post"
+            action="/games/{{ game.slug }}/templates"
+            class="add-form"
+        >
+            <div class="form-group">
+                <label>Template name</label>
+                <input
+                    type="text"
+                    name="name"
+                    required
+                    placeholder="e.g. YouTube DM - Intro"
+                />
+            </div>
+            <div class="form-group">
+                <label>Channel</label>
+                <select name="channel">
+                    <option value="youtube_dm">YouTube DM</option>
+                    <option value="reddit_dm">Reddit DM</option>
+                    <option value="email">Email</option>
+                    <option value="twitter">Twitter</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Subject line <span class="hint">(optional)</span></label>
+                <input
+                    type="text"
+                    name="subject_template"
+                    placeholder="Collab idea for {{game_name}}?"
+                />
+            </div>
+            <div class="form-group">
+                <label>Body <span class="required">*</span></label>
+                <textarea
+                    name="body_template"
+                    required
+                    rows="6"
+                    placeholder="Hi {{creator_name}}, I'm the developer of {{game_name}}..."
+                ></textarea>
+            </div>
+            <button type="submit" class="button">Add Template</button>
+        </form>
+    </details>
+</section>
+
+<section class="setup-section">
+    <h2>Assets</h2>
+    <p class="subtle">
+        Screenshots, blurbs, and links you can reference in outreach.
+    </p>
+
+    {% if assets %}
+    <div class="asset-list">
+        {% for asset in assets %}
+        <div class="asset-card">
+            <div class="asset-header">
+                <div>
+                    <span class="pill">{{ asset.asset_type }}</span>
+                    <strong>{{ asset.title }}</strong>
+                </div>
+                <form
+                    method="post"
+                    action="/games/{{ game.slug }}/assets/{{ asset.asset_id }}/delete"
+                    onsubmit="return confirm('Delete this asset?');"
+                >
+                    <button type="submit" class="button button-sm danger">
+                        Delete
+                    </button>
+                </form>
+            </div>
+            {% if asset.url %}
+            <p class="subtle">
+                <a href="{{ asset.url }}" target="_blank" rel="noreferrer"
+                    >{{ asset.url }}</a
+                >
+            </p>
+            {% endif %} {% if asset.body %}
+            <p class="asset-body subtle">
+                {{ asset.body[:200] }}{% if asset.body|length > 200 %}…{% endif
+                %}
+            </p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="subtle empty-state-inline">No assets yet.</p>
+    {% endif %}
+
+    <details class="add-section">
+        <summary>Add Asset</summary>
+        <form
+            method="post"
+            action="/games/{{ game.slug }}/assets"
+            class="add-form"
+        >
+            <div class="form-group">
+                <label>Type</label>
+                <select name="asset_type">
+                    <option value="screenshot">Screenshot</option>
+                    <option value="banner">Banner</option>
+                    <option value="logo">Logo</option>
+                    <option value="blurb">Blurb</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Title</label>
+                <input
+                    type="text"
+                    name="title"
+                    required
+                    placeholder="e.g. Gameplay screenshot 1"
+                />
+            </div>
+            <div class="form-group">
+                <label
+                    >Body / description
+                    <span class="hint">(optional)</span></label
+                >
+                <textarea
+                    name="body"
+                    rows="3"
+                    placeholder="Short description or copy..."
+                ></textarea>
+            </div>
+            <div class="form-group">
+                <label>URL <span class="hint">(optional)</span></label>
+                <input type="url" name="url" placeholder="https://..." />
+            </div>
+            <button type="submit" class="button">Add Asset</button>
+        </form>
+    </details>
+</section>
+<datalist id="genre-tag-catalog">
+    {% for tag in genre_tag_catalog %}
+    <option value="{{ tag }}"></option>
+    {% endfor %}
+</datalist>
+<datalist id="audience-tag-catalog">
+    {% for tag in audience_tag_catalog %}
+    <option value="{{ tag }}"></option>
+    {% endfor %}
+</datalist>
+{% endblock %} {% block scripts %}
+<script>
+    function parseTags(value) {
+        return value
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter((tag) => tag);
+    }
+
+    function renderPreview(input) {
+        const preview = document.getElementById(input.dataset.previewId);
+        if (!preview) return;
+        const pillClass = input.dataset.pillClass || "";
+        preview.innerHTML = parseTags(input.value)
+            .map((tag) => `<span class="tag-pill ${pillClass}">${tag}</span>`)
+            .join("");
+    }
+
+    document.querySelectorAll("[data-preview-id]").forEach((input) => {
+        renderPreview(input);
+        input.addEventListener("input", () => renderPreview(input));
+    });
+
+    document.querySelectorAll(".tag-suggestion").forEach((button) => {
+        button.addEventListener("click", () => {
+            const input = document.getElementById(button.dataset.target);
+            if (!input) return;
+            const tags = parseTags(input.value);
+            if (!tags.includes(button.dataset.tag)) {
+                tags.push(button.dataset.tag);
+                input.value = tags.join(", ");
+                input.dispatchEvent(new Event("input"));
+            }
+            input.focus();
+        });
+    });
+</script>
+{% endblock %}

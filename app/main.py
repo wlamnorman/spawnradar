@@ -7,9 +7,13 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.router import router as admin_router
 from app.auth.dependencies import get_current_user
@@ -22,7 +26,10 @@ from app.auth.repository import (
 from app.auth.router import router as auth_router
 from app.auth.service import AuthService
 from app.billing.models import PUBLIC_TIERS, TIER_LIMITS, TIER_PRICES
-from app.billing.repository import SubscriptionRepository
+from app.billing.repository import (
+    DiscoveryRunRepository,
+    SubscriptionRepository,
+)
 from app.billing.router import router as billing_router
 from app.billing.service import BillingService
 from app.config import Settings
@@ -44,9 +51,10 @@ from app.prospects.repository import (
 from app.prospects.router import router as prospects_router
 from app.prospects.service import ProspectService
 from app.routes.blog import router as blog_router
+from app.routes.creators import router as creators_router
+from app.routes.favicon import router as favicon_router
 from app.routes.health import router as health_router
 from app.routes.seo import router as seo_router
-from app.scheduler.setup import create_scheduler
 
 # Configure logging for our app modules.
 # Set LOG_LEVEL=DEBUG in .env to see per-channel scoring details.
@@ -61,8 +69,7 @@ logging.basicConfig(
 logging.getLogger("app").setLevel(_log_level)
 
 _APP_DIR = Path(__file__).resolve().parent
-_SERVICE_DIR = _APP_DIR.parent
-_FRONTEND_DIR = _SERVICE_DIR / "frontend"
+_FRONTEND_DIR = _APP_DIR / "frontend"
 _TEMPLATES_DIR = _FRONTEND_DIR / "templates"
 _STATIC_DIR = _FRONTEND_DIR / "static"
 
@@ -83,6 +90,7 @@ async def lifespan(app: FastAPI):
     asset_repo = AssetRepository(db_path)
     template_repo = MessageTemplateRepository(db_path)
     sub_repo = SubscriptionRepository(db_path)
+    discovery_run_repo = DiscoveryRunRepository(db_path)
     draft_repo = DraftItemRepository(db_path)
     outcome_repo = OutcomeRepository(db_path)
     prospect_repo = ProspectRepository(db_path)
@@ -101,10 +109,11 @@ async def lifespan(app: FastAPI):
     billing_service = BillingService(
         sub_repo=sub_repo,
         game_repo=game_repo,
-        ls_api_key=settings.ls_api_key,
-        ls_store_id=settings.ls_store_id,
-        ls_starter_variant_id=settings.ls_starter_variant_id,
-        ls_pro_variant_id=settings.ls_pro_variant_id,
+        discovery_run_repo=discovery_run_repo,
+        paddle_api_key=settings.paddle_api_key,
+        paddle_client_side_token=settings.paddle_client_side_token,
+        paddle_indie_price_id=settings.paddle_indie_price_id,
+        paddle_environment=settings.paddle_environment,
         base_url=settings.base_url,
     )
     prospect_service = ProspectService(draft_repo, outcome_repo)
@@ -121,6 +130,7 @@ async def lifespan(app: FastAPI):
     app.state.user_repo = user_repo
     app.state.session_repo = session_repo
     app.state.subscription_repo = sub_repo
+    app.state.discovery_run_repo = discovery_run_repo
     app.state.game_repo = game_repo
     app.state.asset_repo = asset_repo
     app.state.template_repo = template_repo
@@ -128,14 +138,7 @@ async def lifespan(app: FastAPI):
     app.state.draft_repo = draft_repo
     app.state.templates = templates
 
-    scheduler = create_scheduler(settings.db_path)
-    scheduler.start()
-    app.state.scheduler = scheduler
-
-    try:
-        yield
-    finally:
-        app.state.scheduler.shutdown()
+    yield
 
 
 def create_app() -> FastAPI:
@@ -150,16 +153,62 @@ def create_app() -> FastAPI:
     )
     app.state.settings = settings
 
+    # SessionMiddleware is required by authlib to store OAuth state between
+    # the redirect and callback. It's separate from our own session cookie.
+    app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+
+    # Google OAuth client (no-op if credentials are not configured)
+    oauth = OAuth()
+    if settings.google_client_id and settings.google_client_secret:
+        oauth.register(
+            name="google",
+            client_id=settings.google_client_id,
+            client_secret=settings.google_client_secret,
+            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            client_kwargs={"scope": "openid email profile"},
+        )
+    app.state.oauth = oauth
+
     # Static files
     _STATIC_DIR.mkdir(parents=True, exist_ok=True)
     app.mount(
         "/static", StaticFiles(directory=str(_STATIC_DIR)), name="static"
     )
 
+    async def not_found_handler(request: Request, exc: Exception):
+        """Render a branded 404 page for browser requests."""
+        accept = request.headers.get("accept", "")
+        detail = "Not Found"
+        if isinstance(exc, StarletteHTTPException) and isinstance(
+            exc.detail, str
+        ):
+            detail = exc.detail
+
+        if "text/html" not in accept:
+            return JSONResponse(status_code=404, content={"detail": detail})
+
+        user = None
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            user = request.app.state.auth_service.get_user_for_session(
+                session_id
+            )
+
+        return request.app.state.templates.TemplateResponse(
+            request,
+            "errors/404.html",
+            {"user": user},
+            status_code=404,
+        )
+
+    app.add_exception_handler(404, not_found_handler)
+
     # Routers
     app.include_router(health_router)
     app.include_router(seo_router)
+    app.include_router(favicon_router)
     app.include_router(blog_router)
+    app.include_router(creators_router)
     app.include_router(auth_router)
     app.include_router(games_router)
     app.include_router(prospects_router)
@@ -192,7 +241,7 @@ def create_app() -> FastAPI:
             "billing/pricing.html",
             {
                 "user": user,
-                "billing_enabled": billing_service.ls_enabled,
+                "billing_enabled": billing_service.checkout_enabled,
                 "tier_limits": TIER_LIMITS,
                 "tier_prices": TIER_PRICES,
                 "tiers": PUBLIC_TIERS,

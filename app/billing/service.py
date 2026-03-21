@@ -1,12 +1,4 @@
-"""Billing business logic: tier limits, Lemon Squeezy checkout, webhook handling.
-
-The Lemon Squeezy integration degrades gracefully: if LEMONSQUEEZY_API_KEY is
-not set, checkout and portal operations return an empty string rather than
-crashing.
-
-Webhook signature verification: HMAC-SHA256 of the raw request body, compared
-against the X-Signature header value.
-"""
+"""Billing business logic: Paddle checkout, portal, and webhook handling."""
 
 from __future__ import annotations
 
@@ -14,28 +6,42 @@ import hashlib
 import hmac
 import json
 import logging
+import time
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
-from app.billing.models import TIER_LIMITS, TRIAL_DAYS, Subscription, Tier
-from app.billing.repository import SubscriptionRepository
+from app.billing.models import (
+    EXPIRED_LIMITS,
+    TIER_LIMITS,
+    TRIAL_DAYS,
+    TRIAL_LIMITS,
+    Subscription,
+    Tier,
+)
+from app.billing.repository import (
+    DiscoveryRunRepository,
+    SubscriptionRepository,
+)
 from app.games.repository import GameRepository
 
 log = logging.getLogger(__name__)
 
-_LS_API_BASE = "https://api.lemonsqueezy.com/v1"
+_PADDLE_API_BASE = "https://api.paddle.com"
+_ALLOWED_PADDLE_ENVIRONMENTS = {"sandbox", "production"}
 
-# Lemon Squeezy status → our internal status
-_LS_STATUS_MAP: dict[str, str] = {
-    "on_trial": "trialing",
-    "active": "active",
-    "past_due": "past_due",
-    "unpaid": "past_due",
-    "cancelled": "cancelled",
-    "expired": "cancelled",
-    "paused": "paused",
-}
+
+@dataclass(frozen=True)
+class CheckoutContext:
+    price_id: str
+    client_side_token: str
+    environment: str
+    success_url: str
+    customer_email: str | None
+    custom_data: dict[str, str]
 
 
 class BillingService:
@@ -45,218 +51,380 @@ class BillingService:
         self,
         sub_repo: SubscriptionRepository,
         game_repo: GameRepository,
-        ls_api_key: str = "",
-        ls_store_id: str = "",
-        ls_starter_variant_id: str = "",
-        ls_pro_variant_id: str = "",
+        discovery_run_repo: DiscoveryRunRepository | None = None,
+        paddle_api_key: str = "",
+        paddle_client_side_token: str = "",
+        paddle_indie_price_id: str = "",
+        paddle_environment: str = "sandbox",
         base_url: str = "http://localhost:8000",
     ) -> None:
         self._subs = sub_repo
         self._games = game_repo
-        self._api_key = ls_api_key
-        self._store_id = ls_store_id
-        self._starter_variant = ls_starter_variant_id
-        self._pro_variant = ls_pro_variant_id
-        self._base_url = base_url
+        self._discovery_runs = discovery_run_repo
+        self._api_key = paddle_api_key
+        self._client_side_token = paddle_client_side_token
+        self._indie_price_id = paddle_indie_price_id
+        self._environment = _normalize_environment(
+            paddle_environment, paddle_client_side_token
+        )
+        self._base_url = base_url.rstrip("/")
 
     @property
-    def ls_enabled(self) -> bool:
-        """Return True if Lemon Squeezy is configured."""
+    def checkout_enabled(self) -> bool:
+        """Return True if Paddle checkout is configured."""
+        return bool(self._client_side_token and self._indie_price_id)
+
+    @property
+    def portal_enabled(self) -> bool:
+        """Return True if backend Paddle API features are configured."""
         return bool(self._api_key)
 
-    # ------------------------------------------------------------------
-    # Subscription access
-    # ------------------------------------------------------------------
-
     def get_or_create_subscription(self, user_id: str) -> Subscription:
-        """Return the user's subscription, creating a Starter trial if absent."""
+        """Return the user's subscription, creating an Indie trial if absent."""
         sub = self._subs.get_by_user(user_id)
         if sub is not None:
             return sub
         return self._subs.create(
-            str(uuid.uuid4()), user_id, Tier.STARTER, trial_days=TRIAL_DAYS
+            str(uuid.uuid4()), user_id, Tier.INDIE, trial_days=TRIAL_DAYS
         )
 
     def check_game_limit(self, user_id: str) -> bool:
-        """Return True if the user can create another game under their plan."""
         sub = self.get_or_create_subscription(user_id)
-        limit = TIER_LIMITS[sub.effective_tier]["games"]
+        limit = self._get_limits(sub)["games"]
         current = self._games.count_by_user(user_id)
         return current < limit
 
     def get_prospects_limit(self, user_id: str) -> int:
-        """Return how many prospects the user can discover per ingestion run."""
         sub = self.get_or_create_subscription(user_id)
-        return TIER_LIMITS[sub.effective_tier]["prospects_per_run"]
+        return self._get_limits(sub)["prospects_per_run"]
 
-    # ------------------------------------------------------------------
-    # Lemon Squeezy API calls
-    # ------------------------------------------------------------------
+    def get_discovery_runs_limit(self, user_id: str) -> int:
+        sub = self.get_or_create_subscription(user_id)
+        return self._get_limits(sub)["discovery_runs_per_month"]
 
-    async def create_checkout_url(self, user_id: str, tier: str) -> str:
-        """Create a Lemon Squeezy checkout and return its URL.
+    def get_discovery_runs_used_this_month(
+        self, user_id: str, *, now: datetime | None = None
+    ) -> int:
+        if self._discovery_runs is None:
+            return 0
 
-        Returns an empty string if Lemon Squeezy is not configured or if
-        variant / store IDs are missing.
+        period_start = _month_start(now)
+        return self._discovery_runs.count_for_user_since(
+            user_id, period_start.isoformat()
+        )
+
+    def record_discovery_run(
+        self, user_id: str, game_id: str, *, now: datetime | None = None
+    ) -> tuple[int, int]:
+        current_time = now or datetime.now(UTC)
+        limit = self.get_discovery_runs_limit(user_id)
+        used = self.get_discovery_runs_used_this_month(
+            user_id, now=current_time
+        )
+
+        if limit <= 0:
+            raise ValueError(
+                "Discovery is unavailable for this account. Reactivate billing to continue."
+            )
+        if used >= limit:
+            raise ValueError(
+                f"You've reached your {limit} discovery runs for this month."
+            )
+
+        if self._discovery_runs is None:
+            raise ValueError("Discovery run tracking is not configured.")
+
+        self._discovery_runs.create(
+            str(uuid.uuid4()),
+            user_id,
+            game_id,
+            created_at=current_time.isoformat(),
+        )
+        return used + 1, limit
+
+    def _get_limits(self, sub: Subscription) -> dict[str, int]:
+        if sub.has_subscription:
+            return TIER_LIMITS[sub.effective_tier]
+        if sub.is_trialing:
+            return TRIAL_LIMITS
+        return EXPIRED_LIMITS
+
+    def checkout_context(
+        self, user_id: str, customer_email: str | None = None
+    ) -> CheckoutContext:
+        """Build client-side Paddle checkout settings for the single plan."""
+        if not self.checkout_enabled:
+            raise ValueError("Paddle checkout is not configured.")
+
+        return CheckoutContext(
+            price_id=self._indie_price_id,
+            client_side_token=self._client_side_token,
+            environment=self._environment,
+            success_url=f"{self._base_url}/billing/success",
+            customer_email=customer_email,
+            custom_data={"user_id": user_id},
+        )
+
+    async def sync_from_transaction(
+        self, user_id: str, transaction_id: str
+    ) -> None:
+        """Eagerly activate a subscription from a Paddle transaction ID.
+
+        Called immediately on the checkout success redirect so the user sees
+        their active subscription without waiting for the webhook.
+        Does nothing if the Paddle API is not configured or the call fails.
         """
-        if not self.ls_enabled:
+        if not self.portal_enabled or not transaction_id:
+            return
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{_PADDLE_API_BASE}/transactions/{transaction_id}",
+                    headers=self._headers(),
+                )
+                resp.raise_for_status()
+                data = resp.json().get("data", {})
+
+            subscription_id = _as_str(data.get("subscription_id"))
+            customer_id = _as_str(data.get("customer_id"))
+            if not subscription_id:
+                return
+
+            # Fetch the subscription to get current period and status.
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{_PADDLE_API_BASE}/subscriptions/{subscription_id}",
+                    headers=self._headers(),
+                )
+                resp.raise_for_status()
+                sub_data = resp.json().get("data", {})
+
+            status = _normalize_status(_as_str(sub_data.get("status"), "active"))
+            current_period_end = _extract_period_end(sub_data)
+            tier = self._tier_from_subscription(sub_data)
+
+            self._subs.update_from_paddle(
+                user_id,
+                paddle_customer_id=customer_id,
+                paddle_subscription_id=subscription_id,
+                tier=tier,
+                status=status,
+                current_period_end=current_period_end,
+            )
+        except Exception:
+            log.warning(
+                "Could not eagerly sync subscription from transaction %s; "
+                "webhook will update it shortly.",
+                transaction_id,
+            )
+
+    async def get_portal_url(self, user_id: str) -> str:
+        """Create a short-lived Paddle customer portal URL."""
+        if not self.portal_enabled:
             return ""
 
-        variant_id = (
-            self._starter_variant if tier == "starter" else self._pro_variant
-        )
-        if not variant_id or not self._store_id:
+        sub = self.get_or_create_subscription(user_id)
+        if not sub.paddle_customer_id:
             return ""
 
         payload = {
-            "data": {
-                "type": "checkouts",
-                "attributes": {
-                    "checkout_data": {
-                        "custom": {"user_id": user_id},
-                    },
-                    "product_options": {
-                        "redirect_url": f"{self._base_url}/billing/success",
-                    },
-                },
-                "relationships": {
-                    "store": {"data": {"type": "stores", "id": self._store_id}},
-                    "variant": {"data": {"type": "variants", "id": variant_id}},
-                },
-            }
+            "subscription_ids": [sub.paddle_subscription_id]
+            if sub.paddle_subscription_id
+            else [],
         }
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{_LS_API_BASE}/checkouts",
+                f"{_PADDLE_API_BASE}/customers/{sub.paddle_customer_id}/portal-sessions",
                 json=payload,
                 headers=self._headers(),
             )
             resp.raise_for_status()
             data = resp.json()
 
-        return data["data"]["attributes"].get("url", "")
-
-    async def get_portal_url(self, user_id: str) -> str:
-        """Return the Lemon Squeezy customer portal URL for the user.
-
-        Returns an empty string if the user has no LS subscription yet.
-        """
-        if not self.ls_enabled:
-            return ""
-
-        sub = self.get_or_create_subscription(user_id)
-        if not sub.ls_subscription_id:
-            return ""
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{_LS_API_BASE}/subscriptions/{sub.ls_subscription_id}",
-                headers=self._headers(),
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        urls = data["data"]["attributes"].get("urls", {})
-        return urls.get("customer_portal", "")
-
-    # ------------------------------------------------------------------
-    # Webhook handling
-    # ------------------------------------------------------------------
+        return (
+            data.get("data", {})
+            .get("urls", {})
+            .get("general", {})
+            .get("overview", "")
+        )
 
     def handle_webhook(
         self, payload: bytes, signature: str, webhook_secret: str
     ) -> None:
-        """Process an incoming Lemon Squeezy webhook event."""
-        if not self.ls_enabled:
+        """Process an incoming Paddle webhook event."""
+        if not webhook_secret:
             return
 
         if not self._verify_signature(payload, signature, webhook_secret):
-            raise ValueError("Invalid Lemon Squeezy webhook signature.")
+            raise ValueError("Invalid Paddle webhook signature.")
 
         event = json.loads(payload)
-        event_name = event.get("meta", {}).get("event_name", "")
+        event_type = str(event.get("event_type", ""))
 
-        if event_name in (
-            "subscription_created",
-            "subscription_updated",
-            "subscription_resumed",
-            "subscription_unpaused",
-            "subscription_paused",
-        ):
+        if event_type in {
+            "subscription.created",
+            "subscription.updated",
+            "subscription.trialing",
+            "subscription.activated",
+            "subscription.resumed",
+            "subscription.paused",
+            "subscription.past_due",
+        }:
             self._sync_subscription(event)
-        elif event_name in ("subscription_cancelled", "subscription_expired"):
+        elif event_type == "subscription.canceled":
             self._cancel_subscription(event)
 
-    def _sync_subscription(self, event: dict) -> None:  # type: ignore[type-arg]
-        """Update local subscription from a Lemon Squeezy subscription event."""
-        meta = event.get("meta", {})
-        data = event.get("data", {})
-        attrs = data.get("attributes", {})
+    def _sync_subscription(self, event: dict[str, Any]) -> None:
+        data = _as_dict(event.get("data"))
+        custom_data = _as_dict(data.get("custom_data"))
 
-        ls_sub_id = str(data.get("id", ""))
-        ls_customer_id = str(attrs.get("customer_id", ""))
-        ls_status = attrs.get("status", "active")
-        status = _LS_STATUS_MAP.get(ls_status, "active")
-        variant_id = str(attrs.get("variant_id", ""))
-        renews_at = attrs.get("renews_at")
+        paddle_subscription_id = _as_str(data.get("id"))
+        paddle_customer_id = _as_str(data.get("customer_id"))
+        status = _normalize_status(_as_str(data.get("status"), "active"))
+        current_period_end = _extract_period_end(data)
+        tier = self._tier_from_subscription(data)
 
-        tier = Tier.PRO if variant_id == self._pro_variant else Tier.STARTER
-
-        user_id = self._resolve_user_id(meta, ls_customer_id)
+        user_id = self._resolve_user_id(custom_data, paddle_customer_id)
         if not user_id:
             return
 
-        self._subs.update_from_ls(
+        self._subs.update_from_paddle(
             user_id,
-            ls_customer_id=ls_customer_id,
-            ls_subscription_id=ls_sub_id,
+            paddle_customer_id=paddle_customer_id,
+            paddle_subscription_id=paddle_subscription_id,
             tier=tier,
             status=status,
-            current_period_end=renews_at,
+            current_period_end=current_period_end,
         )
 
-    def _cancel_subscription(self, event: dict) -> None:  # type: ignore[type-arg]
-        """Mark a subscription as cancelled and revert tier to Starter."""
-        meta = event.get("meta", {})
-        attrs = event.get("data", {}).get("attributes", {})
-        ls_customer_id = str(attrs.get("customer_id", ""))
+    def _cancel_subscription(self, event: dict[str, Any]) -> None:
+        data = _as_dict(event.get("data"))
+        custom_data = _as_dict(data.get("custom_data"))
+        paddle_customer_id = _as_str(data.get("customer_id"))
 
-        user_id = self._resolve_user_id(meta, ls_customer_id)
+        user_id = self._resolve_user_id(custom_data, paddle_customer_id)
         if not user_id:
             return
 
-        self._subs.update_from_ls(user_id, status="cancelled", tier=Tier.STARTER)
+        self._subs.update_from_paddle(
+            user_id,
+            status="canceled",
+            tier=Tier.INDIE,
+        )
 
-    def _resolve_user_id(self, meta: dict, ls_customer_id: str) -> str | None:  # type: ignore[type-arg]
-        """Return a user_id from webhook metadata or a customer-ID lookup."""
-        user_id: str | None = meta.get("custom_data", {}).get("user_id")
-        if not user_id:
-            sub = self._subs.get_by_ls_customer(ls_customer_id)
+    def _resolve_user_id(
+        self, custom_data: dict[str, Any], paddle_customer_id: str
+    ) -> str | None:
+        user_id = _as_str(custom_data.get("user_id"))
+        if not user_id and paddle_customer_id:
+            sub = self._subs.get_by_paddle_customer(paddle_customer_id)
             if sub:
                 user_id = sub.user_id
         if not user_id:
             log.warning(
-                "LS webhook: could not resolve user for customer %s", ls_customer_id
+                "Paddle webhook: could not resolve user for customer %s",
+                paddle_customer_id,
             )
-        return user_id
+        return user_id or None
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
+    def _tier_from_subscription(self, data: dict[str, Any]) -> Tier:
+        for item in _as_list(data.get("items")):
+            item_dict = _as_dict(item)
+            price = _as_dict(item_dict.get("price"))
+            price_id = _as_str(price.get("id"))
+            if price_id == self._indie_price_id:
+                return Tier.INDIE
+            if price_id:
+                log.info(
+                    "Paddle webhook: treating unknown price %s as indie",
+                    price_id,
+                )
+        return Tier.INDIE
 
     def _verify_signature(
         self, payload: bytes, signature: str, secret: str
     ) -> bool:
-        """Verify an HMAC-SHA256 webhook signature from Lemon Squeezy."""
+        if not signature or not secret:
+            return False
+
+        timestamp = ""
+        signatures: list[str] = []
+        for part in signature.split(";"):
+            key, _, value = part.partition("=")
+            if key == "ts":
+                timestamp = value
+            elif key == "h1" and value:
+                signatures.append(value)
+
+        if not timestamp or not signatures:
+            return False
+
+        try:
+            ts = int(timestamp)
+        except ValueError:
+            return False
+
+        if abs(int(time.time()) - ts) > 300:
+            return False
+
+        signed_payload = timestamp.encode() + b":" + payload
         expected = hmac.new(
-            secret.encode(), payload, hashlib.sha256
+            secret.encode(), signed_payload, hashlib.sha256
         ).hexdigest()
-        return hmac.compare_digest(expected, signature)
+        return any(
+            hmac.compare_digest(expected, candidate)
+            for candidate in signatures
+        )
 
     def _headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self._api_key}",
-            "Accept": "application/vnd.api+json",
-            "Content-Type": "application/vnd.api+json",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
         }
+
+
+def _normalize_environment(value: str, client_side_token: str) -> str:
+    normalized = value.strip().lower()
+    if normalized in _ALLOWED_PADDLE_ENVIRONMENTS:
+        return normalized
+    if client_side_token.startswith("test_"):
+        return "sandbox"
+    return "production"
+
+
+def _normalize_status(value: str) -> str:
+    normalized = value.lower().replace(" ", "_")
+    allowed = {"active", "trialing", "past_due", "paused", "canceled"}
+    return normalized if normalized in allowed else "active"
+
+
+def _extract_period_end(data: dict[str, Any]) -> str | None:
+    period = _as_dict(data.get("current_billing_period"))
+    period_end = _as_str(period.get("ends_at"))
+    if period_end:
+        return period_end
+    return _as_str(data.get("next_billed_at")) or None
+
+
+def _month_start(now: datetime | None = None) -> datetime:
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=UTC)
+    else:
+        current = current.astimezone(UTC)
+    return current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _as_str(value: Any, default: str = "") -> str:
+    return value if isinstance(value, str) else default

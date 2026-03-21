@@ -73,6 +73,73 @@ def test_genre_tags_parsed_from_comma_separated_string(
     assert game.genre_tags == ["action", "rpg", "strategy"]
 
 
+def test_structured_tags_store_primary_secondary_and_custom_profiles(
+    game_service, registered_user
+):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="StructureTest",
+        description="Testing structured tags",
+        genre_tags_raw="",
+        audience_tags_raw="",
+        platform_tags=["pc"],
+        website_url=None,
+        genre_primary_tags_raw="rts, turn based tactics",
+        genre_secondary_tags_raw="tower defence, strategy",
+        genre_custom_tags_raw="xcom-like",
+        audience_primary_tags_raw="strategy players, xcom players",
+        audience_secondary_tags_raw="pc gamers, steam users",
+        audience_custom_tags_raw="tactics forum regulars",
+    )
+
+    assert game.genre_primary_tags == [
+        "real-time strategy",
+        "turn-based tactics",
+    ]
+    assert game.genre_secondary_tags == ["tower defense", "strategy"]
+    assert game.genre_custom_tags == ["xcom like"]
+    assert game.audience_primary_tags == ["strategy fans", "xcom fans"]
+    assert game.audience_secondary_tags == ["pc players", "steam players"]
+    assert game.audience_custom_tags == ["tactics forum regulars"]
+    assert game.genre_tags == [
+        "real-time strategy",
+        "turn-based tactics",
+        "tower defense",
+        "strategy",
+        "xcom like",
+    ]
+
+
+def test_primary_tags_are_ordered_first_in_query_builder(
+    game_service, registered_user
+):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="QueryWeightTest",
+        description="Testing query order",
+        genre_tags_raw="",
+        audience_tags_raw="",
+        platform_tags=["pc"],
+        website_url=None,
+        genre_primary_tags_raw="turn based tactics",
+        genre_secondary_tags_raw="strategy, sci-fi",
+        audience_primary_tags_raw="tactics fans",
+        audience_secondary_tags_raw="pc gamers",
+    )
+
+    from app.ingestion.query_builder import build_basic_queries
+
+    queries = build_basic_queries(game)
+
+    assert queries[:5] == [
+        "turn-based tactics",
+        "strategy",
+        "sci-fi",
+        "tactics players",
+        "pc players",
+    ]
+
+
 def test_update_game_changes_fields(
     game_service, sample_game, registered_user
 ):
@@ -170,7 +237,7 @@ def test_delete_asset_removes_it(
 def test_game_limit_returns_false_after_trial_limit(
     game_service, billing_service, registered_user
 ):
-    # New subscriptions are in a 7-day Starter trial (3 game limit).
+    # New subscriptions are in a 3-day Indie trial (3 game limit).
     assert billing_service.check_game_limit(registered_user.user_id) is True
 
     for i in range(3):
@@ -184,7 +251,7 @@ def test_game_limit_returns_false_after_trial_limit(
             website_url=None,
         )
 
-    # Should now be at the Starter trial limit (3 games)
+    # Should now be at the Indie trial limit (3 games)
     assert billing_service.check_game_limit(registered_user.user_id) is False
 
 

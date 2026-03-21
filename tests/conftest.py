@@ -2,7 +2,10 @@ import pytest
 
 from app.auth.repository import SessionRepository, UserRepository
 from app.auth.service import AuthService
-from app.billing.repository import SubscriptionRepository
+from app.billing.repository import (
+    DiscoveryRunRepository,
+    SubscriptionRepository,
+)
 from app.billing.service import BillingService
 from app.database import initialize_database
 from app.games.repository import (
@@ -87,14 +90,20 @@ def sub_repo(db_path):
 
 
 @pytest.fixture
-def billing_service(sub_repo, game_repo):
+def run_repo(db_path):
+    return DiscoveryRunRepository(db_path)
+
+
+@pytest.fixture
+def billing_service(sub_repo, game_repo, run_repo):
     return BillingService(
         sub_repo,
         game_repo,
-        ls_api_key="test_api_key",
-        ls_store_id="123",
-        ls_starter_variant_id="variant_starter",
-        ls_pro_variant_id="variant_pro",
+        run_repo,
+        paddle_api_key="test_api_key",
+        paddle_client_side_token="test_123456789012345678901234567",
+        paddle_indie_price_id="pri_indie",
+        paddle_environment="sandbox",
     )
 
 

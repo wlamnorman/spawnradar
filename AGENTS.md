@@ -20,5 +20,5 @@ make check
 
 ## Notes
 
-- `make run` and `make dev` keep the existing local DB and seed dev data in place.
-- Use `sp rm-db` when you want a clean local reset.
+- `make run` keep the existing local DB and seed dev data in place.
+- Use `sr rm-db` when you want a clean local reset.

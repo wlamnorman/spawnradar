@@ -19,6 +19,21 @@ SESSION_LIFETIME_DAYS = 30
 RESET_TOKEN_LIFETIME_HOURS = 1
 
 
+def _normalize_email(email: str) -> str:
+    """Return a canonical email address.
+
+    For Gmail / Googlemail addresses, strips dots and +tags from the local
+    part so that me@gmail.com, m.e@gmail.com, and me+trial@gmail.com all
+    resolve to the same account.
+    """
+    email = email.strip().lower()
+    local, at, domain = email.partition("@")
+    if domain in ("gmail.com", "googlemail.com"):
+        local = local.split("+")[0].replace(".", "")
+        domain = "gmail.com"  # treat googlemail.com as gmail.com
+    return f"{local}{at}{domain}"
+
+
 class AuthService:
     """Handles user registration, login, and session lifecycle."""
 
@@ -37,7 +52,7 @@ class AuthService:
 
         Raises ValueError if the email is already registered.
         """
-        email = email.strip().lower()
+        email = _normalize_email(email)
         if not email or not password:
             raise ValueError("Email and password are required.")
         if self._users.get_by_email(email) is not None:
@@ -50,13 +65,14 @@ class AuthService:
     def login(self, email: str, password: str) -> Session:
         """Verify credentials and create a new session.
 
-        Raises ValueError if credentials are invalid.
+        Raises ValueError if credentials are invalid or the account uses
+        Google sign-in only and has no password set.
         """
-        email = email.strip().lower()
+        email = _normalize_email(email)
         user = self._users.get_by_email(email)
-        if user is None or not bcrypt.checkpw(
-            password.encode(), user.password_hash.encode()
-        ):
+        if user is None or user.password_hash is None:
+            raise ValueError("Invalid email or password.")
+        if not bcrypt.checkpw(password.encode(), user.password_hash.encode()):
             raise ValueError("Invalid email or password.")
 
         session_id = str(uuid.uuid4())
@@ -76,6 +92,33 @@ class AuthService:
             datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
         ).isoformat()
         return self._sessions.create(session_id, user_id, expires_at)
+
+    def get_or_create_google_user(
+        self, google_id: str, email: str
+    ) -> User:
+        """Return an existing user matched by Google ID or email, creating one if absent.
+
+        If a user exists with the same email but no Google ID yet, the Google
+        ID is linked to their account so future logins work by either method.
+        """
+        email = _normalize_email(email)
+
+        # 1. Exact match on google_id
+        user = self._users.get_by_google_id(google_id)
+        if user is not None:
+            return user
+
+        # 2. Existing account with same email — link the Google ID
+        user = self._users.get_by_email(email)
+        if user is not None:
+            self._users.link_google_id(user.user_id, google_id)
+            return self._users.get_by_id(user.user_id)  # type: ignore[return-value]
+
+        # 3. New user — create a password-less account
+        user_id = str(uuid.uuid4())
+        return self._users.create(
+            user_id, email, password_hash=None, google_id=google_id
+        )
 
     def get_session(self, session_id: str) -> Session | None:
         """Return a session if it exists and has not expired, else None."""

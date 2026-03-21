@@ -10,7 +10,8 @@ class User:
 
     user_id: str
     email: str
-    password_hash: str
+    password_hash: str | None  # None for Google-only accounts
+    google_id: str | None      # None for password-only accounts
     is_admin: bool
     created_at: str
     updated_at: str

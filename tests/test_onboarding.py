@@ -15,6 +15,14 @@ def _make_client(monkeypatch, tmp_path) -> TestClient:
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("SECRET_KEY", "test-secret")
     monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
+    for key in (
+        "PADDLE_API_KEY",
+        "PADDLE_CLIENT_SIDE_TOKEN",
+        "PADDLE_WEBHOOK_SECRET",
+        "PADDLE_INDIE_PRICE_ID",
+        "PADDLE_ENVIRONMENT",
+    ):
+        monkeypatch.setenv(key, "")
     app = create_app()
     return TestClient(app)
 
@@ -52,6 +60,7 @@ def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
             data={"email": "flow@example.com", "password": "password123"},
             follow_redirects=False,
         )
+        new_page = client.get("/games/new")
         response = client.post(
             "/games",
             data={
@@ -61,19 +70,23 @@ def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
                 "audience_tags": "speedrunners, arcade fans",
                 "platform_tags": "browser",
                 "website_url": "orbitdrift.example",
-                "discovery_schedule": "manual",
             },
             follow_redirects=False,
         )
         setup_response = client.get(response.headers["location"])
 
+    assert new_page.status_code == 200
+    assert "Discovery schedule" not in new_page.text
+    assert "Automatic discovery runs in the background" not in new_page.text
     assert response.status_code == 303
     assert response.headers["location"].endswith("/setup")
     assert "Orbit Drift — Settings" in setup_response.text
+    assert "Discovery schedule" not in setup_response.text
+    assert "Automatic discovery runs in the background" not in setup_response.text
     assert "Onboarding wizard" not in setup_response.text
 
 
-def test_pricing_page_only_lists_paid_tiers(monkeypatch, tmp_path):
+def test_pricing_page_shows_single_subscription_offer(monkeypatch, tmp_path):
     with _make_client(monkeypatch, tmp_path) as client:
         client.post(
             "/auth/register",
@@ -83,9 +96,10 @@ def test_pricing_page_only_lists_paid_tiers(monkeypatch, tmp_path):
         response = client.get("/pricing")
 
     assert response.status_code == 200
-    assert "Starter" in response.text
-    assert "Pro" in response.text
+    assert "Simple pricing for research-driven game outreach." in response.text
+    assert "3-day trial" in response.text
     assert "Billing unavailable" in response.text
+    assert "Studio" not in response.text
 
 
 def test_billing_root_redirects_to_pricing(monkeypatch, tmp_path):
@@ -145,7 +159,6 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
                 "audience_tags": "strategy fans",
                 "platform_tags": "pc",
                 "website_url": "startactician.example",
-                "discovery_schedule": "manual",
             },
             follow_redirects=False,
         )

@@ -15,11 +15,11 @@ class Settings:
 
     db_path: str
     secret_key: str
-    ls_api_key: str
-    ls_webhook_secret: str
-    ls_store_id: str
-    ls_starter_variant_id: str
-    ls_pro_variant_id: str
+    paddle_api_key: str
+    paddle_client_side_token: str
+    paddle_webhook_secret: str
+    paddle_indie_price_id: str
+    paddle_environment: str
     base_url: str
     resend_api_key: str
     smtp_host: str
@@ -27,6 +27,8 @@ class Settings:
     smtp_user: str
     smtp_password: str
     email_from: str
+    google_client_id: str
+    google_client_secret: str
     dev_auto_login: bool
     youtube_api_key: str
     anthropic_api_key: str
@@ -35,7 +37,6 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         """Load settings from environment, falling back to .env file if present."""
-        # Attempt to load .env file if python-dotenv is installed
         try:
             from dotenv import load_dotenv
 
@@ -48,11 +49,17 @@ class Settings:
             secret_key=os.environ.get(
                 "SECRET_KEY", "dev-secret-key-change-in-production"
             ),
-            ls_api_key=os.environ.get("LEMONSQUEEZY_API_KEY", ""),
-            ls_webhook_secret=os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", ""),
-            ls_store_id=os.environ.get("LEMONSQUEEZY_STORE_ID", ""),
-            ls_starter_variant_id=os.environ.get("LEMONSQUEEZY_STARTER_VARIANT_ID", ""),
-            ls_pro_variant_id=os.environ.get("LEMONSQUEEZY_PRO_VARIANT_ID", ""),
+            paddle_api_key=os.environ.get("PADDLE_API_KEY", ""),
+            paddle_client_side_token=os.environ.get(
+                "PADDLE_CLIENT_SIDE_TOKEN", ""
+            ),
+            paddle_webhook_secret=os.environ.get(
+                "PADDLE_WEBHOOK_SECRET", ""
+            ),
+            paddle_indie_price_id=os.environ.get("PADDLE_INDIE_PRICE_ID", ""),
+            paddle_environment=os.environ.get(
+                "PADDLE_ENVIRONMENT", ""
+            ),
             base_url=os.environ.get("BASE_URL", "http://localhost:8000"),
             resend_api_key=os.environ.get("RESEND_API_KEY", ""),
             smtp_host=os.environ.get("SMTP_HOST", ""),
@@ -60,9 +67,13 @@ class Settings:
             smtp_user=os.environ.get("SMTP_USER", ""),
             smtp_password=os.environ.get("SMTP_PASSWORD", ""),
             email_from=os.environ.get("EMAIL_FROM", "noreply@spawnradar.app"),
+            google_client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
+            google_client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
             dev_auto_login=os.environ.get("DEV_AUTO_LOGIN", "").strip().lower()
             in {"1", "true", "yes", "on"},
             youtube_api_key=os.environ.get("YOUTUBE_API_KEY", ""),
             anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
-            youtube_cache_dir=os.environ.get("YOUTUBE_CACHE_DIR", "data/yt_cache"),
+            youtube_cache_dir=os.environ.get(
+                "YOUTUBE_CACHE_DIR", "data/yt_cache"
+            ),
         )

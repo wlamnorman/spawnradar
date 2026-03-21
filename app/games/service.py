@@ -1,4 +1,5 @@
 """Business logic for game creation and tag management."""
+
 from __future__ import annotations
 
 import uuid
@@ -9,11 +10,7 @@ from app.games.repository import (
     GameRepository,
     MessageTemplateRepository,
 )
-
-
-def _parse_tags(raw: str) -> list[str]:
-    """Split a comma-separated tag string into a clean list."""
-    return [t.strip() for t in raw.split(",") if t.strip()]
+from app.games.tags import build_tag_profile
 
 
 def _normalize_url(url: str | None) -> str | None:
@@ -48,7 +45,12 @@ class GameService:
         audience_tags_raw: str,
         platform_tags: list[str],
         website_url: str | None,
-        discovery_schedule: str = "manual",
+        genre_primary_tags_raw: str = "",
+        genre_secondary_tags_raw: str = "",
+        genre_custom_tags_raw: str = "",
+        audience_primary_tags_raw: str = "",
+        audience_secondary_tags_raw: str = "",
+        audience_custom_tags_raw: str = "",
     ) -> Game:
         """Create and persist a new game."""
         if not name.strip():
@@ -57,16 +59,31 @@ class GameService:
             raise ValueError("Game description is required.")
 
         game_id = str(uuid.uuid4())
+        genre_profile = build_tag_profile(
+            "genre",
+            primary_raw=genre_primary_tags_raw,
+            secondary_raw=genre_secondary_tags_raw,
+            custom_raw=genre_custom_tags_raw,
+            legacy_raw=genre_tags_raw,
+        )
+        audience_profile = build_tag_profile(
+            "audience",
+            primary_raw=audience_primary_tags_raw,
+            secondary_raw=audience_secondary_tags_raw,
+            custom_raw=audience_custom_tags_raw,
+            legacy_raw=audience_tags_raw,
+        )
         return self._games.create(
             game_id=game_id,
             user_id=user_id,
             name=name.strip(),
             description=description.strip(),
-            genre_tags=_parse_tags(genre_tags_raw),
-            audience_tags=_parse_tags(audience_tags_raw),
+            genre_tags=genre_profile.all_tags,
+            audience_tags=audience_profile.all_tags,
+            genre_tag_profile=genre_profile,
+            audience_tag_profile=audience_profile,
             platform_tags=platform_tags,
             website_url=_normalize_url(website_url),
-            discovery_schedule=discovery_schedule,
         )
 
     def update_game(
@@ -79,22 +96,42 @@ class GameService:
         audience_tags_raw: str,
         platform_tags: list[str],
         website_url: str | None,
-        discovery_schedule: str = "manual",
+        genre_primary_tags_raw: str = "",
+        genre_secondary_tags_raw: str = "",
+        genre_custom_tags_raw: str = "",
+        audience_primary_tags_raw: str = "",
+        audience_secondary_tags_raw: str = "",
+        audience_custom_tags_raw: str = "",
     ) -> Game:
         """Update game fields, verifying ownership."""
         game = self._games.get_by_id(game_id)
         if game is None or game.user_id != user_id:
             raise ValueError("Game not found or access denied.")
 
+        genre_profile = build_tag_profile(
+            "genre",
+            primary_raw=genre_primary_tags_raw,
+            secondary_raw=genre_secondary_tags_raw,
+            custom_raw=genre_custom_tags_raw,
+            legacy_raw=genre_tags_raw,
+        )
+        audience_profile = build_tag_profile(
+            "audience",
+            primary_raw=audience_primary_tags_raw,
+            secondary_raw=audience_secondary_tags_raw,
+            custom_raw=audience_custom_tags_raw,
+            legacy_raw=audience_tags_raw,
+        )
         return self._games.update(
             game_id,
             name=name.strip(),
             description=description.strip(),
-            genre_tags=_parse_tags(genre_tags_raw),
-            audience_tags=_parse_tags(audience_tags_raw),
+            genre_tags=genre_profile.all_tags,
+            audience_tags=audience_profile.all_tags,
+            genre_tag_profile=genre_profile,
+            audience_tag_profile=audience_profile,
             platform_tags=platform_tags,
             website_url=_normalize_url(website_url),
-            discovery_schedule=discovery_schedule,
         )
 
     def add_template(
@@ -154,9 +191,7 @@ class GameService:
             url=url or None,
         )
 
-    def delete_asset(
-        self, asset_id: str, game_id: str, user_id: str
-    ) -> None:
+    def delete_asset(self, asset_id: str, game_id: str, user_id: str) -> None:
         """Delete an asset, verifying game ownership."""
         game = self._games.get_by_id(game_id)
         if game is None or game.user_id != user_id:

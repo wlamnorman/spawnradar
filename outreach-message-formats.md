@@ -1,6 +1,6 @@
 # Outreach Message Formats
 
-This note turns the guidance in [blogpost1.md](/Users/wlam/code/spawnpoint/blogpost1.md) and [blogpost2.md](/Users/wlam/code/spawnpoint/blogpost2.md) into a product and implementation plan for SpawnRadar.
+This note turns the guidance in [blogpost1.md](/Users/wlam/code/spawnradar/blogpost1.md) and [blogpost2.md](/Users/wlam/code/spawnradar/blogpost2.md) into a product and implementation plan for SpawnRadar.
 
 The main conclusion is simple:
 
@@ -305,7 +305,7 @@ This matters product-wise. SpawnRadar should not oversell AI drafting as the mai
 
 The rough tradeoff looks favorable if we use LLM assistance narrowly.
 
-Inference based on the current semantic scoring setup in [app/scoring/llm_engine.py](/Users/wlam/code/spawnpoint/app/scoring/llm_engine.py#L1):
+Inference based on the current semantic scoring setup in [app/scoring/llm_engine.py](/Users/wlam/code/spawnradar/app/scoring/llm_engine.py#L1):
 
 - cheap models are already viable for per-prospect scoring
 - message drafting prompts will likely be somewhat longer than scoring prompts
@@ -327,7 +327,7 @@ This is likely cheap enough to include in a paid plan and probably premium enoug
 
 ## Recommended Packaging
 
-### Starter
+### Basic
 
 - structured deterministic outreach drafts
 - format selection by contact context

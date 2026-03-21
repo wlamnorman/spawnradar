@@ -6,6 +6,8 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.billing.repository import SubscriptionRepository
+from app.billing.service import BillingService
 from app.config import Settings
 from app.database import get_connection, initialize_database
 from app.devtools.bootstrap import DEV_EMAIL, ensure_dev_user
@@ -57,8 +59,8 @@ class CommandResult:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the top-level parser for the `sp` CLI."""
-    parser = argparse.ArgumentParser(prog="sp")
+    """Create the top-level parser for the `sr` CLI."""
+    parser = argparse.ArgumentParser(prog="sr")
     parser.add_argument(
         "--db-path",
         default=Settings.from_env().db_path,
@@ -82,6 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
         "rm-db",
         help="Delete the local SQLite database file and related WAL/SHM files.",
     )
+    subparsers.add_parser(
+        "activate-sub",
+        help="Give the dev account an active paid subscription (skips Paddle).",
+    )
     return parser
 
 
@@ -94,7 +100,6 @@ def _seed_game(
     audience_tags_raw: str,
     platform_tags: list[str],
     website_url: str | None,
-    discovery_schedule: str = "manual",
 ) -> CommandResult:
     """Create or update a game under the local dev account."""
     initialize_database(db_path)
@@ -121,7 +126,6 @@ def _seed_game(
         "audience_tags_raw": audience_tags_raw,
         "platform_tags": platform_tags,
         "website_url": website_url,
-        "discovery_schedule": discovery_schedule,
     }
 
     if existing is None:
@@ -195,6 +199,25 @@ def run_clear_queues(db_path: str) -> CommandResult:
     )
 
 
+def run_activate_sub(db_path: str) -> CommandResult:
+    """Give the dev account a fake active paid subscription."""
+    initialize_database(db_path)
+    user = ensure_dev_user(db_path)
+    sub_repo = SubscriptionRepository(db_path)
+    billing = BillingService(sub_repo, GameRepository(db_path))
+    billing.get_or_create_subscription(user.user_id)
+    sub_repo.update_from_paddle(
+        user.user_id,
+        paddle_customer_id="dev_customer",
+        paddle_subscription_id="dev_subscription",
+        status="active",
+    )
+    return CommandResult(
+        message=f"Subscription activated for {DEV_EMAIL}.",
+        created=True,
+    )
+
+
 def run_rm_db(db_path: str) -> CommandResult:
     """Delete the local SQLite database file and sidecar files."""
     removed = 0
@@ -223,6 +246,8 @@ def main(argv: list[str] | None = None) -> int:
         result = run_clear_queues(args.db_path)
     elif args.command == "rm-db":
         result = run_rm_db(args.db_path)
+    elif args.command == "activate-sub":
+        result = run_activate_sub(args.db_path)
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 

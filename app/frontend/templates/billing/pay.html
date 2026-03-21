@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Billing — SpawnRadar{% endblock %}
+{% block head %}
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+{% endblock %}
+{% block content %}
+<section class="billing-page">
+    <div class="card billing-launch-card">
+        <span class="marketing-kicker">Billing</span>
+        <h1>Opening checkout...</h1>
+        <p class="subtle">
+            If the checkout does not open automatically, use the button below.
+        </p>
+        <button type="button" class="button" id="paddle-checkout-button">
+            Open checkout
+        </button>
+        <p class="subtle billing-help-text">
+            You will complete payment in Paddle Checkout and return to SpawnRadar afterwards.
+        </p>
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    const checkoutButton = document.getElementById("paddle-checkout-button");
+    const paddleEnvironment = {{ paddle_environment | tojson }};
+    const paddleToken = {{ paddle_client_side_token | tojson }};
+    const priceId = {{ price_id | tojson }};
+    const successUrl = {{ success_url | tojson }};
+    const customerEmail = {{ customer_email | tojson }};
+    const customData = {{ custom_data | tojson }};
+
+    function openCheckout() {
+        if (!window.Paddle) {
+            return;
+        }
+
+        window.Paddle.Checkout.open({
+            settings: {
+                displayMode: "overlay",
+                variant: "one-page",
+                theme: "light",
+                successUrl: successUrl,
+            },
+            items: [{ priceId: priceId, quantity: 1 }],
+            customer: customerEmail ? { email: customerEmail } : undefined,
+            customData: customData,
+        });
+    }
+
+    if (window.Paddle && paddleEnvironment === "sandbox") {
+        window.Paddle.Environment.set("sandbox");
+    }
+    if (window.Paddle) {
+        window.Paddle.Initialize({ token: paddleToken });
+    }
+
+    checkoutButton?.addEventListener("click", openCheckout);
+    window.setTimeout(openCheckout, 50);
+})();
+</script>
+{% endblock %}

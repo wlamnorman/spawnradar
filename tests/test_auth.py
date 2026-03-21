@@ -12,6 +12,7 @@ def test_register_creates_user_with_hashed_password(auth_service):
     user = auth_service.register("alice@example.com", "secret")
     assert isinstance(user, User)
     assert user.email == "alice@example.com"
+    assert user.password_hash is not None
     # Password must not be stored in plaintext
     assert user.password_hash != "secret"
     assert user.password_hash.startswith(

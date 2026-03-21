@@ -46,7 +46,7 @@ def build_tagged_queries(
             )
         )
 
-    for tag in game.genre_tags:
+    for tag in game.ordered_genre_tags():
         for template in genre_templates:
             add(
                 template.format(tag=tag, game_name=game.name),
@@ -54,7 +54,7 @@ def build_tagged_queries(
                 source_audience_tag=None,
             )
 
-    for tag in game.audience_tags:
+    for tag in game.ordered_audience_tags():
         for template in audience_templates:
             add(
                 template.format(tag=tag, game_name=game.name),
@@ -77,7 +77,11 @@ def build_basic_queries(game: Game) -> list[str]:
     queries: list[str] = []
     seen: set[str] = set()
 
-    for query in [*game.genre_tags, *game.audience_tags, game.name]:
+    for query in [
+        *game.ordered_genre_tags(),
+        *game.ordered_audience_tags(),
+        game.name,
+    ]:
         cleaned = query.strip()
         lowered = cleaned.lower()
         if not cleaned or lowered in seen:

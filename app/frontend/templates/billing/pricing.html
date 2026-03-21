@@ -1,0 +1,66 @@
+{% extends "base.html" %} {% block title %}Pricing — SpawnRadar{% endblock %} {%
+block meta_description %}<meta
+    name="description"
+    content="Simple pricing for creator discovery, queue review, and structured outreach workflows."
+/>{% endblock %} {% block og_title %}Pricing — SpawnRadar{% endblock %} {% block
+og_description %}Simple pricing for creator discovery, queue review, and
+structured outreach workflows.{% endblock %} {% block twitter_title %}Pricing —
+SpawnRadar{% endblock %} {% block twitter_description %}Simple pricing for
+creator discovery, queue review, and structured outreach workflows.{% endblock
+%} {% block content %} {% set tier = tiers[0] %} {% set limits =
+tier_limits[tier] %} {% set price = tier_prices[tier] %}
+<section class="pricing-header pricing-header-single">
+    <span class="marketing-kicker">Pricing</span>
+    <h1>Simple pricing for research-driven game outreach.</h1>
+    <p class="subtle">
+        One subscription, one focused workflow, and a short trial so you can
+        validate the product before it bills.
+    </p>
+</section>
+
+<section class="pricing-shell">
+    <div class="pricing-cards pricing-cards-single">
+        <div class="plan-card plan-card-single plan-card-featured">
+            <div class="plan-card-top plan-card-top-single">
+                <span class="plan-pill">3-day trial</span>
+                <div class="plan-price">${{ price }}<span>/month + applicable tax</span></div>
+            </div>
+            <p class="plan-summary">
+                Everything you need to run a focused outreach pipeline for one
+                active game.
+            </p>
+            <ul class="plan-features">
+                <li>Up to <strong>{{ limits.games }}</strong> active game</li>
+                <li>
+                    <strong>{{ limits.prospects_per_run }}</strong> prospects
+                    per discovery run
+                </li>
+                <li><strong>3-day trial</strong> before billing starts</li>
+                <li>Unlimited queue review and draft iteration</li>
+            </ul>
+            {% if user %} {% if billing_enabled %}
+            <a href="/billing/pay?tier=indie" class="button button-full">
+                Start 3-day trial
+            </a>
+            {% else %}
+            <button type="button" class="button button-full" disabled>
+                Billing unavailable
+            </button>
+            {% endif %} {% else %}
+            <a href="/auth/register" class="button button-full">
+                Start 3-day trial
+            </a>
+            {% endif %}
+            <p class="pricing-note">
+                Taxes handled at checkout based on your location.
+            </p>
+            <p class="pricing-note">
+                Need higher-volume access or multiple games later? Email
+                <a href="mailto:contact@spawnradar.com"
+                    >contact@spawnradar.com</a
+                >.
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}

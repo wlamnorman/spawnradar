@@ -1,0 +1,54 @@
+{% extends "base.html" %} {% block title %}Admin — SpawnRadar{% endblock %} {%
+block content %}
+<div class="dashboard-header">
+    <div>
+        <h1>Admin</h1>
+        <p class="subtle">
+            {{ rows | length }} user{% if rows | length != 1 %}s{% endif %}
+            registered.
+        </p>
+    </div>
+</div>
+
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Admin</th>
+            <th>Joined</th>
+            <th>Subscription</th>
+            <th>Trial ends</th>
+            <th>Games</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %} {% set u = row.user %} {% set sub =
+        row.subscription %} {% set games = row.games %}
+        <tr>
+            <td>{{ u.email }}</td>
+            <td>{% if u.is_admin %}✓{% else %}—{% endif %}</td>
+            <td>{{ u.created_at[:10] }}</td>
+            <td>
+                {% if sub %}
+                <span class="tier-badge tier-indie"
+                    >{{ "TRIAL" if sub.is_trialing else "ACTIVE" }}</span
+                >
+                {% else %} — {% endif %}
+            </td>
+            <td>
+                {% if sub and sub.trial_ends_at %} {{ sub.trial_ends_at[:10] }}
+                {% else %} — {% endif %}
+            </td>
+            <td>
+                {% if games %}
+                <span title="{{ games | map(attribute='name') | join(', ') }}"
+                    >{{ games | length }} game{% if games | length != 1 %}s{%
+                    endif %}</span
+                >
+                {% else %} 0 games {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,74 @@
+"""Soft Paddle integration checks.
+
+These tests run with the normal suite, but external Paddle failures are treated as
+warnings plus skips so sandbox/CDN issues do not block local development.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import create_app
+
+
+def _warn_and_skip(message: str, exc: Exception | None = None) -> None:
+    details = f"{message}: {exc}" if exc is not None else message
+    warnings.warn(details, stacklevel=2)
+    pytest.skip(message)
+
+
+def _make_client(monkeypatch, tmp_path) -> TestClient:
+    db_path = str(tmp_path / "paddle-integration.sqlite3")
+    monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("PADDLE_CLIENT_SIDE_TOKEN", "test_123456789012345678901234567")
+    monkeypatch.setenv("PADDLE_INDIE_PRICE_ID", "pri_test_indie")
+    monkeypatch.setenv("PADDLE_ENVIRONMENT", "sandbox")
+    monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
+    app = create_app()
+    return TestClient(app)
+
+
+def test_billing_pay_page_embeds_paddle_checkout_context(monkeypatch, tmp_path):
+    with _make_client(monkeypatch, tmp_path) as client:
+        client.post(
+            "/auth/register",
+            data={"email": "billing@example.com", "password": "password123"},
+            follow_redirects=False,
+        )
+        response = client.get("/billing/pay")
+
+    assert response.status_code == 200
+    assert "https://cdn.paddle.com/paddle/v2/paddle.js" in response.text
+    assert "Paddle.Checkout.open" in response.text
+    assert "pri_test_indie" in response.text
+    assert "test_123456789012345678901234567" in response.text
+    assert 'displayMode: "overlay"' in response.text
+
+
+def test_paddle_cdn_script_is_reachable_softly():
+    try:
+        response = httpx.get(
+            "https://cdn.paddle.com/paddle/v2/paddle.js",
+            timeout=5.0,
+            follow_redirects=True,
+        )
+    except httpx.HTTPError as exc:
+        _warn_and_skip("Paddle CDN was unreachable during this test run", exc)
+        return
+
+    if response.status_code != 200:
+        _warn_and_skip(
+            f"Paddle CDN returned {response.status_code} during this test run"
+        )
+        return
+
+    if "Paddle" not in response.text:
+        _warn_and_skip("Paddle CDN responded, but the script content looked unexpected")
+        return
+
+    assert "Paddle" in response.text

@@ -22,13 +22,16 @@ def test_root_renders_public_landing_page(monkeypatch, tmp_path):
         in response.text
     )
     assert 'href="/pricing"' in response.text
+    assert 'href="/static/favicon/site.webmanifest"' in response.text
+    assert 'href="/static/favicon/favicon.svg"' in response.text
+    assert 'src="/static/favicon/favicon-96x96.png"' in response.text
 
 
-def test_pricing_renders_only_starter_and_pro(monkeypatch, tmp_path):
+def test_pricing_renders_single_offer(monkeypatch, tmp_path):
     with _make_client(monkeypatch, tmp_path) as client:
         response = client.get("/pricing")
 
     assert response.status_code == 200
-    assert "Starter" in response.text
-    assert "Pro" in response.text
-    assert "Free" not in response.text
+    assert "Simple pricing for research-driven game outreach." in response.text
+    assert "Start 3-day trial" in response.text
+    assert "Studio" not in response.text

@@ -32,6 +32,7 @@ async def sitemap_xml(request: Request) -> PlainTextResponse:
         f'<url><loc>{base}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>',
         f'<url><loc>{base}/pricing</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>',
         f'<url><loc>{base}/blog</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>',
+        f'<url><loc>{base}/creators</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>',
     ]
 
     post_urls = [

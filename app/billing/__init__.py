@@ -1,1 +1,1 @@
-# Billing module: Stripe subscriptions and tier limits
+# Billing module: Paddle subscriptions and tier limits

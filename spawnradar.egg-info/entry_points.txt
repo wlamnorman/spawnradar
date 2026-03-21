@@ -1,0 +1,2 @@
+[console_scripts]
+sr = app.devtools.cli:main

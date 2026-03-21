@@ -1,4 +1,4 @@
-.PHONY: install check lint test typecheck run reset-db help deploy
+.PHONY: install check lint test typecheck run help deploy set-fly-secrets-production
 
 PYTHON  := .venv/bin/python
 UVICORN := .venv/bin/uvicorn
@@ -35,6 +35,18 @@ deploy:
 	fi; \
 	exec flyctl deploy --ha=false --strategy immediate
 
+## Import secrets from .env.production into Fly app spawnradar
+set-fly-secrets-production:
+	@set -e; \
+	if ! command -v flyctl >/dev/null 2>&1; then \
+		echo "flyctl is not installed. Install it first: brew install flyctl"; \
+		exit 1; \
+	fi; \
+	if [ ! -f ".env.production" ]; then \
+		echo "Env file not found: .env.production"; \
+		exit 1; \
+	fi; \
+	flyctl secrets import -a spawnradar < .env.production
 
 define OPEN_BROWSER_DELAYED
 	( sleep 1; \
@@ -56,16 +68,6 @@ define STOP_PORT
 endef
 
 ## Start local server, keep existing DB, open browser, run with reload
-dev:
-	$(STOP_PORT)
-	@$(PYTHON) -m app.devtools.seed_dev data/spawnradar.sqlite3
-	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 wikiquests
-	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 strife-of-stars
-	@echo "Starting server at $(URL)"
-	$(OPEN_BROWSER_DELAYED)
-	exec env DEV_AUTO_LOGIN=1 $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
-
-## Start local server, keep existing DB, open browser, run with reload
 run:
 	$(STOP_PORT)
 	@$(PYTHON) -m app.devtools.seed_dev data/spawnradar.sqlite3
@@ -74,13 +76,6 @@ run:
 	@echo "Starting server at $(URL)"
 	$(OPEN_BROWSER_DELAYED)
 	exec env DEV_AUTO_LOGIN=1 $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
-
-
-## Drop and recreate the local SQLite database
-reset-db:
-	rm -f data/spawnradar.sqlite3
-	$(PYTHON) -c "from app.database import initialize_database; initialize_database('data/spawnradar.sqlite3')"
-	@echo "Database reset at data/spawnradar.sqlite3"
 
 
 ## Show this help

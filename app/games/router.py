@@ -33,6 +33,7 @@ from app.games.repository import (
     MessageTemplateRepository,
 )
 from app.games.service import GameService
+from app.games.tags import catalog_for, featured_tags_for
 from app.prospects.repository import DraftItemRepository
 
 router = APIRouter(tags=["games"])
@@ -46,6 +47,31 @@ def _platform_tags_from_form(request_form: object) -> list[str]:
     return [
         value for value in getlist("platform_tags") if isinstance(value, str)
     ]
+
+
+def _tag_form_context(game: object | None = None) -> dict[str, object]:
+    """Return shared tag picker context for create and setup forms."""
+    genre_primary = []
+    genre_secondary = []
+    audience_primary = []
+    audience_secondary = []
+
+    if game is not None:
+        genre_primary = getattr(game, "genre_primary_tags", [])
+        genre_secondary = getattr(game, "genre_secondary_tags", [])
+        audience_primary = getattr(game, "audience_primary_tags", [])
+        audience_secondary = getattr(game, "audience_secondary_tags", [])
+
+    return {
+        "featured_genre_tags": featured_tags_for("genre"),
+        "featured_audience_tags": featured_tags_for("audience"),
+        "genre_tag_catalog": catalog_for("genre"),
+        "audience_tag_catalog": catalog_for("audience"),
+        "genre_primary_tags_value": ", ".join(genre_primary),
+        "genre_secondary_tags_value": ", ".join(genre_secondary),
+        "audience_primary_tags_value": ", ".join(audience_primary),
+        "audience_secondary_tags_value": ", ".join(audience_secondary),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +125,7 @@ async def new_game_page(
     return templates.TemplateResponse(
         request,
         "games/create.html",
-        {"user": user, "error": None},
+        {"user": user, "error": None, **_tag_form_context()},
     )
 
 
@@ -111,8 +137,11 @@ async def create_game_post(
     description: str = Form(...),
     genre_tags: str = Form(default=""),
     audience_tags: str = Form(default=""),
+    genre_primary_tags: str = Form(default=""),
+    genre_secondary_tags: str = Form(default=""),
+    audience_primary_tags: str = Form(default=""),
+    audience_secondary_tags: str = Form(default=""),
     website_url: str = Form(default=""),
-    discovery_schedule: str = Form(default="manual"),
     billing_service: BillingService = Depends(get_billing_service),
     game_service: GameService = Depends(get_game_service),
     templates: Jinja2Templates = Depends(get_templates),
@@ -129,6 +158,7 @@ async def create_game_post(
             {
                 "user": user,
                 "error": "You've reached your game limit. Upgrade your plan to add more games.",
+                **_tag_form_context(),
             },
             status_code=400,
         )  # type: ignore[return-value]
@@ -142,13 +172,16 @@ async def create_game_post(
             audience_tags_raw=audience_tags,
             platform_tags=platform_tags,
             website_url=website_url or None,
-            discovery_schedule=discovery_schedule,
+            genre_primary_tags_raw=genre_primary_tags,
+            genre_secondary_tags_raw=genre_secondary_tags,
+            audience_primary_tags_raw=audience_primary_tags,
+            audience_secondary_tags_raw=audience_secondary_tags,
         )
     except ValueError as exc:
         return templates.TemplateResponse(
             request,
             "games/create.html",
-            {"user": user, "error": str(exc)},
+            {"user": user, "error": str(exc), **_tag_form_context()},
             status_code=400,
         )  # type: ignore[return-value]
 
@@ -187,6 +220,7 @@ async def game_setup_page(
             "message_templates": templates_list,
             "assets": assets,
             "error": None,
+            **_tag_form_context(game),
         },
     )
 
@@ -200,8 +234,11 @@ async def update_game_post(
     description: str = Form(...),
     genre_tags: str = Form(default=""),
     audience_tags: str = Form(default=""),
+    genre_primary_tags: str = Form(default=""),
+    genre_secondary_tags: str = Form(default=""),
+    audience_primary_tags: str = Form(default=""),
+    audience_secondary_tags: str = Form(default=""),
     website_url: str = Form(default=""),
-    discovery_schedule: str = Form(default="manual"),
     game_repo: GameRepository = Depends(get_game_repo),
     game_service: GameService = Depends(get_game_service),
 ) -> RedirectResponse:
@@ -223,7 +260,10 @@ async def update_game_post(
             audience_tags_raw=audience_tags,
             platform_tags=platform_tags,
             website_url=website_url or None,
-            discovery_schedule=discovery_schedule,
+            genre_primary_tags_raw=genre_primary_tags,
+            genre_secondary_tags_raw=genre_secondary_tags,
+            audience_primary_tags_raw=audience_primary_tags,
+            audience_secondary_tags_raw=audience_secondary_tags,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -369,6 +409,13 @@ async def run_ingestion_api(
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
 
+    try:
+        used_runs, run_limit = billing_service.record_discovery_run(
+            user.user_id, game.game_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
     limit = billing_service.get_prospects_limit(user.user_id)
 
     from app.ingestion.pipeline import run_ingestion
@@ -387,5 +434,10 @@ async def run_ingestion_api(
         {
             "ok": True,
             "message": "Discovery pipeline started in the background.",
+            "usage": {
+                "used": used_runs,
+                "limit": run_limit,
+                "remaining": max(0, run_limit - used_runs),
+            },
         }
     )

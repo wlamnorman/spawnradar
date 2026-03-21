@@ -235,3 +235,57 @@ async def reset_password_post(
         return response  # type: ignore[return-value]
 
     return RedirectResponse(url="/auth/login?reset=1", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Google OAuth
+# ---------------------------------------------------------------------------
+
+
+@router.get("/google")
+async def google_login(request: Request) -> RedirectResponse:
+    """Redirect to Google's OAuth consent screen."""
+    oauth = request.app.state.oauth
+    if "google" not in oauth._clients:  # type: ignore[attr-defined]
+        return RedirectResponse(
+            url="/auth/login?error=google_not_configured", status_code=303
+        )
+    redirect_uri = str(request.url_for("google_callback"))
+    return await oauth.google.authorize_redirect(request, redirect_uri)  # type: ignore[no-any-return]
+
+
+@router.get("/google/callback", name="google_callback")
+async def google_callback(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+) -> RedirectResponse:
+    """Handle the OAuth callback from Google, create or log in the user."""
+    oauth = request.app.state.oauth
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception:
+        return RedirectResponse(
+            url="/auth/login?error=google_failed", status_code=303
+        )
+
+    user_info = token.get("userinfo")
+    if not user_info or not user_info.get("email"):
+        return RedirectResponse(
+            url="/auth/login?error=google_failed", status_code=303
+        )
+
+    google_id: str = user_info["sub"]
+    email: str = user_info["email"]
+
+    user = auth.get_or_create_google_user(google_id, email)
+    session = auth.create_session_for_user(user.user_id)
+
+    redirect = RedirectResponse(url="/games", status_code=303)
+    redirect.set_cookie(
+        "session_id",
+        session.session_id,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 60 * 24 * 30,
+    )
+    return redirect

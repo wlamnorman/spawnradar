@@ -13,7 +13,7 @@ def initialize_database(db_path: str) -> None:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    schema_path = Path(__file__).resolve().parent.parent / "sql" / "schema.sql"
+    schema_path = Path(__file__).resolve().parent / "sql" / "schema.sql"
     schema_sql = schema_path.read_text(encoding="utf-8")
 
     with sqlite3.connect(str(path)) as conn:

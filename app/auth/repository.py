@@ -18,19 +18,38 @@ class UserRepository:
         self,
         user_id: str,
         email: str,
-        password_hash: str,
+        password_hash: str | None,
         is_admin: bool = False,
+        google_id: str | None = None,
     ) -> User:
         """Insert a new user and return the created record."""
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO users (user_id, email, password_hash, is_admin)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO users (user_id, email, password_hash, google_id, is_admin)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (user_id, email, password_hash, int(is_admin)),
+                (user_id, email, password_hash, google_id, int(is_admin)),
             )
         return self.get_by_id(user_id)  # type: ignore[return-value]
+
+    def get_by_google_id(self, google_id: str) -> User | None:
+        """Fetch a user by their Google subject ID."""
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE google_id = ?", (google_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_user(row)
+
+    def link_google_id(self, user_id: str, google_id: str) -> None:
+        """Attach a Google ID to an existing account (e.g. after email match)."""
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                "UPDATE users SET google_id = ?, updated_at = datetime('now') WHERE user_id = ?",
+                (google_id, user_id),
+            )
 
     def list_all(self) -> list[User]:
         """Return all users ordered by created_at descending."""
@@ -156,6 +175,7 @@ def _row_to_user(row: sqlite3.Row) -> User:
         user_id=row["user_id"],
         email=row["email"],
         password_hash=row["password_hash"],
+        google_id=row["google_id"],
         is_admin=bool(row["is_admin"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],

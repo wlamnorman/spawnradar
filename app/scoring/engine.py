@@ -39,8 +39,11 @@ developer  (Bluesky indie devs)
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+from app.games.tags import WeightedTag
 
 if TYPE_CHECKING:
     from app.games.models import Game
@@ -155,7 +158,7 @@ def score_prospect(
         genre_fit = genre_fit_override
     else:
         genre_fit = _tag_match_score(
-            game.genre_tags,
+            game.weighted_genre_tags(),
             search_text,
             {source_genre_tag} if source_genre_tag else set(),
             reasons,
@@ -169,7 +172,7 @@ def score_prospect(
         audience_fit = audience_fit_override
     else:
         audience_fit = _tag_match_score(
-            game.audience_tags,
+            game.weighted_audience_tags(),
             search_text,
             {source_audience_tag} if source_audience_tag else set(),
             reasons,
@@ -201,7 +204,7 @@ def score_prospect(
         platform_fit = platform_fit_override
     else:
         platform_fit = _tag_match_score(
-            game.platform_tags,
+            _weighted_plain_tags(game.platform_tags),
             search_text,
             set(),
             reasons,
@@ -288,7 +291,7 @@ def _score_activity(last_upload_days_ago: int | None) -> float:
 
 
 def _tag_match_score(
-    tags: list[str],
+    tags: Sequence[WeightedTag],
     search_text: str,
     query_tags: set[str],
     reasons: list[str],
@@ -308,22 +311,25 @@ def _tag_match_score(
         return 0.0
 
     query_tags_lower = {t.lower() for t in query_tags}
-    matched = 0.0
+    matched_weight = 0.0
+    total_weight = sum(tag.weight for tag in tags)
+    if total_weight <= 0:
+        return 0.0
 
     for tag in tags:
-        tag_lower = tag.lower()
+        tag_lower = tag.name.lower()
         tag_words = tag_lower.split()
 
         if all(word in search_text for word in tag_words):
-            matched += 1.0
-            reasons.append(f"{dimension.capitalize()} match: '{tag}'")
+            matched_weight += tag.weight
+            reasons.append(f"{dimension.capitalize()} match: '{tag.name}'")
         elif tag_lower in query_tags_lower:
-            matched += 0.85
+            matched_weight += 0.85 * tag.weight
             reasons.append(
-                f"{dimension.capitalize()} (search context): '{tag}'"
+                f"{dimension.capitalize()} (search context): '{tag.name}'"
             )
 
-    return min(matched / len(tags), 1.0)
+    return min(matched_weight / total_weight, 1.0)
 
 
 def _normalize_audience_size(size: int | None) -> float:
@@ -340,6 +346,10 @@ def _normalize_audience_size(size: int | None) -> float:
         return 0.2 + 0.8 * math.log(size / 1_000) / math.log(500)
     else:
         return max(1.0 - 0.7 * math.log(size / 500_000) / math.log(10), 0.2)
+
+
+def _weighted_plain_tags(tags: list[str]) -> list[WeightedTag]:
+    return [WeightedTag(name=tag, weight=1.0, label="primary") for tag in tags]
 
 
 def _build_summary(

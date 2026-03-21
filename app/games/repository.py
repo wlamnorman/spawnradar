@@ -7,9 +7,11 @@ import sqlite3
 
 from app.database import get_connection
 from app.games.models import Asset, Game, MessageTemplate
+from app.games.tags import TagProfile
 from app.ingestion.registry import DEFAULT_DISCOVERY_SOURCES, Source
 from app.json_codec import (
     dump_json,
+    load_json_object,
     load_json_string_list,
 )
 
@@ -44,6 +46,8 @@ class GameRepository:
         description: str,
         genre_tags: list[str],
         audience_tags: list[str],
+        genre_tag_profile: TagProfile,
+        audience_tag_profile: TagProfile,
         platform_tags: list[str],
         website_url: str | None,
         discovery_schedule: str = "manual",
@@ -55,8 +59,9 @@ class GameRepository:
                 """
                 INSERT INTO games
                     (game_id, user_id, name, description, slug, genre_tags, audience_tags,
-                     platform_tags, website_url, discovery_schedule, discovery_sources)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     genre_tag_profile, audience_tag_profile, platform_tags, website_url,
+                     discovery_schedule, discovery_sources)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     game_id,
@@ -66,6 +71,8 @@ class GameRepository:
                     slug,
                     dump_json(genre_tags),
                     dump_json(audience_tags),
+                    dump_json(genre_tag_profile.to_json_value()),
+                    dump_json(audience_tag_profile.to_json_value()),
                     dump_json(platform_tags),
                     website_url,
                     discovery_schedule,
@@ -113,6 +120,8 @@ class GameRepository:
         description: str | None = None,
         genre_tags: list[str] | None = None,
         audience_tags: list[str] | None = None,
+        genre_tag_profile: TagProfile | None = None,
+        audience_tag_profile: TagProfile | None = None,
         platform_tags: list[str] | None = None,
         website_url: str | None = None,
         discovery_schedule: str | None = None,
@@ -127,6 +136,16 @@ class GameRepository:
         new_genre = genre_tags if genre_tags is not None else game.genre_tags
         new_audience = (
             audience_tags if audience_tags is not None else game.audience_tags
+        )
+        new_genre_profile = (
+            genre_tag_profile
+            if genre_tag_profile is not None
+            else game.genre_tag_profile
+        )
+        new_audience_profile = (
+            audience_tag_profile
+            if audience_tag_profile is not None
+            else game.audience_tag_profile
         )
         new_platform = (
             platform_tags if platform_tags is not None else game.platform_tags
@@ -143,6 +162,7 @@ class GameRepository:
                 """
                 UPDATE games
                 SET name = ?, description = ?, genre_tags = ?, audience_tags = ?,
+                    genre_tag_profile = ?, audience_tag_profile = ?,
                     platform_tags = ?, website_url = ?, discovery_schedule = ?,
                     updated_at = datetime('now')
                 WHERE game_id = ?
@@ -152,6 +172,8 @@ class GameRepository:
                     new_desc,
                     dump_json(new_genre),
                     dump_json(new_audience),
+                    dump_json(new_genre_profile.to_json_value()),
+                    dump_json(new_audience_profile.to_json_value()),
                     dump_json(new_platform),
                     new_url,
                     new_schedule,
@@ -316,14 +338,37 @@ def _row_to_game(row: sqlite3.Row) -> Game:
     game_id = row["game_id"]
     name = row["name"]
     slug = row["slug"] or _make_slug(name, game_id)
+    genre_tags = load_json_string_list(row["genre_tags"])
+    audience_tags = load_json_string_list(row["audience_tags"])
+    row_keys = set(row.keys())
+    genre_profile = (
+        TagProfile.from_json_value(load_json_object(row["genre_tag_profile"]))
+        if "genre_tag_profile" in row_keys
+        else TagProfile.empty()
+    )
+    audience_profile = (
+        TagProfile.from_json_value(
+            load_json_object(row["audience_tag_profile"])
+        )
+        if "audience_tag_profile" in row_keys
+        else TagProfile.empty()
+    )
+    if not genre_profile.all_tags:
+        genre_profile = TagProfile.from_flat_tags(
+            genre_tags, default_weight="primary"
+        )
+    if not audience_profile.all_tags:
+        audience_profile = TagProfile.from_flat_tags(
+            audience_tags, default_weight="primary"
+        )
     return Game(
         game_id=game_id,
         user_id=row["user_id"],
         name=name,
         description=row["description"],
         slug=slug,
-        genre_tags=load_json_string_list(row["genre_tags"]),
-        audience_tags=load_json_string_list(row["audience_tags"]),
+        genre_tags=genre_tags,
+        audience_tags=audience_tags,
         platform_tags=load_json_string_list(row["platform_tags"]),
         website_url=row["website_url"],
         discovery_schedule=row["discovery_schedule"]
@@ -333,6 +378,8 @@ def _row_to_game(row: sqlite3.Row) -> Game:
         status=row["status"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        genre_tag_profile=genre_profile,
+        audience_tag_profile=audience_profile,
     )
 
 

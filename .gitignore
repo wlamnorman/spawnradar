@@ -7,3 +7,6 @@ data/
 .venv
 .claude
 .ruff_cache
+.env.production
+.env.staging
+.env*

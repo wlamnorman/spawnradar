@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.games.tags import TagProfile, WeightedTag
 from app.ingestion.registry import DEFAULT_DISCOVERY_SOURCES, Source
 
 
@@ -23,10 +24,62 @@ class Game:
     slug: str
     created_at: str
     updated_at: str
+    genre_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
+    audience_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
     discovery_schedule: str = "manual"
     discovery_sources: list[Source] = field(
         default_factory=lambda: list(DEFAULT_DISCOVERY_SOURCES)
     )
+
+    @property
+    def genre_primary_tags(self) -> list[str]:
+        return list(self.genre_tag_profile.primary)
+
+    @property
+    def genre_secondary_tags(self) -> list[str]:
+        return list(self.genre_tag_profile.secondary)
+
+    @property
+    def genre_custom_tags(self) -> list[str]:
+        return list(self.genre_tag_profile.custom)
+
+    @property
+    def audience_primary_tags(self) -> list[str]:
+        return list(self.audience_tag_profile.primary)
+
+    @property
+    def audience_secondary_tags(self) -> list[str]:
+        return list(self.audience_tag_profile.secondary)
+
+    @property
+    def audience_custom_tags(self) -> list[str]:
+        return list(self.audience_tag_profile.custom)
+
+    def ordered_genre_tags(self) -> list[str]:
+        if self.genre_tag_profile.all_tags:
+            return self.genre_tag_profile.ordered_tags()
+        return list(self.genre_tags)
+
+    def ordered_audience_tags(self) -> list[str]:
+        if self.audience_tag_profile.all_tags:
+            return self.audience_tag_profile.ordered_tags()
+        return list(self.audience_tags)
+
+    def weighted_genre_tags(self) -> list[WeightedTag]:
+        if self.genre_tag_profile.all_tags:
+            return self.genre_tag_profile.weighted_tags()
+        return [
+            WeightedTag(name=tag, weight=1.0, label="primary")
+            for tag in self.genre_tags
+        ]
+
+    def weighted_audience_tags(self) -> list[WeightedTag]:
+        if self.audience_tag_profile.all_tags:
+            return self.audience_tag_profile.weighted_tags()
+        return [
+            WeightedTag(name=tag, weight=1.0, label="primary")
+            for tag in self.audience_tags
+        ]
 
 
 @dataclass(frozen=True)
