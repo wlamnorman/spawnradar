@@ -99,7 +99,7 @@ pre {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 800;
     color: var(--color-brand);
     text-decoration: none;
@@ -811,10 +811,10 @@ textarea {
 
 .marketing-step-number {
     color: var(--color-accent);
-    font-size: 28px;
-    font-weight: 800;
+    font-size: 18px;
+    font-weight: 700;
     line-height: 1;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.02em;
 }
 
 .marketing-stat-card strong {
@@ -1870,8 +1870,8 @@ textarea {
     }
 
     .marketing-step-number {
-        font-size: 24px;
-        min-width: 28px;
+        font-size: 14px;
+        min-width: 18px;
     }
 
     .marketing-stat-card strong {

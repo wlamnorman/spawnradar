@@ -31,7 +31,7 @@ block content %}
             <td>
                 {% if sub %}
                 <span class="tier-badge tier-indie"
-                    >{{ "TRIAL" if sub.is_trialing else "ACTIVE" }}</span
+                    >{{ "TRIAL" if sub.is_trialing else ("COMP" if sub.is_comped else "ACTIVE") }}</span
                 >
                 {% else %} — {% endif %}
             </td>

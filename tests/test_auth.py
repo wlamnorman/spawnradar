@@ -45,6 +45,18 @@ def test_duplicate_email_raises_value_error(auth_service):
         auth_service.register("dave@example.com", "pass2")
 
 
+def test_create_email_only_user_creates_passwordless_account(auth_service):
+    user = auth_service.create_email_only_user("invite@example.com")
+    assert user.email == "invite@example.com"
+    assert user.password_hash is None
+
+
+def test_create_email_only_user_returns_existing_account(auth_service):
+    original = auth_service.register("existing@example.com", "secret")
+    same = auth_service.create_email_only_user("existing@example.com")
+    assert same.user_id == original.user_id
+
+
 def test_session_expires_check_returns_none_for_past_expiry(
     session_repo, registered_user, auth_service
 ):

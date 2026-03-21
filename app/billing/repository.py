@@ -111,6 +111,46 @@ class SubscriptionRepository:
                 ),
             )
 
+    def grant_comped_access(
+        self, user_id: str, tier: Tier = Tier.INDIE
+    ) -> Subscription | None:
+        """Grant complimentary access without a Paddle subscription."""
+        sub = self.get_by_user(user_id)
+        now = datetime.now(UTC).isoformat()
+
+        with get_connection(self._db_path) as conn:
+            if sub is None:
+                conn.execute(
+                    """
+                    INSERT INTO subscriptions
+                        (subscription_id, user_id, tier, status, trial_ends_at, current_period_end, created_at, updated_at)
+                    VALUES (?, ?, ?, 'comped', NULL, NULL, ?, ?)
+                    """,
+                    (
+                        f"comped_{user_id}",
+                        user_id,
+                        tier.value,
+                        now,
+                        now,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE subscriptions
+                    SET paddle_subscription_id = NULL,
+                        tier = ?,
+                        status = 'comped',
+                        trial_ends_at = NULL,
+                        current_period_end = NULL,
+                        updated_at = ?
+                    WHERE subscription_id = ?
+                    """,
+                    (tier.value, now, sub.subscription_id),
+                )
+
+        return self.get_by_user(user_id)
+
 
 class DiscoveryRunRepository:
     """Tracks monthly discovery run usage for billing enforcement."""

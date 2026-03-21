@@ -36,6 +36,10 @@ def test_pricing_renders_single_offer(monkeypatch, tmp_path):
         response = client.get("/pricing")
 
     assert response.status_code == 200
-    assert "Simple pricing for tailored game outreach." in response.text
+    assert "One plan for research-driven game outreach." in response.text
     assert "Start 3-day trial" in response.text
     assert "Studio" not in response.text
+    assert "Questions before subscribing?" in response.text
+    assert "Manage up to" in response.text
+    assert "20" in response.text
+    assert "$20" in response.text

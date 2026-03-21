@@ -84,8 +84,8 @@ def test_get_prospects_limit_during_trial(billing_service, registered_user):
     assert limit == TRIAL_LIMITS["prospects_per_run"]
 
 
-def test_indie_tier_game_limit_is_one():
-    assert TIER_LIMITS[Tier.INDIE]["games"] == 1
+def test_indie_tier_game_limit_is_three():
+    assert TIER_LIMITS[Tier.INDIE]["games"] == 3
 
 
 def test_indie_tier_prospects_limit_is_fifty():
@@ -96,7 +96,7 @@ def test_trial_discovery_runs_limit_is_three():
     assert TRIAL_LIMITS["discovery_runs_per_month"] == 3
 
 
-def _make_sub(*, trial_ends_at=None, paddle_subscription_id=None, user_id="u1"):
+def _make_sub(*, trial_ends_at=None, paddle_subscription_id=None, user_id="u1", status="active"):
     now = datetime.now(UTC).isoformat()
     return Subscription(
         subscription_id="sub_test",
@@ -104,7 +104,7 @@ def _make_sub(*, trial_ends_at=None, paddle_subscription_id=None, user_id="u1"):
         paddle_customer_id=None,
         paddle_subscription_id=paddle_subscription_id,
         tier=Tier.INDIE,
-        status="active",
+        status=status,
         current_period_end=None,
         trial_ends_at=trial_ends_at,
         created_at=now,
@@ -125,6 +125,22 @@ def test_has_subscription_false_when_no_paddle_id():
 def test_has_subscription_true_when_paddle_id_is_set():
     sub = _make_sub(paddle_subscription_id="sub_paid")
     assert sub.has_subscription is True
+
+
+def test_is_comped_true_when_status_is_comped():
+    sub = _make_sub(status="comped")
+    assert sub.is_comped is True
+    assert sub.has_access is True
+
+
+def test_comped_access_gets_paid_limits(billing_service, registered_user):
+    billing_service.grant_comped_access(registered_user.user_id)
+
+    sub = billing_service.get_or_create_subscription(registered_user.user_id)
+    assert sub.is_comped is True
+    assert sub.is_trialing is False
+    assert sub.paddle_subscription_id is None
+    assert billing_service.get_discovery_runs_limit(registered_user.user_id) == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"]
 
 
 # ---------------------------------------------------------------------------

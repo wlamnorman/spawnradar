@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -17,6 +18,8 @@ from app.email.service import EmailMessage, EmailService
 
 SESSION_LIFETIME_DAYS = 30
 RESET_TOKEN_LIFETIME_HOURS = 1
+
+log = logging.getLogger(__name__)
 
 
 def _normalize_email(email: str) -> str:
@@ -40,7 +43,7 @@ class AuthService:
     def __init__(
         self,
         user_repo: UserRepository,
-        session_repo: SessionRepository,
+        session_repo: SessionRepository | None,
         reset_token_repo: PasswordResetTokenRepository | None = None,
     ) -> None:
         self._users = user_repo
@@ -62,6 +65,22 @@ class AuthService:
         user_id = str(uuid.uuid4())
         return self._users.create(user_id, email, hashed)
 
+    def create_email_only_user(self, email: str) -> User:
+        """Create an account with no password set yet.
+
+        Intended for admin or CLI-created accounts that will set a password
+        via the normal reset-password flow.
+        """
+        email = _normalize_email(email)
+        if not email:
+            raise ValueError("Email is required.")
+        existing = self._users.get_by_email(email)
+        if existing is not None:
+            return existing
+
+        user_id = str(uuid.uuid4())
+        return self._users.create(user_id, email, password_hash=None)
+
     def login(self, email: str, password: str) -> Session:
         """Verify credentials and create a new session.
 
@@ -75,6 +94,9 @@ class AuthService:
         if not bcrypt.checkpw(password.encode(), user.password_hash.encode()):
             raise ValueError("Invalid email or password.")
 
+        if self._sessions is None:
+            raise ValueError("Session storage is not configured.")
+
         session_id = str(uuid.uuid4())
         expires_at = (
             datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
@@ -83,10 +105,15 @@ class AuthService:
 
     def logout(self, session_id: str) -> None:
         """Invalidate a session."""
+        if self._sessions is None:
+            return
         self._sessions.delete(session_id)
 
     def create_session_for_user(self, user_id: str) -> Session:
         """Create a new session for an existing user."""
+        if self._sessions is None:
+            raise ValueError("Session storage is not configured.")
+
         session_id = str(uuid.uuid4())
         expires_at = (
             datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
@@ -122,6 +149,8 @@ class AuthService:
 
     def get_session(self, session_id: str) -> Session | None:
         """Return a session if it exists and has not expired, else None."""
+        if self._sessions is None:
+            return None
         session = self._sessions.get_by_id(session_id)
         if session is None:
             return None
@@ -188,14 +217,20 @@ class AuthService:
             f"If you did not request a password reset, ignore this email."
         )
 
-        email_service.send(
-            EmailMessage(
-                to=email,
-                subject="Reset your Spawnradar password",
-                html=html,
-                text=text,
+        try:
+            email_service.send(
+                EmailMessage(
+                    to=email,
+                    subject="Reset your Spawnradar password",
+                    html=html,
+                    text=text,
+                )
             )
-        )
+        except Exception:
+            log.exception(
+                "Could not send password reset email for %s; leaving reset token in place.",
+                email,
+            )
 
     def reset_password(self, token_id: str, new_password: str) -> None:
         """Reset a user's password using a valid reset token.

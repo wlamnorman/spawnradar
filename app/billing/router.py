@@ -46,7 +46,7 @@ async def pay(
     if tier not in (None, "indie", "studio"):
         raise HTTPException(status_code=400, detail="Invalid tier.")
     sub = billing.get_or_create_subscription(user.user_id)
-    if sub.has_subscription:
+    if sub.has_access:
         return RedirectResponse(url="/games", status_code=303)
 
     if not billing.checkout_enabled:

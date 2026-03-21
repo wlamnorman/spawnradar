@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from app.email.service import DEFAULT_FROM_ADDRESS
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -66,7 +68,7 @@ class Settings:
             smtp_port=int(os.environ.get("SMTP_PORT", "587")),
             smtp_user=os.environ.get("SMTP_USER", ""),
             smtp_password=os.environ.get("SMTP_PASSWORD", ""),
-            email_from=os.environ.get("EMAIL_FROM", "noreply@spawnradar.com"),
+            email_from=os.environ.get("EMAIL_FROM", DEFAULT_FROM_ADDRESS),
             google_client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
             google_client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
             dev_auto_login=os.environ.get("DEV_AUTO_LOGIN", "").strip().lower()

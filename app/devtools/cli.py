@@ -6,11 +6,14 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.auth.repository import PasswordResetTokenRepository, UserRepository
+from app.auth.service import AuthService
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.config import Settings
 from app.database import get_connection, initialize_database
 from app.devtools.bootstrap import DEV_EMAIL, ensure_dev_user
+from app.email.service import EmailService
 from app.games.repository import (
     AssetRepository,
     GameRepository,
@@ -87,6 +90,23 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "activate-sub",
         help="Give the dev account an active paid subscription (skips Paddle).",
+    )
+    grant_comp = subparsers.add_parser(
+        "grant-comp",
+        help="Grant complimentary access to one or more users by email.",
+    )
+    grant_comp.add_argument(
+        "emails", nargs="+", help="Email addresses to comp."
+    )
+    grant_comp.add_argument(
+        "--create-missing",
+        action="store_true",
+        help="Create password-less accounts for emails that do not exist yet.",
+    )
+    grant_comp.add_argument(
+        "--send-reset",
+        action="store_true",
+        help="Send a password reset email so the user can set their password.",
     )
     return parser
 
@@ -218,6 +238,82 @@ def run_activate_sub(db_path: str) -> CommandResult:
     )
 
 
+def run_grant_comp(
+    db_path: str,
+    emails: list[str],
+    *,
+    create_missing: bool = False,
+    send_reset: bool = False,
+) -> CommandResult:
+    """Grant complimentary access to users by email."""
+    initialize_database(db_path)
+    settings = Settings.from_env()
+    user_repo = UserRepository(db_path)
+    auth = AuthService(
+        user_repo,
+        session_repo=None,  # type: ignore[arg-type]
+        reset_token_repo=PasswordResetTokenRepository(db_path),
+    )
+    billing = BillingService(
+        SubscriptionRepository(db_path),
+        GameRepository(db_path),
+    )
+    email_service = EmailService(
+        resend_api_key=settings.resend_api_key,
+        smtp_host=settings.smtp_host,
+        smtp_port=settings.smtp_port,
+        smtp_user=settings.smtp_user,
+        smtp_password=settings.smtp_password,
+        from_address=settings.email_from,
+    )
+
+    granted: list[str] = []
+    created_users: list[str] = []
+    reset_sent: list[str] = []
+    missing: list[str] = []
+
+    for email in emails:
+        user = user_repo.get_by_email(email)
+        if user is None and create_missing:
+            user = auth.create_email_only_user(email)
+            created_users.append(user.email)
+
+        if user is None:
+            missing.append(email)
+            continue
+
+        billing.grant_comped_access(user.user_id)
+        granted.append(user.email)
+
+        if send_reset and email_service.is_configured:
+            auth.request_password_reset(
+                user.email, email_service, settings.base_url
+            )
+            reset_sent.append(user.email)
+
+    parts: list[str] = []
+    if granted:
+        parts.append(f"Granted complimentary access to: {', '.join(granted)}.")
+    if created_users:
+        parts.append(f"Created accounts for: {', '.join(created_users)}.")
+    if send_reset:
+        if reset_sent:
+            parts.append(
+                f"Sent password setup/reset email to: {', '.join(reset_sent)}."
+            )
+        elif not email_service.is_configured:
+            parts.append(
+                "Email is not configured, so no password setup emails were sent."
+            )
+    if missing:
+        parts.append(f"No account found for: {', '.join(missing)}.")
+    if not parts:
+        parts.append("No changes made.")
+    return CommandResult(
+        message=" ".join(parts), created=bool(granted or created_users)
+    )
+
+
 def run_rm_db(db_path: str) -> CommandResult:
     """Delete the local SQLite database file and sidecar files."""
     removed = 0
@@ -248,6 +344,13 @@ def main(argv: list[str] | None = None) -> int:
         result = run_rm_db(args.db_path)
     elif args.command == "activate-sub":
         result = run_activate_sub(args.db_path)
+    elif args.command == "grant-comp":
+        result = run_grant_comp(
+            args.db_path,
+            args.emails,
+            create_missing=args.create_missing,
+            send_reset=args.send_reset,
+        )
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 

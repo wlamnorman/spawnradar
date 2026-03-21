@@ -11,10 +11,14 @@ import hmac
 import json
 import os
 import time
+from typing import Any, cast
 
 from fastapi.testclient import TestClient
 
+from app.billing.repository import SubscriptionRepository
+from app.billing.service import BillingService
 from app.database import get_connection
+from app.games.repository import GameRepository
 from app.main import create_app
 
 # ---------------------------------------------------------------------------
@@ -204,8 +208,15 @@ class TestLegalRoutes:
         assert privacy.status_code == 200
         assert refunds.status_code == 200
         assert "Terms of Service" in terms.text
+        assert (
+            "SpawnRadar, the legal business name operating this website and service"
+            in " ".join(terms.text.split())
+        )
         assert "Privacy Policy" in privacy.text
         assert "Refund Policy" in refunds.text
+        normalized_refunds = " ".join(refunds.text.split())
+        assert "handled in line with Paddle's Buyer Terms and Refund Policy" in normalized_refunds
+        assert "Eligible buyers may request a refund within 14 days of the transaction" in normalized_refunds
 
     def test_sitemap_includes_legal_pages(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
@@ -373,6 +384,31 @@ class TestAuthRoutes:
                 data={"email": "dup@example.com", "password": "pass2"},
             )
         assert resp.status_code in (200, 400)
+
+
+    def test_forgot_password_redirects_even_when_email_send_fails(
+        self, monkeypatch, tmp_path
+    ):
+        with _make_client(monkeypatch, tmp_path) as client:
+            client.post(
+                "/auth/register",
+                data={"email": "reset@example.com", "password": "testpass"},
+            )
+
+            def broken_send(message):
+                raise RuntimeError("email provider rejected sender")
+
+            app_state = cast(Any, client.app).state
+            app_state.email_service.send = broken_send
+
+            resp = client.post(
+                "/auth/forgot-password",
+                data={"email": "reset@example.com"},
+                follow_redirects=False,
+            )
+
+        assert resp.status_code == 303
+        assert resp.headers["location"] == "/auth/forgot-password?sent=1"
 
 
 # ---------------------------------------------------------------------------
@@ -730,10 +766,6 @@ class TestBillingRoutes:
                 ).fetchone()
             user_id = row["user_id"]
 
-            from app.billing.repository import SubscriptionRepository
-            from app.billing.service import BillingService
-            from app.games.repository import GameRepository
-
             sub_repo = SubscriptionRepository(db)
             billing = BillingService(sub_repo, GameRepository(db))
             billing.get_or_create_subscription(user_id)
@@ -742,6 +774,37 @@ class TestBillingRoutes:
                 paddle_subscription_id="sub_already",
                 status="active",
             )
+
+            resp = client.get("/billing/pay", follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        assert resp.headers["location"] == "/games"
+
+    def test_pay_redirects_to_games_when_user_has_comped_access(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("PADDLE_CLIENT_SIDE_TOKEN", "test_token")
+        monkeypatch.setenv("PADDLE_INDIE_PRICE_ID", "pri_indie")
+        db = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            client.post(
+                "/auth/register",
+                data={"email": "comp@example.com", "password": "testpass"},
+            )
+            client.post(
+                "/auth/login",
+                data={"email": "comp@example.com", "password": "testpass"},
+            )
+
+            with get_connection(db) as conn:
+                row = conn.execute(
+                    "SELECT user_id FROM users WHERE email = ?",
+                    ("comp@example.com",),
+                ).fetchone()
+            user_id = row["user_id"]
+
+            sub_repo = SubscriptionRepository(db)
+            billing = BillingService(sub_repo, GameRepository(db))
+            billing.grant_comped_access(user_id)
 
             resp = client.get("/billing/pay", follow_redirects=False)
         assert resp.status_code in (302, 303)

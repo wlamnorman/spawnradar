@@ -18,7 +18,7 @@ class Tier(StrEnum):
 
 TIER_LIMITS: dict[Tier, dict[str, int]] = {
     Tier.INDIE: {
-        "games": 1,
+        "games": 3,
         "prospects_per_run": 50,
         "discovery_runs_per_month": 20,
     },
@@ -51,7 +51,7 @@ class Subscription:
     paddle_customer_id: str | None
     paddle_subscription_id: str | None
     tier: Tier
-    status: str  # active | canceled | past_due | paused | trialing
+    status: str  # active | canceled | past_due | paused | trialing | comped
     current_period_end: str | None
     trial_ends_at: str | None
     created_at: str
@@ -61,6 +61,16 @@ class Subscription:
     def has_subscription(self) -> bool:
         """Return True if the user has an active paid Paddle subscription."""
         return bool(self.paddle_subscription_id)
+
+    @property
+    def is_comped(self) -> bool:
+        """Return True for manually granted complimentary access."""
+        return self.status == "comped"
+
+    @property
+    def has_access(self) -> bool:
+        """Return True if the user has paid or complimentary access."""
+        return self.has_subscription or self.is_comped
 
     @property
     def is_trialing(self) -> bool:

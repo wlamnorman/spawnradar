@@ -142,8 +142,12 @@ class BillingService:
         )
         return used + 1, limit
 
+    def grant_comped_access(self, user_id: str) -> Subscription | None:
+        """Grant complimentary full access without a Paddle subscription."""
+        return self._subs.grant_comped_access(user_id, Tier.INDIE)
+
     def _get_limits(self, sub: Subscription) -> dict[str, int]:
-        if sub.has_subscription:
+        if sub.has_access:
             return TIER_LIMITS[sub.effective_tier]
         if sub.is_trialing:
             return TRIAL_LIMITS

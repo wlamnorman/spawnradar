@@ -6,14 +6,17 @@ Configure via environment variables:
   SMTP_PORT           — default 587
   SMTP_USER
   SMTP_PASSWORD
-  EMAIL_FROM          — sender address, default noreply@spawnradar.com
+  EMAIL_FROM          — sender address, default DEFAULT_FROM_ADDRESS
 """
+
 from __future__ import annotations
 
 import smtplib
 from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+DEFAULT_FROM_ADDRESS = "noreply@spawnradar.com"
 
 
 @dataclass
@@ -37,7 +40,7 @@ class EmailService:
         smtp_port: int = 587,
         smtp_user: str = "",
         smtp_password: str = "",
-        from_address: str = "noreply@spawnradar.com",
+        from_address: str = DEFAULT_FROM_ADDRESS,
     ) -> None:
         self._resend_key = resend_api_key
         self._smtp_host = smtp_host
@@ -61,13 +64,16 @@ class EmailService:
 
     def _send_resend(self, message: EmailMessage) -> None:
         import resend  # type: ignore
+
         resend.api_key = self._resend_key
-        resend.Emails.send({
-            "from": self._from,
-            "to": message.to,
-            "subject": message.subject,
-            "html": message.html,
-        })
+        resend.Emails.send(
+            {
+                "from": self._from,
+                "to": message.to,
+                "subject": message.subject,
+                "html": message.html,
+            }
+        )
 
     def _send_smtp(self, message: EmailMessage) -> None:
         msg = MIMEMultipart("alternative")
