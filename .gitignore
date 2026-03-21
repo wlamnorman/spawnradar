@@ -10,3 +10,4 @@ data/
 .env.production
 .env.staging
 .env*
+*.egg-info
