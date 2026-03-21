@@ -21,7 +21,7 @@ from app.ingestion.registry import Source, register
 _BSKY_XRPC_BASE = "https://public.api.bsky.app/xrpc"
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 _HEADERS = {
-    "User-Agent": "SpawnRadar/1.0 (+https://spawnradar.app)",
+    "User-Agent": "SpawnRadar/1.0 (+https://spawnradar.com)",
     "Accept": "application/json",
 }
 

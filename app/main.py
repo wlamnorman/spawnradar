@@ -54,6 +54,7 @@ from app.routes.blog import router as blog_router
 from app.routes.creators import router as creators_router
 from app.routes.favicon import router as favicon_router
 from app.routes.health import router as health_router
+from app.routes.legal import router as legal_router
 from app.routes.seo import router as seo_router
 
 # Configure logging for our app modules.
@@ -206,6 +207,7 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(health_router)
     app.include_router(seo_router)
+    app.include_router(legal_router)
     app.include_router(favicon_router)
     app.include_router(blog_router)
     app.include_router(creators_router)

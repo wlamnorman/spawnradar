@@ -169,9 +169,112 @@ pre {
     padding: 40px 24px 80px;
 }
 
+.site-footer {
+    border-top: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.site-footer-inner {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 22px 24px 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    color: var(--color-text-muted);
+    font-size: 14px;
+}
+
+.site-footer-copy {
+    font-weight: 600;
+    color: var(--color-text-soft);
+}
+
+.site-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: flex-end;
+}
+
+.site-footer-links a {
+    color: var(--color-text-muted);
+}
+
+.site-footer-links a:hover {
+    color: var(--color-text);
+}
+
+.legal-page {
+    padding: 20px 0 0;
+}
+
+.legal-shell {
+    max-width: 840px;
+    margin: 0 auto;
+}
+
+.legal-effective {
+    margin: 0 0 14px;
+    color: var(--color-text-faint);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.legal-lede {
+    max-width: 720px;
+    margin: 0 0 24px;
+    color: var(--color-text-soft);
+    font-size: 16px;
+}
+
+.legal-card {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05);
+}
+
+.legal-card h2 {
+    margin-top: 24px;
+    margin-bottom: 8px;
+    font-size: 18px;
+}
+
+.legal-card h2:first-child {
+    margin-top: 0;
+}
+
+.legal-card p,
+.legal-card li {
+    color: var(--color-text-soft);
+}
+
+.legal-card ul {
+    margin: 0 0 16px 20px;
+    padding: 0;
+}
+
 @media (max-width: 720px) {
     .page-shell {
         padding: 24px 16px 60px;
+    }
+
+    .site-footer-inner {
+        padding: 18px 16px 24px;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .site-footer-links {
+        gap: 12px;
+        justify-content: flex-start;
+    }
+
+    .legal-card {
+        padding: 22px;
     }
 }
 
@@ -699,9 +802,23 @@ textarea {
     border-color: var(--color-hero-card-border);
 }
 
+.marketing-step-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.marketing-step-number {
+    color: var(--color-accent);
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+}
+
 .marketing-stat-card strong {
     display: block;
-    margin-bottom: 6px;
     color: var(--color-hero-heading);
     font-size: 15px;
 }
@@ -1646,6 +1763,41 @@ textarea {
 }
 
 @media (max-width: 860px) {
+    .navbar-inner {
+        height: auto;
+        padding: 14px 16px 16px;
+        flex-wrap: wrap;
+        row-gap: 12px;
+    }
+
+    .navbar-brand {
+        flex: 1 0 100%;
+        font-size: 22px;
+    }
+
+    .navbar-brand-mark {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+    }
+
+    .navbar-center {
+        order: 3;
+        flex: 1 0 100%;
+        justify-content: flex-start;
+    }
+
+    .navbar-right {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 10px 12px;
+        justify-content: flex-start;
+    }
+
+    .nav-user {
+        display: none;
+    }
+
     .marketing-hero,
     .feature-band {
         grid-template-columns: 1fr;
@@ -1663,6 +1815,73 @@ textarea {
     .marketing-hero h1 {
         max-width: none;
         font-size: 38px;
+    }
+}
+
+@media (max-width: 640px) {
+    .marketing-hero {
+        gap: 18px;
+        padding: 24px 20px;
+        border-radius: 20px;
+    }
+
+    .marketing-kicker {
+        margin-bottom: 10px;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+    }
+
+    .marketing-hero h1 {
+        font-size: clamp(34px, 14vw, 44px);
+        line-height: 0.96;
+        margin-bottom: 12px;
+    }
+
+    .marketing-lede {
+        font-size: 16px;
+        line-height: 1.6;
+    }
+
+    .marketing-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .marketing-actions .button {
+        width: 100%;
+    }
+
+    .marketing-panel {
+        gap: 12px;
+    }
+
+    .marketing-stat-card {
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    .marketing-step-heading {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: start;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .marketing-step-number {
+        font-size: 24px;
+        min-width: 28px;
+    }
+
+    .marketing-stat-card strong {
+        font-size: 14px;
+        line-height: 1.3;
+    }
+
+    .marketing-stat-card p {
+        font-size: 14px;
+        line-height: 1.65;
     }
 }
 

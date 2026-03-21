@@ -15,7 +15,7 @@ Disallow: /admin
 Disallow: /games
 Disallow: /auth
 
-Sitemap: https://spawnradar.app/sitemap.xml
+Sitemap: https://spawnradar.com/sitemap.xml
 """
 
 
@@ -26,13 +26,16 @@ async def robots_txt() -> str:
 
 @router.get("/sitemap.xml", response_class=PlainTextResponse)
 async def sitemap_xml(request: Request) -> PlainTextResponse:
-    base = "https://spawnradar.app"
+    base = "https://spawnradar.com"
 
     static_urls = [
         f'<url><loc>{base}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>',
         f'<url><loc>{base}/pricing</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>',
         f'<url><loc>{base}/blog</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>',
         f'<url><loc>{base}/creators</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>',
+        f'<url><loc>{base}/terms</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>',
+        f'<url><loc>{base}/privacy</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>',
+        f'<url><loc>{base}/refunds</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>',
     ]
 
     post_urls = [

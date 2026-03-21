@@ -66,7 +66,7 @@ class Settings:
             smtp_port=int(os.environ.get("SMTP_PORT", "587")),
             smtp_user=os.environ.get("SMTP_USER", ""),
             smtp_password=os.environ.get("SMTP_PASSWORD", ""),
-            email_from=os.environ.get("EMAIL_FROM", "noreply@spawnradar.app"),
+            email_from=os.environ.get("EMAIL_FROM", "noreply@spawnradar.com"),
             google_client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
             google_client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
             dev_auto_login=os.environ.get("DEV_AUTO_LOGIN", "").strip().lower()

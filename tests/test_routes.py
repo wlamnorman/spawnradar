@@ -167,7 +167,7 @@ class TestSEORoutes:
     def test_sitemap_includes_homepage(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
             resp = client.get("/sitemap.xml")
-        assert "spawnradar.app/</loc>" in resp.text
+        assert "spawnradar.com/</loc>" in resp.text
 
     def test_sitemap_includes_blog_index(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
@@ -184,6 +184,36 @@ class TestSEORoutes:
         with _make_client(monkeypatch, tmp_path) as client:
             resp = client.get("/sitemap.xml")
         assert "/pricing" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Legal routes
+# ---------------------------------------------------------------------------
+
+
+class TestLegalRoutes:
+    def test_terms_privacy_and_refunds_pages_return_200(
+        self, monkeypatch, tmp_path
+    ):
+        with _make_client(monkeypatch, tmp_path) as client:
+            terms = client.get("/terms")
+            privacy = client.get("/privacy")
+            refunds = client.get("/refunds")
+
+        assert terms.status_code == 200
+        assert privacy.status_code == 200
+        assert refunds.status_code == 200
+        assert "Terms of Service" in terms.text
+        assert "Privacy Policy" in privacy.text
+        assert "Refund Policy" in refunds.text
+
+    def test_sitemap_includes_legal_pages(self, monkeypatch, tmp_path):
+        with _make_client(monkeypatch, tmp_path) as client:
+            resp = client.get("/sitemap.xml")
+
+        assert "/terms</loc>" in resp.text
+        assert "/privacy</loc>" in resp.text
+        assert "/refunds</loc>" in resp.text
 
 
 # ---------------------------------------------------------------------------

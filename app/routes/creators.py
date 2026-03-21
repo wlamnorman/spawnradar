@@ -135,7 +135,7 @@ async def creator_signup(
             "will be able to reach out to you through the platform.\n\n"
             "We'll only connect you with games that fit what you cover. "
             "If you ever want to update your preferences, reply to this email.\n\n"
-            "— The SpawnRadar team\nhttps://spawnradar.app\n"
+            "— The SpawnRadar team\nhttps://spawnradar.com\n"
         )
         request.app.state.email_service.send(
             EmailMessage(

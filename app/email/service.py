@@ -6,7 +6,7 @@ Configure via environment variables:
   SMTP_PORT           — default 587
   SMTP_USER
   SMTP_PASSWORD
-  EMAIL_FROM          — sender address, default noreply@spawnradar.app
+  EMAIL_FROM          — sender address, default noreply@spawnradar.com
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class EmailService:
         smtp_port: int = 587,
         smtp_user: str = "",
         smtp_password: str = "",
-        from_address: str = "noreply@spawnradar.app",
+        from_address: str = "noreply@spawnradar.com",
     ) -> None:
         self._resend_key = resend_api_key
         self._smtp_host = smtp_host

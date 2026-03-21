@@ -82,7 +82,9 @@ def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
     assert response.headers["location"].endswith("/setup")
     assert "Orbit Drift — Settings" in setup_response.text
     assert "Discovery schedule" not in setup_response.text
-    assert "Automatic discovery runs in the background" not in setup_response.text
+    assert (
+        "Automatic discovery runs in the background" not in setup_response.text
+    )
     assert "Onboarding wizard" not in setup_response.text
 
 
@@ -96,7 +98,7 @@ def test_pricing_page_shows_single_subscription_offer(monkeypatch, tmp_path):
         response = client.get("/pricing")
 
     assert response.status_code == 200
-    assert "Simple pricing for research-driven game outreach." in response.text
+    assert "Simple pricing for tailored game outreach." in response.text
     assert "3-day trial" in response.text
     assert "Billing unavailable" in response.text
     assert "Studio" not in response.text

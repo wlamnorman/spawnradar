@@ -18,13 +18,17 @@ def test_root_renders_public_landing_page(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert (
-        "Find the right creators, communities, and outreach opportunities"
-        in response.text
+        "Find the best creators, communities, and outreach targets for your game."
+        in " ".join(response.text.split())
     )
     assert 'href="/pricing"' in response.text
     assert 'href="/static/favicon/site.webmanifest"' in response.text
     assert 'href="/static/favicon/favicon.svg"' in response.text
     assert 'src="/static/favicon/favicon-96x96.png"' in response.text
+    assert 'href="/terms"' in response.text
+    assert 'href="/privacy"' in response.text
+    assert 'href="/refunds"' in response.text
+    assert "mailto:contact@spawnradar.com" in response.text
 
 
 def test_pricing_renders_single_offer(monkeypatch, tmp_path):
@@ -32,6 +36,6 @@ def test_pricing_renders_single_offer(monkeypatch, tmp_path):
         response = client.get("/pricing")
 
     assert response.status_code == 200
-    assert "Simple pricing for research-driven game outreach." in response.text
+    assert "Simple pricing for tailored game outreach." in response.text
     assert "Start 3-day trial" in response.text
     assert "Studio" not in response.text
