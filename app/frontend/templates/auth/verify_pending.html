@@ -1,0 +1,17 @@
+{% extends "base.html" %} {% block title %}Verify your email — SpawnRadar{% endblock %}
+{% block content %}
+<div class="form-page" style="text-align:center;padding-top:60px;">
+    <h1>Check your inbox</h1>
+    <p class="subtle" style="margin-top:12px;max-width:440px;margin-left:auto;margin-right:auto;">
+        We sent a verification link to <strong>{{ user.email }}</strong>.
+        Click the link to verify your email and start your 3-day free trial.
+    </p>
+    {% if request.query_params.get('error') == 'invalid' %}
+    <div class="alert alert-error" style="margin-top:24px;">That verification link is invalid or has expired.</div>
+    {% endif %}
+    <p class="subtle" style="margin-top:32px;font-size:13px;">
+        Didn't receive it? Check your spam folder, or
+        <a href="/auth/resend-verification">resend the verification email</a>.
+    </p>
+</div>
+{% endblock %}

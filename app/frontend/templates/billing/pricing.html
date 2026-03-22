@@ -40,10 +40,29 @@ tier_limits[tier] %} {% set price = tier_prices[tier] %}
                     <strong>{{ limits.prospects_per_run }}</strong> targeted
                     prospects in every run
                 </li>
-                <li><strong>3-day trial</strong> before billing starts</li>
+                <li><strong>3-day free trial</strong>, no card required</li>
                 <li>Unlimited queue review and draft iteration</li>
             </ul>
-            {% if user %} {% if billing_enabled %}
+            {% if not user %}
+            <a href="/auth/register" class="button button-full">
+                Start 3-day trial
+            </a>
+            {% elif _sub and _sub.is_trialing %}
+            {% if billing_enabled %}
+            <a href="/billing/pay?tier=indie" class="button button-full">
+                Activate subscription →
+            </a>
+            {% else %}
+            <button type="button" class="button button-full" disabled>
+                Billing unavailable
+            </button>
+            {% endif %}
+            {% elif _sub and _sub.has_subscription %}
+            <a href="/billing" class="button button-full">
+                Manage subscription →
+            </a>
+            {% else %}
+            {% if billing_enabled %}
             <a href="/billing/pay?tier=indie" class="button button-full">
                 Start 3-day trial
             </a>
@@ -51,10 +70,7 @@ tier_limits[tier] %} {% set price = tier_prices[tier] %}
             <button type="button" class="button button-full" disabled>
                 Billing unavailable
             </button>
-            {% endif %} {% else %}
-            <a href="/auth/register" class="button button-full">
-                Start 3-day trial
-            </a>
+            {% endif %}
             {% endif %}
             <p class="pricing-note">
                 Taxes handled at checkout based on your location.

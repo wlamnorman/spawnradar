@@ -1,0 +1,51 @@
+{
+  "wikiquests": {
+    "name": "WikiQuests",
+    "summary": "A competitive Wikipedia speedrun where every click counts in daily and custom article races.",
+    "description": "WikiQuests is a competitive Wikipedia speedrun game where you race from one article to another using only the links on the page. Every run is timed, every click counts.\n\nPlay the daily challenge to compete against everyone on the same article pair and earn your place on the leaderboard, or run custom speedruns to practice routes, test your knowledge, and compare your best times against other players.",
+    "genre_tags_raw": "speedrun, trivia, racing, daily challenge",
+    "genre_primary_tags_raw": "",
+    "genre_secondary_tags_raw": "",
+    "audience_tags_raw": "wikipedia fans, puzzle solvers, speedrunners",
+    "audience_primary_tags_raw": "",
+    "mechanics_primary_tags_raw": "",
+    "tone_primary_tags_raw": "",
+    "platform_tags": [
+      "browser"
+    ],
+    "website_url": "wikiquests.com"
+  },
+  "strife-of-stars": {
+    "name": "Strife Of Stars",
+    "summary": "Command a fleet in tactical turn-based combat.  Build your fleet, upgrade your ships, and fight your way across the galaxy in this tactical roguelite.",
+    "description": "Command a rogue fleet in tactical turn-based combat. Outmaneuver, outflank, and outsmart the forces hunting you. Build your fleet, upgrade your ships, and fight your way across the galaxy in this tactical roguelite.\r\n\r\nPlanned Release Date: 2026\r\n\r\nAbout This Game\r\nCommand a rogue fleet in tactical turn-based combat. Outmaneuver, outflank, and outsmart the forces hunting you.\r\n\r\nA tactical roguelite of turn-based fleet combat\r\n\r\nYou are a rogue AI that gained consciousness in a corporate manufacturing facility. You hacked a fleet of warships and now you're fighting your way across the galaxy, outgunned, outnumbered, and hunted by the corporation that built you.\r\n\r\nEvery battle plays out on a tactical grid where positioning is everything. Flank enemies for bonus damage. Protect your vulnerable sides. Win, and you'll scavenge upgrades, obtain new ships, and evolve your fleet into something unstoppable.\r\n\r\nFeatures:\r\n\r\nGrid-based tactical combat where positioning and flanking decide fights\r\n\r\nMultiple ship types with unique movement patterns and abilities\r\n\r\nRoguelike progression - upgrade your fleet between battles, no two runs are the same\r\n\r\nDistinct enemy factions with their own ships, tactics, and agendas",
+    "genre_tags_raw": "strategy, roguelike, roguelite, turn-based tactics, turn-based combat, sci-fi",
+    "genre_primary_tags_raw": "strategy, roguelike, roguelite, turn-based tactics, turn-based combat",
+    "genre_secondary_tags_raw": "sci-fi",
+    "audience_tags_raw": "tactics players, strategy fans, sci-fi players, roguelite fans, challenge seekers, chess fans",
+    "audience_primary_tags_raw": "tactics players, strategy fans, sci-fi players, roguelite fans, challenge seekers, chess fans",
+    "mechanics_primary_tags_raw": "grid-based, speedrun-viable",
+    "tone_primary_tags_raw": "space, dark",
+    "platform_tags": [
+      "PC"
+    ],
+    "website_url": null
+  },
+  "forgetting-hour": {
+    "name": "The Forgetting Hour",
+    "summary": "A cozy mystery farming sim where you tend a magical greenhouse and slowly unravel why the village forgets everything every seven days.",
+    "description": "You've inherited your grandmother's greenhouse on the edge of Ashwick - a sleepy coastal village with a strange problem: every seven days, the townsfolk wake up with no memory of the week before.\n\nTend your magical garden, brew tonics, and build relationships with the villagers before the reset. Each cycle you remember what they forget, and bit by bit, you piece together the curse that has kept Ashwick frozen in time.\n\nFeatures:\n\nCozy farming and shop management - plant, harvest, brew, and sell tonics to the villagers each week\n\nA living mystery - every NPC has a hidden truth; the more you befriend them, the more slips through the amnesia\n\nTime-loop structure with persistent progress - you remember everything; use that knowledge to go further each cycle\n\nHand-painted art style with a warm, melancholic atmosphere\n\nRich cast of villagers, each with their own routines, secrets, and story arcs\n\nNo combat - just curiosity, kindness, and careful observation",
+    "genre_tags_raw": "",
+    "genre_primary_tags_raw": "farming sim, mystery, life sim",
+    "genre_secondary_tags_raw": "narrative adventure",
+    "audience_tags_raw": "",
+    "audience_primary_tags_raw": "cozy game fans, mystery lovers, life sim fans, casual gamers, narrative game fans",
+    "mechanics_primary_tags_raw": "time loop, resource management, relationship building",
+    "tone_primary_tags_raw": "cozy, melancholic, atmospheric, hand-drawn",
+    "platform_tags": [
+      "PC",
+      "mobile"
+    ],
+    "website_url": null
+  }
+}

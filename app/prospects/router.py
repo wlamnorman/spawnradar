@@ -6,13 +6,22 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from app.auth.dependencies import require_user
+from app.auth.dependencies import require_product_access
 from app.auth.models import User
-from app.dependencies import get_game_repo, get_prospect_service, get_templates
+from app.billing.service import BillingService
+from app.dependencies import (
+    get_billing_service,
+    get_game_repo,
+    get_game_service,
+    get_prospect_service,
+    get_templates,
+)
 from app.games.repository import GameRepository
+from app.games.service import GameService
 from app.ingestion.constants import RECENT_VIDEO_THUMBNAIL_LIMIT
 from app.prospects.presenter import ReviewQueuePresenter
 from app.prospects.service import ProspectService
+from app.security import require_csrf_header
 
 router = APIRouter(tags=["prospects"])
 
@@ -28,9 +37,11 @@ _QUEUE_PRESENTER = ReviewQueuePresenter()
 async def review_queue(
     slug: str,
     request: Request,
-    user: User = Depends(require_user),
+    user: User = Depends(require_product_access),
     game_repo: GameRepository = Depends(get_game_repo),
     prospect_service: ProspectService = Depends(get_prospect_service),
+    billing_service: BillingService = Depends(get_billing_service),
+    game_service: GameService = Depends(get_game_service),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the priority review queue for a game."""
@@ -41,6 +52,8 @@ async def review_queue(
     queue_items = _QUEUE_PRESENTER.for_template(
         prospect_service.get_queue(game.game_id)
     )
+    discovery_status = billing_service.get_discovery_run_status(user.user_id)
+    game_discovery_readiness = game_service.get_discovery_readiness(game)
 
     return templates.TemplateResponse(
         request,
@@ -50,6 +63,8 @@ async def review_queue(
             "game": game,
             "queue_items": queue_items,
             "thumbnail_limit": RECENT_VIDEO_THUMBNAIL_LIMIT,
+            "discovery_status": discovery_status,
+            "game_discovery_readiness": game_discovery_readiness,
         },
     )
 
@@ -63,7 +78,7 @@ async def review_queue(
 async def queue_api(
     game_id: str,
     request: Request,
-    user: User = Depends(require_user),
+    user: User = Depends(require_product_access),
     game_repo: GameRepository = Depends(get_game_repo),
     prospect_service: ProspectService = Depends(get_prospect_service),
 ) -> JSONResponse:
@@ -80,8 +95,9 @@ async def queue_api(
 async def draft_action(
     draft_item_id: str,
     request: Request,
-    user: User = Depends(require_user),
+    user: User = Depends(require_product_access),
     prospect_service: ProspectService = Depends(get_prospect_service),
+    _csrf: None = Depends(require_csrf_header),
 ) -> JSONResponse:
     """Apply an action to a draft item.
 

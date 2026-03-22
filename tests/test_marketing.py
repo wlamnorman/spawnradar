@@ -8,6 +8,8 @@ from app.main import create_app
 def _make_client(monkeypatch, tmp_path) -> TestClient:
     monkeypatch.setenv("DB_PATH", str(tmp_path / "marketing.sqlite3"))
     monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("RESEND_API_KEY", "")
+    monkeypatch.setenv("SMTP_HOST", "")
     app = create_app()
     return TestClient(app)
 

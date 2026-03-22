@@ -8,7 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.billing.models import TIER_LIMITS, TRIAL_LIMITS, Subscription, Tier
+from app.billing.models import (
+    DISCOVERY_RUNS_PER_DAY,
+    DISCOVERY_RUNS_PER_HOUR,
+    TIER_LIMITS,
+    TRIAL_LIMITS,
+    Subscription,
+    Tier,
+)
 from app.billing.service import BillingService
 
 
@@ -70,6 +77,7 @@ def test_check_game_limit_returns_false_when_at_limit(
     game_service.create_game(
         user_id=registered_user.user_id,
         name="Game 0",
+        summary="Short summary",
         description="desc",
         genre_tags_raw="puzzle",
         audience_tags_raw="fans",
@@ -96,7 +104,128 @@ def test_trial_discovery_runs_limit_is_three():
     assert TRIAL_LIMITS["discovery_runs_per_month"] == 3
 
 
-def _make_sub(*, trial_ends_at=None, paddle_subscription_id=None, user_id="u1", status="active"):
+def test_discovery_rate_limits_are_three_per_hour_and_five_per_day():
+    assert DISCOVERY_RUNS_PER_HOUR == 3
+    assert DISCOVERY_RUNS_PER_DAY == 5
+
+
+def test_record_discovery_run_returns_windowed_usage(
+    billing_service, registered_user, sample_game
+):
+    now = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
+
+    status = billing_service.record_discovery_run(
+        registered_user.user_id, sample_game.game_id, now=now
+    )
+
+    assert status.can_run is True
+    assert status.hourly.used == 1
+    assert status.hourly.remaining == 2
+    assert status.daily.used == 1
+    assert status.daily.remaining == 2  # capped at monthly trial limit (3)
+    assert status.monthly.used == 1
+    assert status.monthly.remaining == 2
+
+
+def test_trial_discovery_status_uses_trial_specific_message(
+    billing_service, registered_user
+):
+    status = billing_service.get_discovery_run_status(registered_user.user_id)
+
+    assert status.account_state == "trial"
+    assert status.message.startswith("Trial discovery is ready.")
+    assert "hourly" not in status.message
+    assert f"{TRIAL_LIMITS['discovery_runs_per_month']}" in status.message
+
+
+def test_paid_discovery_status_uses_windowed_ready_message(
+    billing_service, registered_user, sub_repo
+):
+    billing_service.get_or_create_subscription(registered_user.user_id)
+    sub_repo.update_from_paddle(
+        registered_user.user_id,
+        paddle_subscription_id="sub_paid",
+        status="active",
+        current_period_end=(
+            datetime.now(UTC) + timedelta(days=30)
+        ).isoformat(),
+    )
+
+    status = billing_service.get_discovery_run_status(registered_user.user_id)
+
+    assert status.account_state == "paid"
+    assert status.message.startswith("Discovery is ready.")
+    assert "hourly" in status.message
+    assert "daily" in status.message
+    assert (
+        f"{TIER_LIMITS[Tier.INDIE]['discovery_runs_per_month']} this month"
+        in status.message
+    )
+
+
+def test_record_discovery_run_blocks_after_three_runs_in_an_hour(
+    billing_service, run_repo, registered_user, sample_game, monkeypatch
+):
+    monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 10)
+    now = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
+    run_repo.create(
+        "run_1",
+        registered_user.user_id,
+        sample_game.game_id,
+        created_at=(now - timedelta(minutes=30)).isoformat(),
+    )
+    run_repo.create(
+        "run_2",
+        registered_user.user_id,
+        sample_game.game_id,
+        created_at=(now - timedelta(minutes=20)).isoformat(),
+    )
+    run_repo.create(
+        "run_3",
+        registered_user.user_id,
+        sample_game.game_id,
+        created_at=(now - timedelta(minutes=5)).isoformat(),
+    )
+
+    with pytest.raises(ValueError, match="this hour"):
+        billing_service.record_discovery_run(
+            registered_user.user_id, sample_game.game_id, now=now
+        )
+
+
+def test_record_discovery_run_blocks_after_five_runs_in_a_day(
+    billing_service, run_repo, registered_user, sample_game, monkeypatch
+):
+    monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 10)
+    now = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
+    timestamps = [
+        now - timedelta(hours=20),
+        now - timedelta(hours=18),
+        now - timedelta(hours=12),
+        now - timedelta(hours=6),
+        now - timedelta(hours=2),
+    ]
+    for index, timestamp in enumerate(timestamps, start=1):
+        run_repo.create(
+            f"run_day_{index}",
+            registered_user.user_id,
+            sample_game.game_id,
+            created_at=timestamp.isoformat(),
+        )
+
+    with pytest.raises(ValueError, match="today"):
+        billing_service.record_discovery_run(
+            registered_user.user_id, sample_game.game_id, now=now
+        )
+
+
+def _make_sub(
+    *,
+    trial_ends_at=None,
+    paddle_subscription_id=None,
+    user_id="u1",
+    status="active",
+):
     now = datetime.now(UTC).isoformat()
     return Subscription(
         subscription_id="sub_test",
@@ -127,12 +256,105 @@ def test_has_subscription_true_when_paddle_id_is_set():
     assert sub.has_subscription is True
 
 
+def test_has_product_access_true_during_trial():
+    future = (datetime.now(UTC) + timedelta(days=2)).isoformat()
+    sub = _make_sub(trial_ends_at=future)
+    assert sub.has_access is False
+    assert sub.has_product_access is True
+
+
+def test_has_product_access_false_after_trial_expiry():
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    sub = _make_sub(trial_ends_at=past)
+    assert sub.has_access is False
+    assert sub.has_product_access is False
+
+
+def test_has_access_true_for_active_paid_subscription_without_period_end():
+    sub = _make_sub(paddle_subscription_id="sub_paid", status="active")
+    assert sub.has_access is True
+    assert sub.has_product_access is True
+
+
+def test_has_access_false_for_past_due_subscription():
+    future = (datetime.now(UTC) + timedelta(days=5)).isoformat()
+    base = _make_sub(paddle_subscription_id="sub_paid", status="past_due")
+    sub = Subscription(
+        subscription_id=base.subscription_id,
+        user_id=base.user_id,
+        paddle_customer_id=base.paddle_customer_id,
+        paddle_subscription_id=base.paddle_subscription_id,
+        tier=base.tier,
+        status=base.status,
+        current_period_end=future,
+        trial_ends_at=base.trial_ends_at,
+        created_at=base.created_at,
+        updated_at=base.updated_at,
+    )
+    assert sub.has_access is False
+    assert sub.has_product_access is False
+
+
+def test_canceled_subscription_loses_access_after_period_end():
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    base = _make_sub(paddle_subscription_id="sub_paid", status="canceled")
+    sub = Subscription(
+        subscription_id=base.subscription_id,
+        user_id=base.user_id,
+        paddle_customer_id=base.paddle_customer_id,
+        paddle_subscription_id=base.paddle_subscription_id,
+        tier=base.tier,
+        status=base.status,
+        current_period_end=past,
+        trial_ends_at=base.trial_ends_at,
+        created_at=base.created_at,
+        updated_at=base.updated_at,
+    )
+    assert sub.has_access is False
+    assert sub.has_product_access is False
+
+
 def test_is_comped_true_when_status_is_comped():
     sub = _make_sub(status="comped")
     assert sub.is_comped is True
     assert sub.has_access is True
 
 
+def test_trial_discovery_runs_count_toward_monthly_limit_after_activation(
+    billing_service, run_repo, registered_user, sample_game
+):
+    """Runs used during trial must not disappear when the subscription activates.
+
+    A user who burns 2 of their 3 trial runs and then converts to a paid
+    subscription should start the month with 2 runs already counted — they
+    cannot game the limit by upgrading mid-month.
+    """
+    import uuid
+
+    now = datetime.now(UTC)
+
+    # Record 2 discovery runs while the user is still on trial.
+    run_repo.create(str(uuid.uuid4()), registered_user.user_id, sample_game.game_id, created_at=now.isoformat())
+    run_repo.create(str(uuid.uuid4()), registered_user.user_id, sample_game.game_id, created_at=now.isoformat())
+
+    # Confirm the trial status reflects 2 runs used.
+    trial_status = billing_service.get_discovery_run_status(registered_user.user_id, now=now)
+    assert trial_status.monthly.used == 2
+    assert trial_status.monthly.remaining == 1  # TRIAL_LIMITS monthly = 3
+
+    # Activate a paid subscription (simulates Paddle webhook).
+    billing_service._subs.update_from_paddle(
+        registered_user.user_id,
+        paddle_customer_id="ctm_test",
+        paddle_subscription_id="sub_test",
+        status="active",
+    )
+
+    # After activation the monthly window is the same calendar month —
+    # the 2 runs already recorded must still count toward the paid limit.
+    paid_status = billing_service.get_discovery_run_status(registered_user.user_id, now=now)
+    assert paid_status.monthly.used == 2
+    assert paid_status.monthly.remaining == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"] - 2
 def test_comped_access_gets_paid_limits(billing_service, registered_user):
     billing_service.grant_comped_access(registered_user.user_id)
 
@@ -140,7 +362,10 @@ def test_comped_access_gets_paid_limits(billing_service, registered_user):
     assert sub.is_comped is True
     assert sub.is_trialing is False
     assert sub.paddle_subscription_id is None
-    assert billing_service.get_discovery_runs_limit(registered_user.user_id) == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"]
+    assert (
+        billing_service.get_discovery_runs_limit(registered_user.user_id)
+        == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +402,9 @@ def test_is_trialing_false_when_paddle_subscription_id_is_set():
 # ---------------------------------------------------------------------------
 
 
-def test_subscription_lifecycle_trial_to_paid(billing_service, registered_user):
+def test_subscription_lifecycle_trial_to_paid(
+    billing_service, registered_user
+):
     """Limits, has_subscription, and is_trialing all reflect state correctly
     as a user moves from trial through activation to cancellation."""
     uid = registered_user.user_id
@@ -186,7 +413,10 @@ def test_subscription_lifecycle_trial_to_paid(billing_service, registered_user):
     sub = billing_service.get_or_create_subscription(uid)
     assert sub.has_subscription is False
     assert sub.is_trialing is True
-    assert billing_service.get_discovery_runs_limit(uid) == TRIAL_LIMITS["discovery_runs_per_month"]
+    assert (
+        billing_service.get_discovery_runs_limit(uid)
+        == TRIAL_LIMITS["discovery_runs_per_month"]
+    )
 
     # --- Webhook: subscription activated ---
     event = _paddle_event(
@@ -201,9 +431,12 @@ def test_subscription_lifecycle_trial_to_paid(billing_service, registered_user):
     sub = billing_service.get_or_create_subscription(uid)
     assert sub.has_subscription is True
     assert sub.is_trialing is False
-    assert billing_service.get_discovery_runs_limit(uid) == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"]
+    assert (
+        billing_service.get_discovery_runs_limit(uid)
+        == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"]
+    )
 
-    # --- Webhook: subscription cancelled ---
+    # --- Webhook: subscription cancelled at period end ---
     cancel_event = _paddle_event(
         "subscription.canceled",
         price_id="pri_indie",
@@ -214,11 +447,15 @@ def test_subscription_lifecycle_trial_to_paid(billing_service, registered_user):
     )
     billing_service._cancel_subscription(cancel_event)
 
+    billing_service._subs.update_from_paddle(
+        uid,
+        current_period_end=(datetime.now(UTC) - timedelta(days=1)).isoformat(),
+    )
+
     sub = billing_service.get_or_create_subscription(uid)
     assert sub.status == "canceled"
-    # paddle_subscription_id is preserved after cancel so has_subscription stays True;
-    # limits are still granted (access until period end is handled at the service level).
     assert sub.has_subscription is True
+    assert sub.has_access is False
 
 
 def test_checkout_context_uses_indie_price_id(
@@ -430,7 +667,9 @@ async def test_sync_from_transaction_activates_subscription(
     }
     mock_client = _mock_http_responses(txn_data, sub_data)
 
-    with patch("app.billing.service.httpx.AsyncClient", return_value=mock_client):
+    with patch(
+        "app.billing.service.httpx.AsyncClient", return_value=mock_client
+    ):
         await billing_service.sync_from_transaction(
             registered_user.user_id, "txn_abc"
         )
@@ -447,7 +686,9 @@ async def test_sync_from_transaction_is_noop_without_api_key(
     sub_repo, game_repo, registered_user
 ):
     """No API key → silently skips, subscription stays in trial."""
-    svc = BillingService(sub_repo, game_repo, paddle_indie_price_id="pri_indie")
+    svc = BillingService(
+        sub_repo, game_repo, paddle_indie_price_id="pri_indie"
+    )
     svc.get_or_create_subscription(registered_user.user_id)
 
     await svc.sync_from_transaction(registered_user.user_id, "txn_abc")
@@ -489,3 +730,26 @@ async def test_sync_from_transaction_swallows_api_errors(
 
     sub = billing_service.get_or_create_subscription(registered_user.user_id)
     assert sub.has_subscription is False
+
+
+def test_canceled_subscription_keeps_access_until_period_end():
+    future = (datetime.now(UTC) + timedelta(days=5)).isoformat()
+    sub = _make_sub(
+        paddle_subscription_id="sub_paid",
+        status="canceled",
+        trial_ends_at=None,
+    )
+    sub = Subscription(
+        subscription_id=sub.subscription_id,
+        user_id=sub.user_id,
+        paddle_customer_id=sub.paddle_customer_id,
+        paddle_subscription_id=sub.paddle_subscription_id,
+        tier=sub.tier,
+        status=sub.status,
+        current_period_end=future,
+        trial_ends_at=sub.trial_ends_at,
+        created_at=sub.created_at,
+        updated_at=sub.updated_at,
+    )
+    assert sub.has_access is True
+

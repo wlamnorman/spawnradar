@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,19 +12,26 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.router import router as admin_router
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.auth.repository import (
+    EmailVerificationTokenRepository,
     PasswordResetTokenRepository,
     SessionRepository,
     UserRepository,
 )
 from app.auth.router import router as auth_router
 from app.auth.service import AuthService
-from app.billing.models import PUBLIC_TIERS, TIER_LIMITS, TIER_PRICES
+from app.billing.models import (
+    PUBLIC_TIERS,
+    TIER_LIMITS,
+    TIER_PRICES,
+    Subscription,
+)
 from app.billing.repository import (
     DiscoveryRunRepository,
     SubscriptionRepository,
@@ -43,6 +49,9 @@ from app.games.repository import (
 )
 from app.games.router import router as games_router
 from app.games.service import GameService
+from app.metrics.repository import MetricsRepository
+from app.metrics.router import router as metrics_router
+from app.metrics.service import MetricsService
 from app.prospects.repository import (
     DraftItemRepository,
     OutcomeRepository,
@@ -56,18 +65,13 @@ from app.routes.favicon import router as favicon_router
 from app.routes.health import router as health_router
 from app.routes.legal import router as legal_router
 from app.routes.seo import router as seo_router
+from app.security import csrf_token_for
 
 # Configure logging for our app modules.
-# Set LOG_LEVEL=DEBUG in .env to see per-channel scoring details.
-# Defaults to INFO so key milestones always show up in the terminal.
-_log_level = getattr(
-    logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO
-)
 logging.basicConfig(
     level=logging.WARNING,  # suppress noisy third-party libs
     format="%(levelname)s  %(name)s  %(message)s",
 )
-logging.getLogger("app").setLevel(_log_level)
 
 _APP_DIR = Path(__file__).resolve().parent
 _FRONTEND_DIR = _APP_DIR / "frontend"
@@ -87,6 +91,7 @@ async def lifespan(app: FastAPI):
     user_repo = UserRepository(db_path)
     session_repo = SessionRepository(db_path)
     reset_token_repo = PasswordResetTokenRepository(db_path)
+    email_verification_token_repo = EmailVerificationTokenRepository(db_path)
     game_repo = GameRepository(db_path)
     asset_repo = AssetRepository(db_path)
     template_repo = MessageTemplateRepository(db_path)
@@ -95,22 +100,32 @@ async def lifespan(app: FastAPI):
     draft_repo = DraftItemRepository(db_path)
     outcome_repo = OutcomeRepository(db_path)
     prospect_repo = ProspectRepository(db_path)
+    metrics_repo = MetricsRepository(db_path)
 
     # Services
     email_service = EmailService(
         resend_api_key=settings.resend_api_key,
-        smtp_host=settings.smtp_host,
-        smtp_port=settings.smtp_port,
-        smtp_user=settings.smtp_user,
-        smtp_password=settings.smtp_password,
         from_address=settings.email_from,
     )
-    auth_service = AuthService(user_repo, session_repo, reset_token_repo)
-    game_service = GameService(game_repo, asset_repo, template_repo)
+    metrics_service = MetricsService(metrics_repo, sub_repo)
+    auth_service = AuthService(
+        user_repo,
+        session_repo,
+        reset_token_repo,
+        email_verification_token_repo,
+        metrics_service=metrics_service,
+    )
+    game_service = GameService(
+        game_repo,
+        asset_repo,
+        template_repo,
+        metrics_service=metrics_service,
+    )
     billing_service = BillingService(
         sub_repo=sub_repo,
         game_repo=game_repo,
         discovery_run_repo=discovery_run_repo,
+        metrics_service=metrics_service,
         paddle_api_key=settings.paddle_api_key,
         paddle_client_side_token=settings.paddle_client_side_token,
         paddle_indie_price_id=settings.paddle_indie_price_id,
@@ -119,15 +134,31 @@ async def lifespan(app: FastAPI):
     )
     prospect_service = ProspectService(draft_repo, outcome_repo)
 
+    def subscription_for(request: Request) -> Subscription | None:
+        """Return the current user's subscription for use in base templates."""
+        session_id = request.cookies.get("session_id")
+        if not session_id:
+            return None
+        user = request.app.state.auth_service.get_user_for_session(session_id)
+        if user is None:
+            return None
+        return request.app.state.billing_service.get_or_create_subscription(
+            user.user_id
+        )
+
     # Jinja2 templates
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+    templates.env.globals["csrf_token_for"] = csrf_token_for
+    templates.env.globals["subscription_for"] = subscription_for
 
     # Attach everything to app.state for dependency access in routes
     app.state.email_service = email_service
     app.state.auth_service = auth_service
+    app.state.email_verification_token_repo = email_verification_token_repo
     app.state.game_service = game_service
     app.state.billing_service = billing_service
     app.state.prospect_service = prospect_service
+    app.state.metrics_service = metrics_service
     app.state.user_repo = user_repo
     app.state.session_repo = session_repo
     app.state.subscription_repo = sub_repo
@@ -153,10 +184,23 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
+    logging.getLogger("app").setLevel(
+        getattr(logging, settings.log_level, logging.INFO)
+    )
+
+    secure_transport = settings.uses_https
+
+    if secure_transport:
+        app.add_middleware(HTTPSRedirectMiddleware)
 
     # SessionMiddleware is required by authlib to store OAuth state between
     # the redirect and callback. It's separate from our own session cookie.
-    app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.secret_key,
+        same_site="lax",
+        https_only=secure_transport,
+    )
 
     # Google OAuth client (no-op if credentials are not configured)
     oauth = OAuth()
@@ -206,6 +250,7 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health_router)
+    app.include_router(metrics_router)
     app.include_router(seo_router)
     app.include_router(legal_router)
     app.include_router(favicon_router)

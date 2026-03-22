@@ -1,6 +1,10 @@
 """Tests for game creation, updates, templates, assets, and billing limits."""
 
+import pytest
+
 from app.games.models import Asset, Game, MessageTemplate
+from app.games.repository import _parse_sources
+from app.games.tags import TagProfile
 from app.ingestion.pipeline import youtube_candidate_limit
 from app.ingestion.registry import Source
 
@@ -9,6 +13,7 @@ def test_create_game_stores_and_returns_game(game_service, registered_user):
     game = game_service.create_game(
         user_id=registered_user.user_id,
         name="SpacePuzzle",
+        summary="A puzzle game set in space.",
         description="A puzzle game set in space",
         genre_tags_raw="puzzle, space",
         audience_tags_raw="space fans",
@@ -24,6 +29,7 @@ def test_create_game_returns_correct_tags(game_service, registered_user):
     game = game_service.create_game(
         user_id=registered_user.user_id,
         name="TagGame",
+        summary="Testing tag normalization.",
         description="Testing tags",
         genre_tags_raw="puzzle, word game, daily",
         audience_tags_raw="wordle fans, puzzle lovers",
@@ -44,6 +50,7 @@ def test_new_games_default_to_youtube_reddit_and_bluesky(
     game = game_service.create_game(
         user_id=registered_user.user_id,
         name="Signal Game",
+        summary="Testing discovery source defaults.",
         description="Testing discovery source defaults",
         genre_tags_raw="strategy",
         audience_tags_raw="indie players",
@@ -55,6 +62,7 @@ def test_new_games_default_to_youtube_reddit_and_bluesky(
         Source.YOUTUBE,
         Source.REDDIT,
         Source.BLUESKY,
+        Source.TWITCH,
     ]
 
 
@@ -64,6 +72,7 @@ def test_genre_tags_parsed_from_comma_separated_string(
     game = game_service.create_game(
         user_id=registered_user.user_id,
         name="ParseGame",
+        summary="Testing tag parsing.",
         description="Testing tag parsing",
         genre_tags_raw="  action , rpg , strategy  ",
         audience_tags_raw="gamers",
@@ -79,6 +88,7 @@ def test_structured_tags_store_primary_secondary_and_custom_profiles(
     game = game_service.create_game(
         user_id=registered_user.user_id,
         name="StructureTest",
+        summary="Testing structured tags.",
         description="Testing structured tags",
         genre_tags_raw="",
         audience_tags_raw="",
@@ -116,6 +126,7 @@ def test_primary_tags_are_ordered_first_in_query_builder(
     game = game_service.create_game(
         user_id=registered_user.user_id,
         name="QueryWeightTest",
+        summary="Testing query order.",
         description="Testing query order",
         genre_tags_raw="",
         audience_tags_raw="",
@@ -140,6 +151,43 @@ def test_primary_tags_are_ordered_first_in_query_builder(
     ]
 
 
+def test_discovery_readiness_allows_complete_games(game_service, sample_game):
+    readiness = game_service.get_discovery_readiness(sample_game)
+
+    assert readiness.can_run is True
+    assert readiness.missing_fields == ()
+    assert readiness.message == "Discovery ready."
+
+
+def test_discovery_readiness_reports_missing_summary_and_primary_genre_tags(
+    game_service, game_repo, registered_user
+):
+    legacy_game = game_repo.create(
+        game_id="legacy-game-1",
+        user_id=registered_user.user_id,
+        name="Legacy Game",
+        summary=None,
+        description="A legacy game with sparse metadata.",
+        genre_tags=[],
+        audience_tags=[],
+        genre_tag_profile=TagProfile.empty(),
+        audience_tag_profile=TagProfile.empty(),
+        mechanics_tag_profile=TagProfile.empty(),
+        tone_tag_profile=TagProfile.empty(),
+        platform_tags=["browser"],
+        website_url=None,
+    )
+
+    readiness = game_service.get_discovery_readiness(legacy_game)
+
+    assert readiness.can_run is False
+    assert readiness.missing_fields == ("summary", "primary genre tags")
+    assert (
+        readiness.message
+        == "Finish setup before running discovery. Missing summary and primary genre tags."
+    )
+
+
 def test_update_game_changes_fields(
     game_service, sample_game, registered_user
 ):
@@ -147,6 +195,7 @@ def test_update_game_changes_fields(
         game_id=sample_game.game_id,
         user_id=registered_user.user_id,
         name="PuzzleQuest Updated",
+        summary="An updated summary",
         description="An updated description",
         genre_tags_raw="puzzle, adventure",
         audience_tags_raw="puzzle fans",
@@ -244,6 +293,7 @@ def test_game_limit_returns_false_after_trial_limit(
         game_service.create_game(
             user_id=registered_user.user_id,
             name=f"Game {i}",
+            summary="First game summary",
             description="First game description",
             genre_tags_raw="puzzle",
             audience_tags_raw="fans",
@@ -259,3 +309,99 @@ def test_youtube_candidate_limit_is_capped_at_ten():
     assert youtube_candidate_limit(50) == 10
     assert youtube_candidate_limit(10) == 10
     assert youtube_candidate_limit(6) == 6
+
+
+def test_message_templates_can_target_twitch_dm(game_service, registered_user):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="Twitch Template Game",
+        summary="Testing Twitch template support.",
+        description="Testing Twitch template support",
+        genre_tags_raw="strategy",
+        audience_tags_raw="stream viewers",
+        platform_tags=["pc"],
+        website_url=None,
+    )
+
+    template = game_service.add_template(
+        game_id=game.game_id,
+        user_id=registered_user.user_id,
+        name="Twitch Whisper",
+        channel="twitch_dm",
+        subject_template=None,
+        body_template="Hi {{creator_name}}, want to see {{game_name}}?",
+    )
+
+    assert template.channel == "twitch_dm"
+
+
+def test_legacy_default_source_lists_gain_twitch():
+    parsed = _parse_sources('["youtube", "reddit", "bluesky"]')
+
+    assert parsed == [
+        Source.YOUTUBE,
+        Source.REDDIT,
+        Source.BLUESKY,
+        Source.TWITCH,
+    ]
+
+
+def test_create_game_rejects_summary_longer_than_150_characters(
+    game_service, registered_user
+):
+    with pytest.raises(ValueError, match="150 characters or fewer"):
+        game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Summary Limit",
+            summary="x" * 151,
+            description="Valid description",
+            genre_tags_raw="strategy",
+            audience_tags_raw="players",
+            platform_tags=["pc"],
+            website_url=None,
+        )
+
+
+def test_update_game_rejects_description_longer_than_1500_characters(
+    game_service, sample_game, registered_user
+):
+    with pytest.raises(ValueError, match="1500 characters or fewer"):
+        game_service.update_game(
+            game_id=sample_game.game_id,
+            user_id=registered_user.user_id,
+            name=sample_game.name,
+            summary=sample_game.summary or "",
+            description="x" * 1501,
+            genre_tags_raw=", ".join(sample_game.genre_tags),
+            audience_tags_raw=", ".join(sample_game.audience_tags),
+            platform_tags=sample_game.platform_tags,
+            website_url=sample_game.website_url,
+        )
+
+
+def test_create_game_rejects_missing_summary(game_service, registered_user):
+    with pytest.raises(ValueError, match="Game summary is required"):
+        game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Missing Summary",
+            summary="",
+            description="Valid description",
+            genre_tags_raw="strategy",
+            audience_tags_raw="players",
+            platform_tags=["pc"],
+            website_url=None,
+        )
+
+
+def test_create_game_rejects_missing_primary_genre_tag(game_service, registered_user):
+    with pytest.raises(ValueError, match="primary genre tag"):
+        game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Missing Genre",
+            summary="Valid summary",
+            description="Valid description",
+            genre_tags_raw="",
+            audience_tags_raw="players",
+            platform_tags=["pc"],
+            website_url=None,
+        )

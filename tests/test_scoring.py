@@ -20,6 +20,7 @@ def _make_game(
         user_id=str(uuid.uuid4()),
         slug=f"{name.lower()}-{uuid.uuid4().hex[:8]}",
         name=name,
+        summary=None,
         description="A test game",
         genre_tags=genre_tags or [],
         audience_tags=audience_tags or [],
@@ -39,6 +40,7 @@ def _make_prospect(
     contact_value=None,
     profile_url=None,
     audience_size=None,
+    raw_data=None,
 ):
     now = datetime.now(UTC).isoformat()
     return Prospect(
@@ -52,7 +54,7 @@ def _make_prospect(
         audience_size=audience_size,
         engagement_rate=None,
         description=description,
-        raw_data={},
+        raw_data=raw_data or {},
         created_at=now,
         updated_at=now,
     )
@@ -222,3 +224,64 @@ def test_reasons_empty_when_no_matches():
         if r.startswith("Genre") or r.startswith("Audience")
     ]
     assert len(genre_audience_reasons) == 0
+
+
+def test_developer_prospects_are_downranked_vs_creators_and_communities():
+    game = _make_game(
+        genre_tags=["strategy", "roguelite"],
+        audience_tags=["indie tactics fans"],
+        platform_tags=["PC"],
+    )
+    common_description = "strategy roguelite indie tactics fans pc devlog browser steam"
+
+    creator = _make_prospect(
+        display_name="Strategy Creator",
+        description=common_description,
+        contact_channel="email",
+        contact_value="creator@example.com",
+        audience_size=50_000,
+        raw_data={"prospect_type": "creator", "last_active_days": 3},
+    )
+    community = _make_prospect(
+        display_name="Strategy Community",
+        description=common_description,
+        contact_channel="reddit_post",
+        contact_value="https://reddit.example/post",
+        audience_size=50_000,
+        raw_data={"prospect_type": "community", "last_active_days": 3},
+    )
+    developer = _make_prospect(
+        display_name="Indie Dev",
+        description=common_description,
+        contact_channel="email",
+        contact_value="dev@example.com",
+        audience_size=50_000,
+        raw_data={"prospect_type": "developer", "last_active_days": 3},
+    )
+
+    creator_score = score_prospect(game, creator)
+    community_score = score_prospect(game, community)
+    developer_score = score_prospect(game, developer)
+
+    assert developer_score.final_score > 0.0
+    assert developer_score.final_score < creator_score.final_score
+    assert developer_score.final_score < community_score.final_score
+
+
+def test_developer_prospects_still_surface_when_they_match_well():
+    game = _make_game(
+        genre_tags=["strategy"],
+        audience_tags=["indie tactics fans"],
+        platform_tags=["PC"],
+    )
+    developer = _make_prospect(
+        display_name="Helpful Indie Dev",
+        description="strategy indie tactics fans pc devlog and game marketing",
+        contact_channel="email",
+        contact_value="dev@example.com",
+        raw_data={"prospect_type": "developer", "last_active_days": 2},
+    )
+
+    result = score_prospect(game, developer)
+
+    assert 0.2 < result.final_score < 0.7

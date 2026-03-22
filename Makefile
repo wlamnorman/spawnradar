@@ -1,4 +1,4 @@
-.PHONY: install check lint test typecheck run help deploy set-fly-secrets-production grant-comp-production
+.PHONY: install check lint test typecheck dev run help deploy set-fly-secrets-production grant-comp-production
 
 PYTHON  := .venv/bin/python
 UVICORN := .venv/bin/uvicorn
@@ -9,7 +9,8 @@ BASEDPYRIGHT := .venv/bin/basedpyright
 HOST := 0.0.0.0
 PORT := 8000
 URL  := http://localhost:$(PORT)
-START_URL := $(URL)/auth/dev-login
+DEV_START_URL  := $(URL)/auth/dev-login
+RUN_START_URL  := $(URL)/auth/register
 
 install:
 	pip3 install -r dev-requirements.txt
@@ -65,10 +66,17 @@ grant-comp-production:
 	fi; \
 	flyctl ssh console -a spawnradar -C "sh -lc 'cd /app && python -m app.devtools.cli --db-path /data/spawnradar.sqlite3 grant-comp --create-missing $$RESET_FLAG $(EMAILS)'"
 
-define OPEN_BROWSER_DELAYED
+define OPEN_BROWSER_DEV
 	( sleep 1; \
-	  if command -v open >/dev/null 2>&1; then open $(START_URL); \
-	  elif command -v xdg-open >/dev/null 2>&1; then xdg-open $(START_URL); \
+	  if command -v open >/dev/null 2>&1; then open $(DEV_START_URL); \
+	  elif command -v xdg-open >/dev/null 2>&1; then xdg-open $(DEV_START_URL); \
+	  fi ) &
+endef
+
+define OPEN_BROWSER_RUN
+	( sleep 1; \
+	  if command -v open >/dev/null 2>&1; then open $(RUN_START_URL); \
+	  elif command -v xdg-open >/dev/null 2>&1; then xdg-open $(RUN_START_URL); \
 	  fi ) &
 endef
 
@@ -84,15 +92,22 @@ define STOP_PORT
 	fi
 endef
 
-## Start local server, keep existing DB, open browser, run with reload
-run:
+## Start local dev server — auto-logged in, seeds sample data, opens browser
+dev:
 	$(STOP_PORT)
 	@$(PYTHON) -m app.devtools.seed_dev data/spawnradar.sqlite3
 	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 wikiquests
 	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 strife-of-stars
-	@echo "Starting server at $(URL)"
-	$(OPEN_BROWSER_DELAYED)
+	@echo "Starting dev server at $(URL)"
+	$(OPEN_BROWSER_DEV)
 	exec env DEV_AUTO_LOGIN=1 $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
+
+## Start local server as a regular user would see it — no auto-login, opens register page
+run:
+	$(STOP_PORT)
+	@echo "Starting server at $(URL)"
+	$(OPEN_BROWSER_RUN)
+	exec $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
 
 
 ## Show this help

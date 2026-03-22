@@ -174,14 +174,14 @@
    * new items, or after MAX_POLL_DURATION_MS — whichever comes first.
    *
    * @param {string} gameId
-   * @param {function} [onStatusUpdate] - optional callback(text) for status messages
+   * @param {function} [onStatusUpdate] - optional callback(text, blocked) for status messages
+   * @param {function} [onComplete] - optional callback({ newItemsAdded, foundNewItems }) when polling ends
    */
-  function startDiscoveryPolling(gameId, onStatusUpdate) {
+  function startDiscoveryPolling(gameId, onStatusUpdate, onComplete) {
     const POLL_INTERVAL_MS = 3000;
     const MAX_POLL_DURATION_MS = 120000; // 2 minutes hard cap
     const STABLE_POLLS_TO_STOP = 8; // stop after 8 consecutive empty polls once results have started
 
-    // Seed known IDs from cards already in the DOM
     const knownIds = new Set(
       Array.from(document.querySelectorAll(".queue-card")).map(
         (c) => c.dataset.draftId,
@@ -189,12 +189,20 @@
     );
 
     let stablePolls = 0;
-    let hasSeenItems = false; // don't count stable polls until first result arrives
+    let foundNewItems = false;
+    let newItemsAdded = 0;
     let intervalId = null;
     const startTime = Date.now();
 
-    function updateStatus(text) {
-      if (onStatusUpdate) onStatusUpdate(text);
+    function updateStatus(text, blocked) {
+      if (onStatusUpdate) onStatusUpdate(text, blocked);
+    }
+
+    function finalMessage() {
+      if (!foundNewItems) {
+        return "Discovery complete. No new prospects were found this run.";
+      }
+      return `Discovery complete. Added ${newItemsAdded} new prospect${newItemsAdded !== 1 ? "s" : ""}.`;
     }
 
     function stop() {
@@ -202,12 +210,15 @@
         clearInterval(intervalId);
         intervalId = null;
       }
+      updateStatus(finalMessage(), false);
+      if (onComplete) {
+        onComplete({ newItemsAdded, foundNewItems });
+      }
     }
 
     async function poll() {
       if (Date.now() - startTime > MAX_POLL_DURATION_MS) {
         stop();
-        updateStatus("Discovery complete.");
         return;
       }
 
@@ -226,27 +237,23 @@
       );
 
       if (newItems.length === 0) {
-        // Only apply the stability cutoff after we've seen at least one result.
-        // Before that, keep polling for the full MAX_POLL_DURATION_MS window.
-        if (hasSeenItems) {
+        if (foundNewItems) {
           stablePolls += 1;
           if (stablePolls >= STABLE_POLLS_TO_STOP) {
             stop();
-            updateStatus("Discovery complete.");
           }
         }
         return;
       }
 
-      hasSeenItems = true;
+      foundNewItems = true;
+      newItemsAdded += newItems.length;
       stablePolls = 0;
 
-      // Sort new items by priority_score descending so highest-fit items appear first
       newItems.sort(
         (a, b) => (b.priority_score || 0) - (a.priority_score || 0),
       );
 
-      // Ensure the queue-list container exists (page may show empty-queue state)
       let list = document.getElementById("queue-list");
       if (!list) {
         const emptyEl = document.querySelector(".empty-queue");
@@ -256,7 +263,6 @@
           container.id = "queue-list";
           emptyEl.replaceWith(container);
         } else {
-          // No suitable anchor — skip this poll
           return;
         }
         list = document.getElementById("queue-list");
@@ -269,7 +275,6 @@
         tmp.innerHTML = buildCard(item);
         const card = tmp.firstElementChild;
 
-        // Insert in priority-score order among existing cards
         const cards = list.querySelectorAll(".queue-card");
         let inserted = false;
         for (const existing of cards) {
@@ -286,7 +291,6 @@
           list.appendChild(card);
         }
 
-        // Brief fade-in animation
         card.style.opacity = "0";
         card.style.transition = "opacity 0.4s ease";
         requestAnimationFrame(() => {
@@ -296,7 +300,6 @@
         });
       }
 
-      // Update the header count
       const countEl = document.getElementById("queue-count-label");
       if (countEl) {
         const total = list.querySelectorAll(".queue-card").length;
@@ -306,7 +309,8 @@
       }
 
       updateStatus(
-        `Found ${knownIds.size} prospect${knownIds.size !== 1 ? "s" : ""} so far…`,
+        `Searching for new prospects… ${newItemsAdded} new prospect${newItemsAdded !== 1 ? "s" : ""} queued so far.`,
+        false,
       );
     }
 
@@ -314,9 +318,7 @@
       return Math.round((item.priority_score || 0) * 100);
     }
 
-    // Start polling
     intervalId = setInterval(poll, POLL_INTERVAL_MS);
-    // Run once immediately so the first results appear without a 3s wait
     poll();
   }
 

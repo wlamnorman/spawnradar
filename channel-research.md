@@ -394,3 +394,23 @@ That gives you two strong loops:
 - Example public game-dev Discord discovery page: <https://discord.com/servers/game-dev-network-280521930371760138>
 - GitHub repository topics docs: <https://docs.github.com/en/github/administering-a-repository/classifying-your-repository-with-topics>
 - GitHub repositories API docs: <https://docs.github.com/en/rest/repos/repos>
+
+
+## Current implementation status
+
+As of March 2026, Twitch creator discovery is now implemented in SpawnRadar.
+
+What is live in the product:
+
+- Twitch is a supported discovery source in the ingestion registry.
+- The current implementation uses the Twitch Helix API with app access tokens.
+- Discovery is focused on live channels surfaced by tag-driven searches.
+- Results are enriched with user profile data and current stream data before they enter the queue.
+- Twitch prospects flow through the normal scoring pipeline and show up in the queue like other sources.
+- The queue currently uses live viewer count as the available audience-size signal for Twitch. It does not yet have a follower-count equivalent wired in.
+
+Implications:
+
+- Twitch is now a real creator-discovery channel for SpawnRadar, not just a roadmap note.
+- Twitch is still weaker than YouTube for persistent metadata depth, but it adds real value for live opportunity discovery.
+- If Twitch usage becomes important, the next likely improvements are better channel-size enrichment and saved live-discovery monitoring.

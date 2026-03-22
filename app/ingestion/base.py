@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -39,6 +40,8 @@ class SourceRuntime:
 
     youtube_api_key: str = ""
     youtube_cache_dir: str = ""
+    twitch_client_id: str = ""
+    twitch_client_secret: str = ""
 
 
 @dataclass(frozen=True)
@@ -55,6 +58,8 @@ DEFAULT_YOUTUBE_CONFIG = YouTubeConfig()
 class CandidateSource(ABC):
     """Abstract source that discovers prospect candidates for a game."""
 
+    platform: str | None = None
+
     @classmethod
     def build(cls, runtime: SourceRuntime) -> CandidateSource:
         """Construct this source from the shared runtime config."""
@@ -67,6 +72,20 @@ class CandidateSource(ABC):
         return requested_limit
 
     @abstractmethod
-    async def discover(self, game: Game, limit: int) -> list[CandidateRecord]:
-        """Discover and return up to *limit* candidates relevant to *game*."""
+    async def discover(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> list[CandidateRecord]:
+        """Discover and return up to *limit* candidates relevant to *game*.
+
+        *page_cursors* is a mutable dict mapping query keys to cursor tokens
+        (nextPageToken / after / cursor depending on the source). Sources read
+        the current cursor before each search and write the next cursor after,
+        so the pipeline can persist the updated state for the next run.
+        """
         ...

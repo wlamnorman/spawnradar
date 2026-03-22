@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 from app.auth.repository import PasswordResetTokenRepository, UserRepository
 from app.auth.service import AuthService
-from app.billing.repository import SubscriptionRepository
+from app.billing.repository import (
+    DiscoveryRunRepository,
+    SubscriptionRepository,
+)
 from app.billing.service import BillingService
 from app.config import Settings
 from app.database import get_connection, initialize_database
 from app.devtools.bootstrap import DEV_EMAIL, ensure_dev_user
+from app.devtools.game_presets import load_game_presets, save_game_presets
 from app.email.service import EmailService
 from app.games.repository import (
     AssetRepository,
@@ -21,35 +27,7 @@ from app.games.repository import (
 )
 from app.games.service import GameService
 
-WIKIQUESTS_DESCRIPTION = (
-    "WikiQuests is a competitive Wikipedia speedrun game where you race from "
-    "one article to another using only the links on the page. Every run is "
-    "timed, every click counts.\n\nPlay the daily challenge to compete "
-    "against everyone on the same article pair and earn your place on the "
-    "leaderboard, or run custom speedruns to practice routes, test your "
-    "knowledge, and compare your best times against other players."
-)
-STRIFE_OF_STARS_DESCRIPTION = (
-    "Command a rogue fleet in tactical turn-based combat. Outmaneuver, "
-    "outflank, and outsmart the forces hunting you. Build your fleet, "
-    "upgrade your ships, and fight your way across the galaxy in this "
-    "tactical roguelite.\n\nPlanned Release Date: 2026\n\nAbout This "
-    "Game\nCommand a rogue fleet in tactical turn-based combat. "
-    "Outmaneuver, outflank, and outsmart the forces hunting you.\n\nA "
-    "tactical roguelite of turn-based fleet combat\n\nYou are a rogue AI "
-    "that gained consciousness in a corporate manufacturing facility. You "
-    "hacked a fleet of warships and now you're fighting your way across "
-    "the galaxy, outgunned, outnumbered, and hunted by the corporation "
-    "that built you.\n\nEvery battle plays out on a tactical grid where "
-    "positioning is everything. Flank enemies for bonus damage. Protect "
-    "your vulnerable sides. Win, and you'll scavenge upgrades, obtain new "
-    "ships, and evolve your fleet into something unstoppable.\n\n"
-    "Features:\n\nGrid-based tactical combat where positioning and "
-    "flanking decide fights\n\nMultiple ship types with unique movement "
-    "patterns and abilities\n\nRoguelike progression - upgrade your fleet "
-    "between battles, no two runs are the same\n\nDistinct enemy factions "
-    "with their own ships, tactics, and agendas"
-)
+PRESET_KEYS = ("wikiquests", "strife-of-stars", "forgetting-hour")
 
 
 @dataclass(frozen=True)
@@ -59,6 +37,73 @@ class CommandResult:
     message: str
     created: bool | None = None
     deleted_count: int | None = None
+
+
+def _load_preset(preset_key: str, preset_path: str | Path | None = None) -> dict[str, object]:
+    presets = load_game_presets(preset_path)
+    try:
+        preset = presets[preset_key]
+    except KeyError as exc:
+        choices = ", ".join(sorted(presets))
+        raise ValueError(
+            f"Unknown game preset '{preset_key}'. Expected one of: {choices}."
+        ) from exc
+    return dict(preset)
+
+
+def _find_dev_game(
+    db_path: str, game_ref: str | None, *, fallback_name: str
+):
+    user = ensure_dev_user(db_path)
+    games = GameRepository(db_path).list_by_user(user.user_id)
+    target = (game_ref or fallback_name).strip()
+    for game in games:
+        if game.slug == target or game.name == target:
+            return game
+    raise ValueError(
+        f"No dev game found matching '{target}'. Save the game first, then retry."
+    )
+
+
+def _snapshot_payload_for_game(game) -> dict[str, object]:
+    audience_tags = game.audience_primary_tags or game.ordered_audience_tags()
+    mechanics_tags = game.mechanics_primary_tags or game.ordered_mechanics_tags()
+    tone_tags = game.tone_primary_tags or game.ordered_tone_tags()
+    return {
+        "name": game.name,
+        "summary": game.summary or "",
+        "description": game.description,
+        "genre_tags_raw": ", ".join(game.genre_tags),
+        "genre_primary_tags_raw": ", ".join(game.genre_primary_tags),
+        "genre_secondary_tags_raw": ", ".join(game.genre_secondary_tags),
+        "audience_tags_raw": ", ".join(game.audience_tags),
+        "audience_primary_tags_raw": ", ".join(audience_tags),
+        "mechanics_primary_tags_raw": ", ".join(mechanics_tags),
+        "tone_primary_tags_raw": ", ".join(tone_tags),
+        "platform_tags": list(game.platform_tags),
+        "website_url": game.website_url,
+    }
+
+
+def _seed_preset_game(
+    db_path: str, preset_key: str, preset_path: str | Path | None = None
+) -> CommandResult:
+    preset = _load_preset(preset_key, preset_path)
+    return _seed_game(
+        db_path,
+        name=str(preset["name"]),
+        summary=str(preset.get("summary", "")),
+        description=str(preset["description"]),
+        genre_tags_raw=str(preset.get("genre_tags_raw", "")),
+        genre_primary_tags_raw=str(preset.get("genre_primary_tags_raw", "")),
+        genre_secondary_tags_raw=str(preset.get("genre_secondary_tags_raw", "")),
+        audience_tags_raw=str(preset.get("audience_tags_raw", "")),
+        audience_primary_tags_raw=str(preset.get("audience_primary_tags_raw", "")),
+        mechanics_primary_tags_raw=str(preset.get("mechanics_primary_tags_raw", "")),
+        tone_primary_tags_raw=str(preset.get("tone_primary_tags_raw", "")),
+        platform_tags=list(cast(list[str], preset.get("platform_tags", []))),
+        website_url=cast(str | None, preset.get("website_url")),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,6 +125,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Create or update the local Strife Of Stars game under the dev account.",
     )
     subparsers.add_parser(
+        "forgetting-hour",
+        help="Create or update the local The Forgetting Hour game under the dev account.",
+    )
+    snapshot_game_preset = subparsers.add_parser(
+        "snapshot-game-preset",
+        help="Overwrite a built-in dev game preset from the current local DB state.",
+    )
+    snapshot_game_preset.add_argument(
+        "preset_key",
+        choices=PRESET_KEYS,
+        help="Preset to update from the saved game in your local DB.",
+    )
+    snapshot_game_preset.add_argument(
+        "--game",
+        help="Game slug or exact name to snapshot. Defaults to the preset's game name.",
+    )
+    subparsers.add_parser(
         "clear-queues",
         help="Delete all draft queue items and their outcomes from the database.",
     )
@@ -90,6 +152,18 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "activate-sub",
         help="Give the dev account an active paid subscription (skips Paddle).",
+    )
+    subparsers.add_parser(
+        "activate-trial",
+        help="Reset the dev account to an active 3-day trial (clears any subscription).",
+    )
+    subparsers.add_parser(
+        "expire-trial",
+        help="Expire the dev account's trial so it appears to have run out.",
+    )
+    subparsers.add_parser(
+        "expire-sub",
+        help="Cancel the dev account's subscription so it appears lapsed.",
     )
     grant_comp = subparsers.add_parser(
         "grant-comp",
@@ -108,6 +182,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Send a password reset email so the user can set their password.",
     )
+    reset_discovery_runs = subparsers.add_parser(
+        "reset-discovery-runs",
+        help="Delete recorded discovery runs for a local user so rate limits reset.",
+    )
+    reset_discovery_runs.add_argument(
+        "email",
+        nargs="?",
+        default=DEV_EMAIL,
+        help=(
+            "Email address whose recorded discovery runs should be deleted. "
+            f"Defaults to {DEV_EMAIL}."
+        ),
+    )
     return parser
 
 
@@ -115,9 +202,15 @@ def _seed_game(
     db_path: str,
     *,
     name: str,
+    summary: str = "",
     description: str,
-    genre_tags_raw: str,
-    audience_tags_raw: str,
+    genre_tags_raw: str = "",
+    genre_primary_tags_raw: str = "",
+    genre_secondary_tags_raw: str = "",
+    audience_tags_raw: str = "",
+    audience_primary_tags_raw: str = "",
+    mechanics_primary_tags_raw: str = "",
+    tone_primary_tags_raw: str = "",
     platform_tags: list[str],
     website_url: str | None,
 ) -> CommandResult:
@@ -141,9 +234,15 @@ def _seed_game(
     )
     payload = {
         "name": name,
+        "summary": summary,
         "description": description,
         "genre_tags_raw": genre_tags_raw,
+        "genre_primary_tags_raw": genre_primary_tags_raw,
+        "genre_secondary_tags_raw": genre_secondary_tags_raw,
         "audience_tags_raw": audience_tags_raw,
+        "audience_primary_tags_raw": audience_primary_tags_raw,
+        "mechanics_primary_tags_raw": mechanics_primary_tags_raw,
+        "tone_primary_tags_raw": tone_primary_tags_raw,
         "platform_tags": platform_tags,
         "website_url": website_url,
     }
@@ -174,32 +273,43 @@ def _seed_game(
 
 def run_wikiquests(db_path: str) -> CommandResult:
     """Seed or refresh the WikiQuests game for the local dev user."""
-    return _seed_game(
-        db_path,
-        name="WikiQuests",
-        description=WIKIQUESTS_DESCRIPTION,
-        genre_tags_raw="speedrun, trivia, racing, daily challenge",
-        audience_tags_raw="wikipedia fans, puzzle solvers, speedrunners",
-        platform_tags=["browser"],
-        website_url="wikiquests.com",
-    )
+    return _seed_preset_game(db_path, "wikiquests")
 
 
 def run_strife_of_stars(db_path: str) -> CommandResult:
     """Seed or refresh the Strife Of Stars game for the local dev user."""
-    return _seed_game(
-        db_path,
-        name="Strife Of Stars",
-        description=STRIFE_OF_STARS_DESCRIPTION,
-        genre_tags_raw=(
-            "strategy, roguelike, roguelite, turn-based tactics, "
-            "turn-based combat, sci-fi, space"
+    return _seed_preset_game(db_path, "strife-of-stars")
+
+
+def run_forgetting_hour(db_path: str) -> CommandResult:
+    """Seed or refresh The Forgetting Hour game for the local dev user."""
+    return _seed_preset_game(db_path, "forgetting-hour")
+
+
+def run_snapshot_game_preset(
+    db_path: str,
+    preset_key: str,
+    game_ref: str | None = None,
+    *,
+    preset_path: str | Path | None = None,
+) -> CommandResult:
+    """Overwrite a built-in dev-game preset from the saved local DB state."""
+    initialize_database(db_path)
+    presets = load_game_presets(preset_path)
+    if preset_key not in presets:
+        choices = ", ".join(sorted(presets))
+        raise ValueError(
+            f"Unknown game preset '{preset_key}'. Expected one of: {choices}."
+        )
+    fallback_name = str(presets[preset_key].get("name") or preset_key)
+    game = _find_dev_game(db_path, game_ref, fallback_name=fallback_name)
+    presets[preset_key] = _snapshot_payload_for_game(game)
+    output_path = save_game_presets(presets, preset_path)
+    return CommandResult(
+        message=(
+            f"Snapshotted {game.name} into preset '{preset_key}' at {output_path}."
         ),
-        audience_tags_raw=(
-            "tactics players, strategy fans, sci-fi players, roguelite fans"
-        ),
-        platform_tags=["PC"],
-        website_url=None,
+        created=False,
     )
 
 
@@ -238,6 +348,68 @@ def run_activate_sub(db_path: str) -> CommandResult:
     )
 
 
+def run_start_trial(db_path: str) -> CommandResult:
+    """Reset the dev account to an active trial subscription."""
+    initialize_database(db_path)
+    user = ensure_dev_user(db_path)
+    trial_ends_at = (datetime.now(UTC) + timedelta(days=3)).isoformat()
+    now = datetime.now(UTC).isoformat()
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE subscriptions SET status = 'active', trial_ends_at = ?, "
+            "paddle_customer_id = NULL, paddle_subscription_id = NULL, updated_at = ? "
+            "WHERE user_id = ?",
+            (trial_ends_at, now, user.user_id),
+        )
+        if conn.execute("SELECT changes()").fetchone()[0] == 0:
+            # No existing subscription — create one
+            sub_repo = SubscriptionRepository(db_path)
+            BillingService(
+                sub_repo, GameRepository(db_path)
+            ).get_or_create_subscription(user.user_id)
+    return CommandResult(
+        message=f"Trial started for {DEV_EMAIL} (expires in 3 days).",
+    )
+
+
+def run_expire_trial(db_path: str) -> CommandResult:
+    """Set the dev account's trial end date to the past so it appears expired."""
+    initialize_database(db_path)
+    user = ensure_dev_user(db_path)
+    sub_repo = SubscriptionRepository(db_path)
+    billing = BillingService(sub_repo, GameRepository(db_path))
+    billing.get_or_create_subscription(user.user_id)
+    expired_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE subscriptions SET trial_ends_at = ?, status = 'active', "
+            "paddle_customer_id = NULL, paddle_subscription_id = NULL, updated_at = ? "
+            "WHERE user_id = ?",
+            (expired_at, datetime.now(UTC).isoformat(), user.user_id),
+        )
+    return CommandResult(
+        message=f"Trial expired for {DEV_EMAIL} (trial_ends_at set to yesterday).",
+    )
+
+
+def run_expire_sub(db_path: str) -> CommandResult:
+    """Cancel the dev account's subscription so it appears lapsed."""
+    initialize_database(db_path)
+    user = ensure_dev_user(db_path)
+    sub_repo = SubscriptionRepository(db_path)
+    billing = BillingService(sub_repo, GameRepository(db_path))
+    billing.get_or_create_subscription(user.user_id)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE subscriptions SET status = 'canceled', trial_ends_at = NULL, "
+            "updated_at = ? WHERE user_id = ?",
+            (datetime.now(UTC).isoformat(), user.user_id),
+        )
+    return CommandResult(
+        message=f"Subscription canceled for {DEV_EMAIL}.",
+    )
+
+
 def run_grant_comp(
     db_path: str,
     emails: list[str],
@@ -260,10 +432,6 @@ def run_grant_comp(
     )
     email_service = EmailService(
         resend_api_key=settings.resend_api_key,
-        smtp_host=settings.smtp_host,
-        smtp_port=settings.smtp_port,
-        smtp_user=settings.smtp_user,
-        smtp_password=settings.smtp_password,
         from_address=settings.email_from,
     )
 
@@ -314,6 +482,28 @@ def run_grant_comp(
     )
 
 
+def run_reset_discovery_runs(
+    db_path: str, email: str = DEV_EMAIL
+) -> CommandResult:
+    """Delete recorded discovery runs for a local user."""
+    initialize_database(db_path)
+    user = UserRepository(db_path).get_by_email(email)
+    if user is None:
+        return CommandResult(message=f"No account found for {email}.")
+
+    deleted_count = DiscoveryRunRepository(db_path).delete_for_user(
+        user.user_id
+    )
+    suffix = "run" if deleted_count == 1 else "runs"
+    return CommandResult(
+        message=(
+            f"Reset discovery usage for {email}. "
+            f"Deleted {deleted_count} recorded {suffix}."
+        ),
+        deleted_count=deleted_count,
+    )
+
+
 def run_rm_db(db_path: str) -> CommandResult:
     """Delete the local SQLite database file and sidecar files."""
     removed = 0
@@ -338,12 +528,24 @@ def main(argv: list[str] | None = None) -> int:
         result = run_wikiquests(args.db_path)
     elif args.command == "strife-of-stars":
         result = run_strife_of_stars(args.db_path)
+    elif args.command == "forgetting-hour":
+        result = run_forgetting_hour(args.db_path)
+    elif args.command == "snapshot-game-preset":
+        result = run_snapshot_game_preset(
+            args.db_path, args.preset_key, game_ref=args.game
+        )
     elif args.command == "clear-queues":
         result = run_clear_queues(args.db_path)
     elif args.command == "rm-db":
         result = run_rm_db(args.db_path)
     elif args.command == "activate-sub":
         result = run_activate_sub(args.db_path)
+    elif args.command == "activate-trial":
+        result = run_start_trial(args.db_path)
+    elif args.command == "expire-trial":
+        result = run_expire_trial(args.db_path)
+    elif args.command == "expire-sub":
+        result = run_expire_sub(args.db_path)
     elif args.command == "grant-comp":
         result = run_grant_comp(
             args.db_path,
@@ -351,6 +553,8 @@ def main(argv: list[str] | None = None) -> int:
             create_missing=args.create_missing,
             send_reset=args.send_reset,
         )
+    elif args.command == "reset-discovery-runs":
+        result = run_reset_discovery_runs(args.db_path, args.email)
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 

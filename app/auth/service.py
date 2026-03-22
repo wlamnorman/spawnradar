@@ -5,19 +5,25 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import bcrypt
 
 from app.auth.models import Session, User
 from app.auth.repository import (
+    EmailVerificationTokenRepository,
     PasswordResetTokenRepository,
     SessionRepository,
     UserRepository,
 )
 from app.email.service import EmailMessage, EmailService
 
+if TYPE_CHECKING:
+    from app.metrics.service import MetricsService
+
 SESSION_LIFETIME_DAYS = 30
 RESET_TOKEN_LIFETIME_HOURS = 1
+VERIFICATION_TOKEN_LIFETIME_HOURS = 24
 
 log = logging.getLogger(__name__)
 
@@ -45,10 +51,15 @@ class AuthService:
         user_repo: UserRepository,
         session_repo: SessionRepository | None,
         reset_token_repo: PasswordResetTokenRepository | None = None,
+        email_verification_token_repo: EmailVerificationTokenRepository
+        | None = None,
+        metrics_service: MetricsService | None = None,
     ) -> None:
         self._users = user_repo
         self._sessions = session_repo
         self._reset_tokens = reset_token_repo
+        self._email_verification_tokens = email_verification_token_repo
+        self._metrics = metrics_service
 
     def register(self, email: str, password: str) -> User:
         """Create a new user account.
@@ -63,7 +74,10 @@ class AuthService:
 
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         user_id = str(uuid.uuid4())
-        return self._users.create(user_id, email, hashed)
+        user = self._users.create(user_id, email, hashed)
+        if self._metrics is not None:
+            self._metrics.record_account_created(user.user_id, user.created_at)
+        return user
 
     def create_email_only_user(self, email: str) -> User:
         """Create an account with no password set yet.
@@ -79,7 +93,10 @@ class AuthService:
             return existing
 
         user_id = str(uuid.uuid4())
-        return self._users.create(user_id, email, password_hash=None)
+        user = self._users.create(user_id, email, password_hash=None)
+        if self._metrics is not None:
+            self._metrics.record_account_created(user.user_id, user.created_at)
+        return user
 
     def login(self, email: str, password: str) -> Session:
         """Verify credentials and create a new session.
@@ -101,7 +118,12 @@ class AuthService:
         expires_at = (
             datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
         ).isoformat()
-        return self._sessions.create(session_id, user.user_id, expires_at)
+        session = self._sessions.create(session_id, user.user_id, expires_at)
+        if self._metrics is not None:
+            self._metrics.record_session_started(
+                user.user_id, session.created_at
+            )
+        return session
 
     def logout(self, session_id: str) -> None:
         """Invalidate a session."""
@@ -118,11 +140,12 @@ class AuthService:
         expires_at = (
             datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
         ).isoformat()
-        return self._sessions.create(session_id, user_id, expires_at)
+        session = self._sessions.create(session_id, user_id, expires_at)
+        if self._metrics is not None:
+            self._metrics.record_session_started(user_id, session.created_at)
+        return session
 
-    def get_or_create_google_user(
-        self, google_id: str, email: str
-    ) -> User:
+    def get_or_create_google_user(self, google_id: str, email: str) -> User:
         """Return an existing user matched by Google ID or email, creating one if absent.
 
         If a user exists with the same email but no Google ID yet, the Google
@@ -143,9 +166,12 @@ class AuthService:
 
         # 3. New user — create a password-less account
         user_id = str(uuid.uuid4())
-        return self._users.create(
+        user = self._users.create(
             user_id, email, password_hash=None, google_id=google_id
         )
+        if self._metrics is not None:
+            self._metrics.record_account_created(user.user_id, user.created_at)
+        return user
 
     def get_session(self, session_id: str) -> Session | None:
         """Return a session if it exists and has not expired, else None."""
@@ -231,6 +257,71 @@ class AuthService:
                 "Could not send password reset email for %s; leaving reset token in place.",
                 email,
             )
+
+    def send_verification_email(
+        self, user: User, email_service: EmailService, base_url: str
+    ) -> None:
+        """Send email verification link. Silently swallows errors."""
+        if self._email_verification_tokens is None:
+            return
+        token_id = str(uuid.uuid4())
+        expires_at = (
+            datetime.now(UTC)
+            + timedelta(hours=VERIFICATION_TOKEN_LIFETIME_HOURS)
+        ).isoformat()
+        self._email_verification_tokens.create(
+            token_id, user.user_id, expires_at
+        )
+        verify_link = f"{base_url}/auth/verify-email?token={token_id}"
+        html = f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+      <h2>Verify your SpawnRadar email</h2>
+      <p>Thanks for signing up. Click below to verify your email and start your 3-day free trial.</p>
+      <p style="margin:32px 0">
+        <a href="{verify_link}"
+           style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
+          Verify email
+        </a>
+      </p>
+      <p style="color:#6b7280;font-size:14px">This link expires in {VERIFICATION_TOKEN_LIFETIME_HOURS} hours.</p>
+      <p style="color:#6b7280;font-size:14px">Or copy this link:<br><a href="{verify_link}">{verify_link}</a></p>
+    </div>
+    """
+        text = (
+            f"Verify your SpawnRadar email\n\n"
+            f"Click the link below to verify your email and start your 3-day free trial "
+            f"(expires in {VERIFICATION_TOKEN_LIFETIME_HOURS} hours):\n\n"
+            f"{verify_link}\n\n"
+            f"If you did not sign up for SpawnRadar, ignore this email."
+        )
+        try:
+            email_service.send(
+                EmailMessage(
+                    to=user.email,
+                    subject="Verify your SpawnRadar email",
+                    html=html,
+                    text=text,
+                )
+            )
+        except Exception:
+            log.exception(
+                "Could not send verification email for %s", user.email
+            )
+
+    def verify_email(self, token_id: str) -> bool:
+        """Mark the user's email as verified. Returns True on success, False if token is invalid."""
+        if self._email_verification_tokens is None:
+            return False
+        token = self._email_verification_tokens.get_by_id(token_id)
+        if token is None:
+            return False
+        self._users.mark_email_verified(token.user_id)
+        self._email_verification_tokens.mark_used(token_id)
+        return True
+
+    def mark_google_user_verified(self, user_id: str) -> None:
+        """Mark a Google-authenticated user's email as verified."""
+        self._users.mark_email_verified(user_id)
 
     def reset_password(self, token_id: str, new_password: str) -> None:
         """Reset a user's password using a valid reset token.

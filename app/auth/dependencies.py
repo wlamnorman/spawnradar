@@ -6,7 +6,8 @@ from fastapi import Cookie, Depends, HTTPException, Request
 
 from app.auth.models import User
 from app.auth.service import AuthService
-from app.dependencies import get_auth_service
+from app.billing.service import BillingService
+from app.dependencies import get_auth_service, get_billing_service
 
 
 async def get_current_user(
@@ -37,6 +38,38 @@ async def require_user(
     if user is None:
         return _reject(request)
     return user
+
+
+async def require_verified_user(
+    request: Request,
+    user: User = Depends(require_user),
+) -> User:
+    """Require an authenticated user with a verified email address."""
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=307,
+            headers={"Location": "/auth/verify-pending"},
+        )
+    return user
+
+
+async def require_product_access(
+    request: Request,
+    user: User = Depends(require_verified_user),
+    billing_service: BillingService = Depends(get_billing_service),
+) -> User:
+    """Require an authenticated user with a verified email and active product access."""
+    sub = billing_service.get_or_create_subscription(user.user_id)
+    if sub.has_product_access:
+        return user
+
+    accept = request.headers.get("accept", "")
+    if request.url.path.startswith("/api/") or "application/json" in accept:
+        raise HTTPException(
+            status_code=402, detail="Active subscription required."
+        )
+
+    raise HTTPException(status_code=307, headers={"Location": "/pricing"})
 
 
 async def require_admin(user: User = Depends(require_user)) -> User:

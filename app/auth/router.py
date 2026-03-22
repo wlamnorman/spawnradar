@@ -18,8 +18,78 @@ from app.dependencies import (
 )
 from app.devtools.bootstrap import ensure_dev_user
 from app.email.service import EmailService
+from app.security import (
+    RateLimitRule,
+    client_ip_key,
+    consume_rate_limit,
+    require_csrf_form,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _normalized_email(value: str) -> str:
+    return value.strip().lower()
+
+
+def _consume_auth_rate_limit(
+    request: Request,
+    settings: Settings,
+    *,
+    scope: str,
+    identifier: str | None = None,
+    ip_limit: int = 10,
+    ip_window_seconds: int = 900,
+    identifier_limit: int | None = None,
+    identifier_window_seconds: int = 900,
+) -> bool:
+    rules = [
+        RateLimitRule(
+            key=client_ip_key(request),
+            limit=ip_limit,
+            window_seconds=ip_window_seconds,
+        )
+    ]
+    if identifier and identifier_limit is not None:
+        rules.append(
+            RateLimitRule(
+                key=f"id:{identifier}",
+                limit=identifier_limit,
+                window_seconds=identifier_window_seconds,
+            )
+        )
+    return consume_rate_limit(settings.db_path, scope, rules)
+
+
+def _use_secure_cookies(settings: Settings) -> bool:
+    """Use secure cookies whenever the configured public base URL is HTTPS."""
+    return settings.base_url.startswith("https://")
+
+
+def _set_session_cookie(
+    response: RedirectResponse, session_id: str, settings: Settings
+) -> None:
+    """Attach the app session cookie with deployment-aware security flags."""
+    response.set_cookie(
+        "session_id",
+        session_id,
+        httponly=True,
+        samesite="lax",
+        secure=_use_secure_cookies(settings),
+        max_age=60 * 60 * 24 * 30,
+    )
+
+
+def _clear_session_cookie(
+    response: RedirectResponse, settings: Settings
+) -> None:
+    """Delete the app session cookie using the same flags it was set with."""
+    response.delete_cookie(
+        "session_id",
+        httponly=True,
+        samesite="lax",
+        secure=_use_secure_cookies(settings),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -45,8 +115,28 @@ async def login_post(
     password: str = Form(...),
     auth: AuthService = Depends(get_auth_service),
     templates: Jinja2Templates = Depends(get_templates),
+    settings: Settings = Depends(get_settings),
+    _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Handle login form submission."""
+    if not _consume_auth_rate_limit(
+        request,
+        settings,
+        scope="auth_login",
+        identifier=_normalized_email(email),
+        ip_limit=10,
+        ip_window_seconds=900,
+        identifier_limit=5,
+        identifier_window_seconds=900,
+    ):
+        response = templates.TemplateResponse(
+            request,
+            "auth/login.html",
+            {"error": "Too many sign-in attempts. Please wait and try again."},
+            status_code=429,
+        )
+        return response  # type: ignore[return-value]
+
     try:
         session = auth.login(email, password)
     except ValueError as exc:
@@ -56,13 +146,7 @@ async def login_post(
         return response  # type: ignore[return-value]
 
     redirect = RedirectResponse(url="/games", status_code=303)
-    redirect.set_cookie(
-        "session_id",
-        session.session_id,
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 24 * 30,
-    )
+    _set_session_cookie(redirect, session.session_id, settings)
     return redirect
 
 
@@ -88,9 +172,30 @@ async def register_post(
     email: str = Form(...),
     password: str = Form(...),
     auth: AuthService = Depends(get_auth_service),
+    email_service: EmailService = Depends(get_email_service),
     templates: Jinja2Templates = Depends(get_templates),
+    settings: Settings = Depends(get_settings),
+    _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Handle registration form submission."""
+    if not _consume_auth_rate_limit(
+        request,
+        settings,
+        scope="auth_register",
+        identifier=_normalized_email(email),
+        ip_limit=5,
+        ip_window_seconds=3600,
+        identifier_limit=3,
+        identifier_window_seconds=3600,
+    ):
+        response = templates.TemplateResponse(
+            request,
+            "auth/register.html",
+            {"error": "Too many registration attempts. Please wait and try again."},
+            status_code=429,
+        )
+        return response  # type: ignore[return-value]
+
     try:
         auth.register(email, password)
         session = auth.login(email, password)
@@ -100,15 +205,52 @@ async def register_post(
         )
         return response  # type: ignore[return-value]
 
-    redirect = RedirectResponse(url="/games", status_code=303)
-    redirect.set_cookie(
-        "session_id",
-        session.session_id,
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 24 * 30,
-    )
+    user = auth.get_user_for_session(session.session_id)
+    if user:
+        auth.send_verification_email(user, email_service, settings.base_url)
+    redirect = RedirectResponse(url="/auth/verify-pending", status_code=303)
+    _set_session_cookie(redirect, session.session_id, settings)
     return redirect
+
+
+@router.get("/verify-pending", response_class=HTMLResponse)
+async def verify_pending_page(
+    request: Request,
+    user: User = Depends(require_user),
+    templates: Jinja2Templates = Depends(get_templates),
+) -> HTMLResponse:
+    """Render the email verification pending page."""
+    if user.email_verified:
+        return RedirectResponse(url="/games", status_code=303)  # type: ignore[return-value]
+    return templates.TemplateResponse(request, "auth/verify_pending.html", {"user": user})
+
+
+@router.get("/verify-email")
+async def verify_email_get(
+    request: Request,
+    token: str = "",
+    auth: AuthService = Depends(get_auth_service),
+    settings: Settings = Depends(get_settings),
+) -> RedirectResponse:
+    """Handle email verification link click."""
+    if not token or not auth.verify_email(token):
+        return RedirectResponse(url="/auth/verify-pending?error=invalid", status_code=303)
+    return RedirectResponse(url="/games", status_code=303)
+
+
+@router.get("/resend-verification")
+async def resend_verification(
+    request: Request,
+    user: User = Depends(require_user),
+    auth: AuthService = Depends(get_auth_service),
+    email_service: EmailService = Depends(get_email_service),
+    settings: Settings = Depends(get_settings),
+) -> RedirectResponse:
+    """Resend the verification email."""
+    if user.email_verified:
+        return RedirectResponse(url="/games", status_code=303)
+    auth.send_verification_email(user, email_service, settings.base_url)
+    return RedirectResponse(url="/auth/verify-pending", status_code=303)
 
 
 @router.get("/dev-login")
@@ -124,13 +266,7 @@ async def dev_login(
     user = ensure_dev_user(settings.db_path)
     session = auth_service.create_session_for_user(user.user_id)
     redirect = RedirectResponse(url="/", status_code=303)
-    redirect.set_cookie(
-        "session_id",
-        session.session_id,
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 24 * 30,
-    )
+    _set_session_cookie(redirect, session.session_id, settings)
     return redirect
 
 
@@ -144,6 +280,8 @@ async def logout_post(
     request: Request,
     user: User = Depends(require_user),
     auth: AuthService = Depends(get_auth_service),
+    settings: Settings = Depends(get_settings),
+    _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Clear the session cookie and redirect to login."""
     session_id = request.cookies.get("session_id")
@@ -151,7 +289,7 @@ async def logout_post(
         auth.logout(session_id)
 
     response = RedirectResponse(url="/auth/login", status_code=303)
-    response.delete_cookie("session_id")
+    _clear_session_cookie(response, settings)
     return response
 
 
@@ -164,11 +302,14 @@ async def logout_post(
 async def forgot_password_page(
     request: Request,
     sent: str = "",
+    error: str = "",
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the forgot-password form."""
     return templates.TemplateResponse(
-        request, "auth/forgot_password.html", {"sent": sent == "1"}
+        request,
+        "auth/forgot_password.html",
+        {"sent": sent == "1", "error": error == "rate_limited"},
     )
 
 
@@ -179,8 +320,23 @@ async def forgot_password_post(
     auth: AuthService = Depends(get_auth_service),
     email_service: EmailService = Depends(get_email_service),
     settings: Settings = Depends(get_settings),
+    _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Handle forgot-password form submission."""
+    if not _consume_auth_rate_limit(
+        request,
+        settings,
+        scope="auth_forgot_password",
+        identifier=_normalized_email(email),
+        ip_limit=5,
+        ip_window_seconds=3600,
+        identifier_limit=3,
+        identifier_window_seconds=3600,
+    ):
+        return RedirectResponse(
+            url="/auth/forgot-password?error=rate_limited", status_code=303
+        )
+
     auth.request_password_reset(email, email_service, settings.base_url)
     return RedirectResponse(
         url="/auth/forgot-password?sent=1", status_code=303
@@ -212,8 +368,25 @@ async def reset_password_post(
     confirm_password: str = Form(...),
     auth: AuthService = Depends(get_auth_service),
     templates: Jinja2Templates = Depends(get_templates),
+    settings: Settings = Depends(get_settings),
+    _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Handle reset-password form submission."""
+    if not _consume_auth_rate_limit(
+        request,
+        settings,
+        scope="auth_reset_password",
+        ip_limit=10,
+        ip_window_seconds=3600,
+    ):
+        response = templates.TemplateResponse(
+            request,
+            "auth/reset_password.html",
+            {"token": token, "error": "Too many reset attempts. Please wait and try again."},
+            status_code=429,
+        )
+        return response  # type: ignore[return-value]
+
     if new_password != confirm_password:
         response = templates.TemplateResponse(
             request,
@@ -258,6 +431,7 @@ async def google_login(request: Request) -> RedirectResponse:
 async def google_callback(
     request: Request,
     auth: AuthService = Depends(get_auth_service),
+    settings: Settings = Depends(get_settings),
 ) -> RedirectResponse:
     """Handle the OAuth callback from Google, create or log in the user."""
     oauth = request.app.state.oauth
@@ -278,14 +452,9 @@ async def google_callback(
     email: str = user_info["email"]
 
     user = auth.get_or_create_google_user(google_id, email)
+    auth.mark_google_user_verified(user.user_id)
     session = auth.create_session_for_user(user.user_id)
 
     redirect = RedirectResponse(url="/games", status_code=303)
-    redirect.set_cookie(
-        "session_id",
-        session.session_id,
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 24 * 30,
-    )
+    _set_session_cookie(redirect, session.session_id, settings)
     return redirect

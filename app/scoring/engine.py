@@ -34,6 +34,10 @@ developer  (Bluesky indie devs)
   contactability  0.15  — can we actually reach them?
   audience_size   0.00  — most devs have tiny followings; not useful
   platform_fit    0.05  — platform relevance
+
+Type modifiers are then applied after the weighted score so developer peers
+remain discoverable internally without outranking creators or communities in
+the main outreach queue.
 """
 
 from __future__ import annotations
@@ -81,6 +85,12 @@ _WEIGHTS: dict[str, dict[str, float]] = {
         "audience_size": 0.00,
         "platform": 0.05,
     },
+}
+
+_TYPE_SCORE_MULTIPLIER: dict[str, float] = {
+    "creator": 1.0,
+    "community": 1.0,
+    "developer": 0.55,
 }
 
 
@@ -148,19 +158,30 @@ def score_prospect(
     # Tags matched implicitly via the search query that discovered this channel
     source_genre_tag = raw.get("source_genre_tag") or ""
     source_audience_tag = raw.get("source_audience_tag") or ""
+    source_mechanics_tag = raw.get("source_mechanics_tag") or ""
+    source_tone_tag = raw.get("source_tone_tag") or ""
 
     reasons: list[str] = []
 
     # -----------------------------------------------------------------------
-    # Genre fit — LLM override when available, else keyword matching
+    # Genre fit — LLM override when available, else keyword matching.
+    # Mechanics and tone tags are folded in here: they describe what the game
+    # is like and generate their own search queries, so they contribute to the
+    # same fit dimension.
     # -----------------------------------------------------------------------
     if genre_fit_override is not None:
         genre_fit = genre_fit_override
     else:
+        genre_context = {t for t in [source_genre_tag, source_mechanics_tag, source_tone_tag] if t}
+        all_genre_like_tags = (
+            game.weighted_genre_tags()
+            + game.weighted_mechanics_tags()
+            + game.weighted_tone_tags()
+        )
         genre_fit = _tag_match_score(
-            game.weighted_genre_tags(),
+            all_genre_like_tags,
             search_text,
-            {source_genre_tag} if source_genre_tag else set(),
+            genre_context,
             reasons,
             "genre",
         )
@@ -231,7 +252,7 @@ def score_prospect(
     # -----------------------------------------------------------------------
     # Weighted final score (weights selected by prospect_type)
     # -----------------------------------------------------------------------
-    final_score = (
+    base_score = (
         genre_fit * w["genre"]
         + audience_fit * w["audience"]
         + format_fit * w["format"]
@@ -240,7 +261,8 @@ def score_prospect(
         + audience_size_score * w["audience_size"]
         + platform_fit * w["platform"]
     )
-    final_score = round(min(final_score, 1.0), 4)
+    type_multiplier = _TYPE_SCORE_MULTIPLIER.get(prospect_type, 1.0)
+    final_score = round(min(base_score * type_multiplier, 1.0), 4)
 
     fit_summary = fit_summary_override or _build_summary(
         game, prospect, genre_fit, audience_fit, final_score

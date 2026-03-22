@@ -9,10 +9,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections import defaultdict
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 # Import sources package so all sources self-register with the registry
 import app.ingestion.sources  # noqa: F401
+from app.billing.repository import DiscoveryRunRepository
+from app.database import get_connection
 from app.games.models import Game
 from app.games.repository import MessageTemplateRepository
 from app.ingestion.base import CandidateRecord, CandidateSource, SourceRuntime
@@ -26,6 +30,9 @@ from app.prospects.models import Prospect
 from app.scoring.engine import score_prospect
 from app.scoring.llm_engine import LLMFitScores, llm_score_batch
 
+if TYPE_CHECKING:
+    from app.metrics.service import MetricsService
+
 log = logging.getLogger(__name__)
 
 
@@ -36,6 +43,10 @@ async def run_ingestion(
     youtube_api_key: str = "",
     anthropic_api_key: str = "",
     youtube_cache_dir: str = "",
+    twitch_client_id: str = "",
+    twitch_client_secret: str = "",
+    run_id: str | None = None,
+    metrics_service: MetricsService | None = None,
 ) -> dict:
     """Run the full discovery → scoring → import pipeline for a game.
 
@@ -43,44 +54,87 @@ async def run_ingestion(
     Uses the YouTube Data API if an API key is configured, falling back to
     the scraping source if the key is absent or the daily quota is exhausted.
     """
-    template_repo = MessageTemplateRepository(db_path)
-    templates = template_repo.list_by_game(game.game_id)
-    runtime = SourceRuntime(
-        youtube_api_key=youtube_api_key,
-        youtube_cache_dir=youtube_cache_dir,
-    )
-
-    log.info(
-        "[%s] LLM scoring: %s",
-        game.name,
-        "enabled (Haiku)"
-        if anthropic_api_key
-        else "disabled (keyword fallback)",
-    )
-
-    sources = _build_sources(game, runtime, limit_per_source)
-
-    tasks = [
-        _run_source(
-            source,
-            game,
-            limit,
-            templates,
-            db_path,
-            anthropic_api_key,
-            runtime,
+    try:
+        template_repo = MessageTemplateRepository(db_path)
+        templates = template_repo.list_by_game(game.game_id)
+        runtime = SourceRuntime(
+            youtube_api_key=youtube_api_key,
+            youtube_cache_dir=youtube_cache_dir,
+            twitch_client_id=twitch_client_id,
+            twitch_client_secret=twitch_client_secret,
         )
-        for source, limit in sources
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+        run_index = _game_run_index(game.game_id, db_path)
+        seen_handles_by_platform = _seen_handles_for_game(
+            game.game_id, db_path
+        )
 
-    totals: dict[str, int] = {"discovered": 0, "scored": 0, "imported": 0}
-    for r in results:
-        if isinstance(r, dict):
-            for k in totals:
-                totals[k] += r[k]
+        log.info(
+            "[%s] LLM scoring: %s",
+            game.name,
+            "enabled (Haiku)"
+            if anthropic_api_key
+            else "disabled (keyword fallback)",
+        )
+        log.info(
+            "[%s] Discovery run %d starting with %d previously surfaced prospects",
+            game.name,
+            run_index + 1,
+            sum(len(handles) for handles in seen_handles_by_platform.values()),
+        )
 
-    return totals
+        sources = _build_sources(game, runtime, limit_per_source)
+
+        tasks = [
+            _run_source(
+                source,
+                game,
+                limit,
+                templates,
+                db_path,
+                anthropic_api_key,
+                runtime,
+                run_id=run_id,
+                metrics_service=metrics_service,
+                run_index=run_index,
+                excluded_handles=seen_handles_by_platform.get(
+                    source.platform or "", set()
+                ),
+            )
+            for source, limit in sources
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Expected per-source discovery failures are handled inside _run_source.
+        # Anything still raising here is a real pipeline failure and should mark
+        # the overall run as failed.
+        task_errors = [
+            result for result in results if isinstance(result, Exception)
+        ]
+        if task_errors:
+            raise task_errors[0]
+
+        totals: dict[str, int] = {"discovered": 0, "scored": 0, "imported": 0}
+        for result in results:
+            if isinstance(result, dict):
+                for key in totals:
+                    totals[key] += result[key]
+
+        if run_id is not None and metrics_service is not None:
+            metrics_service.record_discovery_run_completed(
+                run_id,
+                completed_at=datetime.now(UTC).isoformat(),
+                discovered_count=totals["discovered"],
+                scored_count=totals["scored"],
+                queued_count=totals["imported"],
+            )
+        return totals
+    except Exception as exc:
+        if run_id is not None and metrics_service is not None:
+            metrics_service.record_discovery_run_failed(
+                run_id,
+                failed_at=datetime.now(UTC).isoformat(),
+                error_message=str(exc),
+            )
+        raise
 
 
 def youtube_candidate_limit(limit_per_source: int) -> int:
@@ -152,6 +206,7 @@ def _log_selected_source(
     labels = {
         Source.REDDIT: "Reddit source: public JSON API",
         Source.BLUESKY: "Bluesky source: public XRPC API",
+        Source.TWITCH: "Twitch source: Helix live channel discovery",
     }
     log.info(
         "[%s] %s", game_name, labels.get(effective_source, effective_source)
@@ -166,6 +221,11 @@ async def _run_source(
     db_path: str,
     anthropic_api_key: str = "",
     runtime: SourceRuntime | None = None,
+    run_id: str | None = None,
+    metrics_service: MetricsService | None = None,
+    *,
+    run_index: int = 0,
+    excluded_handles: set[str] | None = None,
 ) -> dict:
     """Discover, score, and import prospects for a single source.
 
@@ -175,10 +235,19 @@ async def _run_source(
     Step 4: Compute final scores and upsert draft items.
     """
     counts: dict[str, int] = {"discovered": 0, "scored": 0, "imported": 0}
+    excluded = excluded_handles or set()
+
+    # Load per-query page cursors so this run resumes where the last one ended
+    source_platform = source.platform or ""
+    page_cursors = _load_cursors(game.game_id, source_platform, db_path)
 
     try:
         candidates: list[CandidateRecord] = await source.discover(
-            game, limit_per_source
+            game,
+            limit_per_source,
+            run_index=run_index,
+            excluded_handles=excluded,
+            page_cursors=page_cursors,
         )
     except QuotaExceededError:
         log.warning(
@@ -188,7 +257,12 @@ async def _run_source(
         try:
             fallback_cls = get_source(Source.YOUTUBE)
             fallback_source = fallback_cls.build(runtime or SourceRuntime())
-            candidates = await fallback_source.discover(game, limit_per_source)
+            candidates = await fallback_source.discover(
+                game,
+                limit_per_source,
+                run_index=run_index,
+                excluded_handles=excluded,
+            )
         except Exception as e:
             log.error("[%s] Scraping fallback also failed: %s", game.name, e)
             return counts
@@ -197,7 +271,16 @@ async def _run_source(
         return counts
 
     counts["discovered"] = len(candidates)
-    log.info("[%s] Discovered %d candidates", game.name, len(candidates))
+    log.info(
+        "[%s] Discovered %d candidates (%d previously surfaced excluded)",
+        game.name,
+        len(candidates),
+        len(excluded),
+    )
+
+    # Persist updated cursors so the next run continues from where we left off
+    if source_platform and page_cursors:
+        _save_cursors(game.game_id, source_platform, page_cursors, db_path)
 
     # Upsert all prospects first so we have IDs for batch scoring
     prospects = [_upsert_prospect(c, db_path) for c in candidates]
@@ -205,12 +288,9 @@ async def _run_source(
     # LLM batch scoring — only for prospects that need it
     llm_scores: dict[str, LLMFitScores] = {}
     if anthropic_api_key:
-        # 1. Reuse any scores already stored from a previous run
         llm_scores = _load_cached_llm_scores(game.game_id, prospects, db_path)
         cached_count = len(llm_scores)
 
-        # 2. Only call the LLM for prospects we haven't scored yet AND that
-        #    have enough text data for the model to work with
         needs_llm = [
             p
             for p in prospects
@@ -246,9 +326,6 @@ async def _run_source(
                 )
 
     for prospect in prospects:
-        # -----------------------------------------------------------------------
-        # Score the prospect (LLM overrides where available, keywords elsewhere)
-        # -----------------------------------------------------------------------
         llm = llm_scores.get(prospect.prospect_id)
         score = score_prospect(
             game,
@@ -275,6 +352,15 @@ async def _run_source(
         )
 
         if score.final_score < 0.20:
+            if run_id is not None and metrics_service is not None:
+                metrics_service.record_prospect_score(
+                    run_id,
+                    user_id=game.user_id,
+                    game_id=game.game_id,
+                    score=score.final_score,
+                    queued=False,
+                    occurred_at=datetime.now(UTC).isoformat(),
+                )
             log.debug(
                 "[%s]   └─ dropped (score %.2f < 0.20)",
                 game.name,
@@ -282,13 +368,13 @@ async def _run_source(
             )
             continue
 
-        # -----------------------------------------------------------------------
-        # 3. Find best-matching template
-        # -----------------------------------------------------------------------
         matched_template = _find_template(templates, prospect.platform)
 
         subject_line: str | None = None
-        body_text = f"Hi {prospect.display_name},\n\nI'd love to share my game {game.name} with you.\n"
+        body_text = (
+            f"Hi {prospect.display_name},\n\n"
+            f"I'd love to share my game {game.name} with you.\n"
+        )
 
         if matched_template is not None:
             fit_reason = score.fit_summary
@@ -306,9 +392,6 @@ async def _run_source(
                     fit_reason=fit_reason,
                 )
 
-        # -----------------------------------------------------------------------
-        # 4. Upsert draft item
-        # -----------------------------------------------------------------------
         llm = llm_scores.get(prospect.prospect_id)
         score_breakdown_json = dump_json(
             {
@@ -326,7 +409,7 @@ async def _run_source(
             }
         )
 
-        _upsert_draft_item(
+        inserted = _upsert_draft_item(
             game_id=game.game_id,
             prospect_id=prospect.prospect_id,
             template_id=matched_template.template_id
@@ -339,11 +422,23 @@ async def _run_source(
             score_breakdown=score_breakdown_json,
             db_path=db_path,
         )
-        counts["imported"] += 1
-        log.debug("[%s]   └─ imported", game.name)
+        if run_id is not None and metrics_service is not None:
+            metrics_service.record_prospect_score(
+                run_id,
+                user_id=game.user_id,
+                game_id=game.game_id,
+                score=score.final_score,
+                queued=inserted,
+                occurred_at=datetime.now(UTC).isoformat(),
+            )
+        if inserted:
+            counts["imported"] += 1
+            log.debug("[%s]   └─ queued as new prospect", game.name)
+        else:
+            log.debug("[%s]   └─ refreshed existing prospect", game.name)
 
     log.info(
-        "[%s] Done — discovered %d, scored %d, imported %d",
+        "[%s] Done — discovered %d, scored %d, imported %d new prospects",
         game.name,
         counts["discovered"],
         counts["scored"],
@@ -354,12 +449,8 @@ async def _run_source(
 
 def _upsert_prospect(candidate: CandidateRecord, db_path: str) -> Prospect:
     """Insert or update a prospect, returning the persisted record."""
-    from app.database import get_connection
-
     now = datetime.now(UTC).isoformat()
 
-    # Merge normalized cross-source fields into raw_data so scoring engine
-    # can read them without knowing the source's internal data format.
     raw = dict(candidate.raw_data)
     raw["last_active_days"] = candidate.last_active_days
     raw["text_signals"] = candidate.text_signals
@@ -367,7 +458,6 @@ def _upsert_prospect(candidate: CandidateRecord, db_path: str) -> Prospect:
     raw_json = dump_json(raw)
 
     with get_connection(db_path) as conn:
-        # Check if prospect already exists by platform + handle
         existing = conn.execute(
             "SELECT prospect_id FROM prospects WHERE platform = ? AND handle = ?",
             (candidate.platform, candidate.handle),
@@ -455,10 +545,12 @@ def _upsert_draft_item(
     fit_summary: str,
     score_breakdown: str,
     db_path: str,
-) -> None:
-    """Insert or update a draft item for this game + prospect pair."""
-    from app.database import get_connection
+) -> bool:
+    """Insert or update a draft item for this game + prospect pair.
 
+    Returns True when a new queue item was inserted, False when an existing one
+    was refreshed in place.
+    """
     now = datetime.now(UTC).isoformat()
 
     with get_connection(db_path) as conn:
@@ -468,7 +560,6 @@ def _upsert_draft_item(
         ).fetchone()
 
         if existing is not None:
-            # Only update metadata; preserve any user edits to body/status
             conn.execute(
                 """
                 UPDATE draft_items
@@ -484,30 +575,32 @@ def _upsert_draft_item(
                     existing["draft_item_id"],
                 ),
             )
-        else:
-            draft_item_id = str(uuid.uuid4())
-            conn.execute(
-                """
-                INSERT INTO draft_items
-                    (draft_item_id, game_id, prospect_id, template_id, subject_line,
-                     body_text, status, priority_score, fit_summary,
-                     score_breakdown, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
-                """,
-                (
-                    draft_item_id,
-                    game_id,
-                    prospect_id,
-                    template_id,
-                    subject_line,
-                    body_text,
-                    priority_score,
-                    fit_summary,
-                    score_breakdown,
-                    now,
-                    now,
-                ),
-            )
+            return False
+
+        draft_item_id = str(uuid.uuid4())
+        conn.execute(
+            """
+            INSERT INTO draft_items
+                (draft_item_id, game_id, prospect_id, template_id, subject_line,
+                 body_text, status, priority_score, fit_summary,
+                 score_breakdown, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
+            """,
+            (
+                draft_item_id,
+                game_id,
+                prospect_id,
+                template_id,
+                subject_line,
+                body_text,
+                priority_score,
+                fit_summary,
+                score_breakdown,
+                now,
+                now,
+            ),
+        )
+        return True
 
 
 def _has_scoreable_text(prospect: Prospect) -> bool:
@@ -523,8 +616,6 @@ def _load_cached_llm_scores(
     game_id: str, prospects: list[Prospect], db_path: str
 ) -> dict[str, LLMFitScores]:
     """Read any LLM scores already stored in draft_items from previous runs."""
-    from app.database import get_connection
-
     if not prospects:
         return {}
 
@@ -560,17 +651,16 @@ def _load_cached_llm_scores(
 
 def _find_template(templates: list, platform: str):
     """Find the best-matching template for a prospect's platform."""
-    # Map platform to channel type
     channel_map = {
         "youtube": "youtube_dm",
         "reddit": "reddit_dm",
+        "twitch": "twitch_dm",
     }
     preferred_channel = channel_map.get(platform, "email")
 
     for tpl in templates:
         if tpl.channel == preferred_channel:
             return tpl
-    # Fall back to any template
     return templates[0] if templates else None
 
 
@@ -583,3 +673,62 @@ def _render_template(
         .replace("{{game_name}}", game_name)
         .replace("{{fit_reason}}", fit_reason)
     )
+
+
+def _load_cursors(game_id: str, source: str, db_path: str) -> dict[str, str]:
+    """Return the stored page-cursor dict for this game + source."""
+    if not source:
+        return {}
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT cursors FROM game_search_cursors WHERE game_id = ? AND source = ?",
+            (game_id, source),
+        ).fetchone()
+    if row is None:
+        return {}
+    return load_json_object(row["cursors"])
+
+
+def _save_cursors(
+    game_id: str, source: str, cursors: dict[str, str], db_path: str
+) -> None:
+    """Persist the updated page-cursor dict for this game + source."""
+    now = datetime.now(UTC).isoformat()
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO game_search_cursors (game_id, source, cursors, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(game_id, source) DO UPDATE
+                SET cursors = excluded.cursors, updated_at = excluded.updated_at
+            """,
+            (game_id, source, dump_json(cursors), now),
+        )
+
+
+def _game_run_index(game_id: str, db_path: str) -> int:
+    repo = DiscoveryRunRepository(db_path)
+    run_count = repo.count_for_game(game_id)
+    return max(0, run_count - 1)
+
+
+def _seen_handles_for_game(game_id: str, db_path: str) -> dict[str, set[str]]:
+    seen: dict[str, set[str]] = defaultdict(set)
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT p.platform, p.handle
+            FROM draft_items d
+            JOIN prospects p ON d.prospect_id = p.prospect_id
+            WHERE d.game_id = ?
+            """,
+            (game_id,),
+        ).fetchall()
+
+    for row in rows:
+        platform = str(row["platform"] or "").strip()
+        handle = str(row["handle"] or "").strip().lower()
+        if platform and handle:
+            seen[platform].add(handle)
+
+    return dict(seen)

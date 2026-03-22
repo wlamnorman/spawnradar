@@ -22,6 +22,7 @@ import dataclasses
 import json
 import logging
 import re
+from collections.abc import Collection
 from dataclasses import replace
 from pathlib import Path
 
@@ -39,7 +40,10 @@ from app.ingestion.constants import (
     RECENT_VIDEO_THUMBNAIL_LIMIT,
     YOUTUBE_DISCOVERY_LIMIT,
 )
-from app.ingestion.query_builder import TaggedQuery, build_tagged_queries
+from app.ingestion.query_builder import (
+    TaggedQuery,
+    build_tagged_queries,
+)
 from app.ingestion.raw_data import YouTubeChannelData
 from app.ingestion.registry import Source, register
 
@@ -57,6 +61,8 @@ class QuotaExceededError(Exception):
 @register(Source.YOUTUBE_API)
 class YouTubeAPISource(CandidateSource):
     """Discovers YouTube channel candidates using the YouTube Data API v3."""
+
+    platform = "youtube"
 
     @classmethod
     def build(cls, runtime: SourceRuntime) -> YouTubeAPISource:
@@ -83,32 +89,50 @@ class YouTubeAPISource(CandidateSource):
         self._cache_dir = Path(cache_dir) if cache_dir else None
         self._config = config
 
-    async def discover(self, game: Game, limit: int) -> list[CandidateRecord]:
+    async def discover(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> list[CandidateRecord]:
         """Return up to *limit* active YouTube channel candidates for *game*.
 
         If cache_dir is set, results are saved to {cache_dir}/{game_id}.json
         after a live fetch and loaded from there on subsequent calls.
         Delete the file to force a fresh API call.
         """
+        excluded = {handle.lower() for handle in (excluded_handles or ())}
+
         if self._cache_dir is not None:
-            cached = _load_cache(self._cache_dir, game.game_id)
+            cached = _load_cache(self._cache_dir, game.game_id, run_index)
             if cached is not None:
+                filtered = [
+                    record
+                    for record in cached
+                    if record.handle.lower() not in excluded
+                ]
                 log.info(
                     "YouTubeAPISource: loaded %d candidates from cache (%s)",
-                    len(cached),
-                    self._cache_dir / f"{game.game_id}.json",
+                    len(filtered),
+                    _cache_path(self._cache_dir, game.game_id, run_index),
                 )
-                return cached[:limit]
+                return filtered[:limit]
 
-        queries = _build_queries(game)
-        seen_handles: set[str] = set()
+        queries = _build_queries(game, run_index)
+        seen_handles: set[str] = set(excluded)
         candidates: list[CandidateRecord] = []
-        collect_target = min(limit * 2, 60)
+        collect_target = min(limit * (4 if run_index else 2), 120)
+        cursors = page_cursors if page_cursors is not None else {}
 
         log.info(
-            "YouTubeAPISource: running %d queries (target %d channels)",
+            "YouTubeAPISource: run %d with %d queries (target %d channels, %d excluded)",
+            run_index + 1,
             len(queries),
             collect_target,
+            len(excluded),
         )
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             for tagged_query in queries:
@@ -116,15 +140,23 @@ class YouTubeAPISource(CandidateSource):
                     break
 
                 log.debug("  Query: %r", tagged_query.text)
-                batch = await self._search_and_fetch(
+                batch, next_page_token = await self._search_and_fetch(
                     client,
-                    tagged_query.text,
-                    tagged_query.source_genre_tag,
-                    tagged_query.source_audience_tag,
+                    tagged_query,
+                    page_token=cursors.get(tagged_query.text),
                 )
-                new = [r for r in batch if r.handle not in seen_handles]
+                if next_page_token:
+                    cursors[tagged_query.text] = next_page_token
+                else:
+                    cursors.pop(tagged_query.text, None)
+
+                new = [
+                    record
+                    for record in batch
+                    if record.handle.lower() not in seen_handles
+                ]
                 for record in new:
-                    seen_handles.add(record.handle)
+                    seen_handles.add(record.handle.lower())
                     candidates.append(record)
                     if len(candidates) >= collect_target:
                         break
@@ -140,11 +172,11 @@ class YouTubeAPISource(CandidateSource):
             candidates = await self._enrich_with_videos(client, candidates)
 
         if self._cache_dir is not None:
-            _save_cache(self._cache_dir, game.game_id, candidates)
+            _save_cache(self._cache_dir, game.game_id, run_index, candidates)
             log.info(
                 "YouTubeAPISource: saved %d candidates to cache (%s)",
                 len(candidates),
-                self._cache_dir / f"{game.game_id}.json",
+                _cache_path(self._cache_dir, game.game_id, run_index),
             )
 
         return candidates[:limit]
@@ -152,32 +184,43 @@ class YouTubeAPISource(CandidateSource):
     async def _search_and_fetch(
         self,
         client: httpx.AsyncClient,
-        query: str,
-        genre_tag: str | None,
-        audience_tag: str | None,
-    ) -> list[CandidateRecord]:
-        """Run search.list then channels.list for a single query."""
+        tagged_query: TaggedQuery,
+        *,
+        page_token: str | None = None,
+    ) -> tuple[list[CandidateRecord], str | None]:
+        """Run search.list then channels.list for a single query.
+
+        Returns (candidates, next_page_token). next_page_token is None when
+        the search is exhausted or on the last page.
+        """
         # search.list — 100 units
+        search_params: dict[str, str | int] = {
+            "part": "snippet",
+            "q": tagged_query.text,
+            "type": "channel",
+            "maxResults": 25,
+            "key": self._api_key,
+        }
+        if page_token:
+            search_params["pageToken"] = page_token
+
         search_resp = await client.get(
             f"{YT_API_BASE}/search",
-            params={
-                "part": "snippet",
-                "q": query,
-                "type": "channel",
-                "maxResults": 10,
-                "key": self._api_key,
-            },
+            params=search_params,
         )
         _check_quota(search_resp)
         search_resp.raise_for_status()
 
+        search_body = search_resp.json()
+        next_page_token: str | None = search_body.get("nextPageToken") or None
+
         channel_ids = [
             item["id"]["channelId"]
-            for item in search_resp.json().get("items", [])
+            for item in search_body.get("items", [])
             if item.get("id", {}).get("channelId")
         ]
         if not channel_ids:
-            return []
+            return [], next_page_token
 
         # channels.list — 1 unit for the whole batch
         channels_resp = await client.get(
@@ -193,12 +236,10 @@ class YouTubeAPISource(CandidateSource):
 
         records: list[CandidateRecord] = []
         for item in channels_resp.json().get("items", []):
-            record = _parse_channel_item(
-                item, query, genre_tag, audience_tag, self._config
-            )
+            record = _parse_channel_item(item, tagged_query, self._config)
             if record is not None:
                 records.append(record)
-        return records
+        return records, next_page_token
 
     async def _enrich_with_videos(
         self,
@@ -290,9 +331,7 @@ async def _fetch_recent_videos(
 
 def _parse_channel_item(
     item: dict,
-    query: str,
-    genre_tag: str | None,
-    audience_tag: str | None,
+    tagged_query: TaggedQuery,
     config: YouTubeConfig = DEFAULT_YOUTUBE_CONFIG,
 ) -> CandidateRecord | None:
     """Convert a channels.list item into a CandidateRecord, or None if filtered."""
@@ -349,16 +388,19 @@ def _parse_channel_item(
         content_details.get("relatedPlaylists", {}).get("uploads", "") or None
     )
 
+    tags = tagged_query.source_tags
     raw_data = YouTubeChannelData(
         channel_id=channel_id,
-        query=query,
+        query=tagged_query.text,
         subscriber_text=f"{audience_size:,} subscribers"
         if audience_size
         else None,
         video_count=video_count,
         avatar_url=avatar_url,
-        source_genre_tag=genre_tag,
-        source_audience_tag=audience_tag,
+        source_genre_tag=tags.genre,
+        source_audience_tag=tags.audience,
+        source_mechanics_tag=tags.mechanics,
+        source_tone_tag=tags.tone,
     ).model_dump()
 
     # Store the uploads playlist ID for the video enrichment step
@@ -380,19 +422,44 @@ def _parse_channel_item(
     )
 
 
-def _build_queries(game: Game) -> list[TaggedQuery]:
-    """Build search queries as (query, source_genre_tag, source_audience_tag)."""
+def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
+    """Build search queries for YouTube discovery."""
     return build_tagged_queries(
         game,
         genre_templates=(
             "{tag} games",
             "indie {tag} game",
             "{tag} game review",
+            "{tag} gameplay",
+            "{tag} gaming channel",
+            "{tag} streamer",
         ),
         audience_templates=(
             "{tag} games",
             "indie games {tag}",
+            "{tag} creator",
+            "{tag} youtuber",
+            "{tag} reviewer",
         ),
+        mechanics_templates=(
+            "games with {tag}",
+            "{tag} games",
+            "best games with {tag}",
+            "{tag} game design",
+        ),
+        tone_templates=(
+            "{tag} games",
+            "{tag} indie games",
+            "{tag} game aesthetic",
+            "best {tag} games",
+        ),
+        game_name_templates=(
+            "{game_name}",
+            "{game_name} gameplay",
+            "{game_name} review",
+            "{game_name} lets play",
+        ),
+        run_index=run_index,
     )
 
 
@@ -401,12 +468,14 @@ def _build_queries(game: Game) -> list[TaggedQuery]:
 # ---------------------------------------------------------------------------
 
 
-def _cache_path(cache_dir: Path, game_id: str) -> Path:
-    return cache_dir / f"{game_id}.json"
+def _cache_path(cache_dir: Path, game_id: str, run_index: int) -> Path:
+    return cache_dir / f"{game_id}-run-{run_index}.json"
 
 
-def _load_cache(cache_dir: Path, game_id: str) -> list[CandidateRecord] | None:
-    path = _cache_path(cache_dir, game_id)
+def _load_cache(
+    cache_dir: Path, game_id: str, run_index: int
+) -> list[CandidateRecord] | None:
+    path = _cache_path(cache_dir, game_id, run_index)
     if not path.exists():
         return None
     try:
@@ -418,10 +487,10 @@ def _load_cache(cache_dir: Path, game_id: str) -> list[CandidateRecord] | None:
 
 
 def _save_cache(
-    cache_dir: Path, game_id: str, candidates: list[CandidateRecord]
+    cache_dir: Path, game_id: str, run_index: int, candidates: list[CandidateRecord]
 ) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
-    path = _cache_path(cache_dir, game_id)
+    path = _cache_path(cache_dir, game_id, run_index)
     try:
         path.write_text(
             json.dumps([dataclasses.asdict(c) for c in candidates], indent=2)

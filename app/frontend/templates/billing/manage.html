@@ -1,0 +1,74 @@
+{% extends "base.html" %} {% block title %}Billing — SpawnRadar{% endblock %}
+{% block content %}
+<section class="pricing-header pricing-header-single">
+    <h1>Your subscription</h1>
+</section>
+
+<section class="pricing-shell">
+    <div class="pricing-cards pricing-cards-single">
+        <div class="plan-card plan-card-single plan-card-featured">
+            <div class="plan-card-top plan-card-top-single">
+                <div class="plan-price">
+                    $20<span>/month + applicable tax</span>
+                </div>
+            </div>
+            <p class="plan-summary">
+                Run discovery, review ranked opportunities, and draft targeted
+                outreach in one place.
+            </p>
+
+            {% if subscription.is_trialing and not subscription.has_subscription %}
+            <div class="billing-status-rows">
+                <div class="billing-status-row">
+                    <span class="billing-status-label">Status</span>
+                    <span class="billing-status-value">Trial — {{ subscription.trial_days_remaining }} day{% if subscription.trial_days_remaining != 1 %}s{% endif %} left</span>
+                </div>
+            </div>
+            {% if portal_enabled %}
+            <a href="/billing/pay?tier=indie" class="button button-full" style="margin-top: 8px;">
+                Activate subscription →
+            </a>
+            {% else %}
+            <button type="button" class="button button-full" disabled style="margin-top: 8px;">Billing unavailable</button>
+            {% endif %}
+            <p class="pricing-note">Taxes handled at checkout based on your location.</p>
+            <p class="pricing-note">Don't want to continue? Just let the trial expire — no payment method is on file and you won't be charged.</p>
+            {% else %}
+            <div class="billing-status-rows">
+                <div class="billing-status-row">
+                    <span class="billing-status-label">Status</span>
+                    <span class="billing-status-value">
+                        {% if subscription.status == "active" %}Active
+                        {% elif subscription.status == "trialing" %}Trial — billing starts {{ subscription.current_period_end[:10] if subscription.current_period_end }}
+                        {% elif subscription.status == "past_due" %}Past due — please update your payment method
+                        {% elif subscription.status == "paused" %}Paused
+                        {% elif subscription.status == "comped" %}Complimentary
+                        {% else %}{{ subscription.status | capitalize }}{% endif %}
+                    </span>
+                </div>
+                {% if subscription.current_period_end and subscription.status == "active" %}
+                <div class="billing-status-row">
+                    <span class="billing-status-label">Next renewal</span>
+                    <span class="billing-status-value">{{ subscription.current_period_end[:10] }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if error %}
+            <div class="alert alert-error" style="margin-top: 8px;">{{ error }}</div>
+            {% elif portal_enabled %}
+            <a href="/billing/portal" class="button button-full" style="margin-top: 8px;">
+                Manage subscription →
+            </a>
+            <p class="pricing-note">Update payment method, view invoices, or cancel.</p>
+            {% else %}
+            <p class="pricing-note">
+                To make changes, email
+                <a href="mailto:contact@spawnradar.com">contact@spawnradar.com</a>.
+            </p>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Protocol
@@ -14,7 +14,10 @@ import httpx
 from app.games.models import Game
 from app.ingestion.base import CandidateRecord, CandidateSource
 from app.ingestion.constants import RECENT_TEXT_SIGNAL_LIMIT
-from app.ingestion.query_builder import TaggedQuery, build_tagged_queries
+from app.ingestion.query_builder import (
+    TaggedQuery,
+    build_tagged_queries,
+)
 from app.ingestion.raw_data import BlueskyActorData
 from app.ingestion.registry import Source, register
 
@@ -49,6 +52,8 @@ class _ClientLike(Protocol):
 class BlueskySource(CandidateSource):
     """Discover Bluesky accounts relevant to a game's genre and audience."""
 
+    platform = "bluesky"
+
     def __init__(
         self,
         delay_seconds: float = 0.25,
@@ -57,12 +62,23 @@ class BlueskySource(CandidateSource):
         self._delay = delay_seconds
         self._timeout = timeout_seconds
 
-    async def discover(self, game: Game, limit: int) -> list[CandidateRecord]:
+    async def discover(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> list[CandidateRecord]:
         """Return up to *limit* Bluesky accounts relevant to *game*."""
-        queries = _build_queries(game)
-        seen_handles: set[str] = set()
+        queries = _build_queries(game, run_index)
+        seen_handles: set[str] = {
+            handle.lower() for handle in (excluded_handles or ())
+        }
         candidates: list[CandidateRecord] = []
-        collect_target = min(limit * 2, 60)
+        collect_target = min(limit * (4 if run_index else 2), 120)
+        cursors = page_cursors if page_cursors is not None else {}
 
         async with httpx.AsyncClient(
             headers=_HEADERS, timeout=self._timeout
@@ -71,20 +87,25 @@ class BlueskySource(CandidateSource):
                 if len(candidates) >= collect_target:
                     break
                 try:
-                    batch = await self._search_actors(
+                    batch, next_cursor = await self._search_actors(
                         client,
-                        tagged_query.text,
+                        tagged_query,
                         min(limit, 25),
-                        tagged_query.source_genre_tag,
-                        tagged_query.source_audience_tag,
+                        cursor=cursors.get(tagged_query.text),
                     )
                 except Exception:
                     continue
 
+                if next_cursor:
+                    cursors[tagged_query.text] = next_cursor
+                else:
+                    cursors.pop(tagged_query.text, None)
+
                 for record in batch:
-                    if record.handle in seen_handles:
+                    normalized_handle = record.handle.lower()
+                    if normalized_handle in seen_handles:
                         continue
-                    seen_handles.add(record.handle)
+                    seen_handles.add(normalized_handle)
                     candidates.append(record)
                     if len(candidates) >= collect_target:
                         break
@@ -101,32 +122,33 @@ class BlueskySource(CandidateSource):
     async def _search_actors(
         self,
         client: httpx.AsyncClient,
-        query: str,
+        tagged_query: TaggedQuery,
         limit: int,
-        source_genre_tag: str | None,
-        source_audience_tag: str | None,
-    ) -> list[CandidateRecord]:
-        """Search for Bluesky accounts matching *query*."""
+        *,
+        cursor: str | None = None,
+    ) -> tuple[list[CandidateRecord], str | None]:
+        """Search for Bluesky accounts matching the query, returning results and next cursor."""
+        params: dict[str, str | int] = {"q": tagged_query.text, "limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+
         response = await client.get(
             f"{_BSKY_XRPC_BASE}/app.bsky.actor.searchActors",
-            params={"q": query, "limit": limit},
+            params=params,
         )
         response.raise_for_status()
 
+        body = response.json()
+        next_cursor: str | None = body.get("cursor") or None
         records: list[CandidateRecord] = []
-        for actor_value in _as_list(response.json().get("actors")):
+        for actor_value in _as_list(body.get("actors")):
             actor = _as_dict(actor_value)
             if actor is None:
                 continue
-            record = _parse_actor(
-                actor,
-                query,
-                source_genre_tag,
-                source_audience_tag,
-            )
+            record = _parse_actor(actor, tagged_query)
             if record is not None:
                 records.append(record)
-        return records
+        return records, next_cursor
 
     async def _enrich_with_recent_posts(
         self,
@@ -149,20 +171,45 @@ class BlueskySource(CandidateSource):
         return enriched
 
 
-def _build_queries(game: Game) -> list[TaggedQuery]:
+def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     """Build Bluesky actor-search queries from the game's tags."""
     return build_tagged_queries(
         game,
-        genre_templates=("{tag} game", "{tag}"),
-        audience_templates=("{tag}",),
+        genre_templates=(
+            "{tag} game",
+            "{tag}",
+            "{tag} streamer",
+            "{tag} creator",
+            "{tag} community",
+        ),
+        audience_templates=(
+            "{tag}",
+            "{tag} creator",
+            "{tag} player",
+            "{tag} community",
+        ),
+        mechanics_templates=(
+            "{tag} games",
+            "{tag} game design",
+            "games with {tag}",
+        ),
+        tone_templates=(
+            "{tag} games",
+            "{tag} aesthetic",
+            "{tag} indie",
+        ),
+        game_name_templates=(
+            "{game_name}",
+            "{game_name} game",
+            "{game_name} devlog",
+        ),
+        run_index=run_index,
     )
 
 
 def _parse_actor(
     actor: Mapping[str, object],
-    query: str,
-    source_genre_tag: str | None,
-    source_audience_tag: str | None,
+    tagged_query: TaggedQuery,
 ) -> CandidateRecord | None:
     """Convert an actor search result into a normalized candidate."""
     did = str(actor.get("did", "")).strip()
@@ -184,15 +231,18 @@ def _parse_actor(
             contact_value = match.group(0)
             contact_channel = "email"
 
+    tags = tagged_query.source_tags
     raw_data = BlueskyActorData(
         did=did,
         handle=handle,
-        query=query,
+        query=tagged_query.text,
         followers_count=followers_count,
         posts_count=posts_count,
         avatar_url=avatar_url,
-        source_genre_tag=source_genre_tag,
-        source_audience_tag=source_audience_tag,
+        source_genre_tag=tags.genre,
+        source_audience_tag=tags.audience,
+        source_mechanics_tag=tags.mechanics,
+        source_tone_tag=tags.tone,
     ).model_dump()
 
     return CandidateRecord(
@@ -216,6 +266,8 @@ async def _fetch_recent_posts(
     candidate: CandidateRecord,
 ) -> CandidateRecord:
     """Enrich a candidate with recent post text and activity."""
+    profile_counts = await _fetch_profile_counts(client, candidate.handle)
+
     response = await client.get(
         f"{_BSKY_XRPC_BASE}/app.bsky.feed.getAuthorFeed",
         params={"actor": candidate.handle, "limit": RECENT_TEXT_SIGNAL_LIMIT},
@@ -251,26 +303,51 @@ async def _fetch_recent_posts(
         _days_since_timestamp(timestamps[0]) if timestamps else None
     )
 
+    audience_size = profile_counts["followers_count"] or candidate.audience_size
     engagement_rate: float | None = candidate.engagement_rate
-    if candidate.audience_size and candidate.audience_size > 0 and feed_items:
+    if audience_size and audience_size > 0 and feed_items:
         engagement_rate = round(
-            engagement_total / len(feed_items) / candidate.audience_size,
+            engagement_total / len(feed_items) / audience_size,
             4,
         )
 
     data = BlueskyActorData.model_validate(candidate.raw_data)
     return replace(
         candidate,
+        audience_size=audience_size,
         engagement_rate=engagement_rate,
         last_active_days=last_post_days,
         text_signals=post_texts or candidate.text_signals,
         raw_data=data.model_copy(
             update={
+                "followers_count": audience_size,
+                "posts_count": profile_counts["posts_count"] or data.posts_count,
                 "last_post_days_ago": last_post_days,
                 "recent_post_texts": post_texts,
             }
         ).model_dump(),
     )
+
+
+async def _fetch_profile_counts(
+    client: httpx.AsyncClient | _ClientLike,
+    handle: str,
+) -> dict[str, int | None]:
+    """Fetch follower/post counts from the actor profile endpoint."""
+    try:
+        response = await client.get(
+            f"{_BSKY_XRPC_BASE}/app.bsky.actor.getProfile",
+            params={"actor": handle},
+        )
+        response.raise_for_status()
+        body = response.json()
+    except Exception:
+        return {"followers_count": None, "posts_count": None}
+
+    return {
+        "followers_count": _optional_int(body.get("followersCount")),
+        "posts_count": _optional_int(body.get("postsCount")),
+    }
 
 
 def _infer_prospect_type(display_name: str, description: str | None) -> str:

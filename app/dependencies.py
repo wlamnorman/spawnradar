@@ -5,7 +5,10 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
-from app.auth.repository import UserRepository
+from app.auth.repository import (
+    EmailVerificationTokenRepository,
+    UserRepository,
+)
 from app.auth.service import AuthService
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
@@ -17,6 +20,7 @@ from app.games.repository import (
     MessageTemplateRepository,
 )
 from app.games.service import GameService
+from app.metrics.service import MetricsService
 from app.prospects.repository import DraftItemRepository, ProspectRepository
 from app.prospects.service import ProspectService
 
@@ -49,6 +53,10 @@ def get_prospect_service(request: Request) -> ProspectService:
     return request.app.state.prospect_service
 
 
+def get_metrics_service(request: Request) -> MetricsService:
+    return request.app.state.metrics_service
+
+
 def get_game_repo(request: Request) -> GameRepository:
     return request.app.state.game_repo
 
@@ -75,3 +83,9 @@ def get_user_repo(request: Request) -> UserRepository:
 
 def get_subscription_repo(request: Request) -> SubscriptionRepository:
     return request.app.state.subscription_repo
+
+
+def get_email_verification_token_repo(
+    request: Request,
+) -> EmailVerificationTokenRepository:
+    return request.app.state.email_verification_token_repo

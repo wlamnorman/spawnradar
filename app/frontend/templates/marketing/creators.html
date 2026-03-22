@@ -41,6 +41,11 @@
         <p class="subtle">Takes about 2 minutes. Your answers also help us research what makes outreach worth responding to.</p>
 
         <form method="post" action="/creators/signup" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token_for(request) }}" />
+            <div class="form-honeypot" aria-hidden="true">
+                <label for="company">Company</label>
+                <input type="text" id="company" name="company" tabindex="-1" autocomplete="off" />
+            </div>
 
             <fieldset>
                 <legend>About you</legend>

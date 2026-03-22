@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import sqlite3
 
-from app.auth.models import PasswordResetToken, Session, User
+from app.auth.models import (
+    EmailVerificationToken,
+    PasswordResetToken,
+    Session,
+    User,
+)
 from app.database import get_connection
 
 
@@ -78,6 +83,14 @@ class UserRepository:
         if row is None:
             return None
         return _row_to_user(row)
+
+    def mark_email_verified(self, user_id: str) -> None:
+        """Set email_verified = 1 for the given user."""
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                "UPDATE users SET email_verified = 1, updated_at = datetime('now') WHERE user_id = ?",
+                (user_id,),
+            )
 
 
 class SessionRepository:
@@ -177,6 +190,7 @@ def _row_to_user(row: sqlite3.Row) -> User:
         password_hash=row["password_hash"],
         google_id=row["google_id"],
         is_admin=bool(row["is_admin"]),
+        email_verified=bool(row["email_verified"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -193,6 +207,61 @@ def _row_to_session(row: sqlite3.Row) -> Session:
 
 def _row_to_reset_token(row: sqlite3.Row) -> PasswordResetToken:
     return PasswordResetToken(
+        token_id=row["token_id"],
+        user_id=row["user_id"],
+        expires_at=row["expires_at"],
+        used_at=row["used_at"],
+        created_at=row["created_at"],
+    )
+
+
+class EmailVerificationTokenRepository:
+    """CRUD operations for the email_verification_tokens table."""
+
+    def __init__(self, db_path: str) -> None:
+        self._db_path = db_path
+
+    def create(
+        self, token_id: str, user_id: str, expires_at: str
+    ) -> EmailVerificationToken:
+        """Insert a new verification token and return the record."""
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO email_verification_tokens (token_id, user_id, expires_at)
+                VALUES (?, ?, ?)
+                """,
+                (token_id, user_id, expires_at),
+            )
+        return self.get_by_id(token_id)  # type: ignore[return-value]
+
+    def get_by_id(self, token_id: str) -> EmailVerificationToken | None:
+        """Fetch a token by primary key — only returns unused, non-expired tokens."""
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM email_verification_tokens
+                WHERE token_id = ?
+                  AND used_at IS NULL
+                  AND expires_at > datetime('now')
+                """,
+                (token_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_email_verification_token(row)
+
+    def mark_used(self, token_id: str) -> None:
+        """Set used_at to the current time for the given token."""
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                "UPDATE email_verification_tokens SET used_at = datetime('now') WHERE token_id = ?",
+                (token_id,),
+            )
+
+
+def _row_to_email_verification_token(row: sqlite3.Row) -> EmailVerificationToken:
+    return EmailVerificationToken(
         token_id=row["token_id"],
         user_id=row["user_id"],
         expires_at=row["expires_at"],

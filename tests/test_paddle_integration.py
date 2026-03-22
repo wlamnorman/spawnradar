@@ -6,6 +6,7 @@ warnings plus skips so sandbox/CDN issues do not block local development.
 
 from __future__ import annotations
 
+import re
 import warnings
 
 import httpx
@@ -25,18 +26,37 @@ def _make_client(monkeypatch, tmp_path) -> TestClient:
     db_path = str(tmp_path / "paddle-integration.sqlite3")
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("PADDLE_API_KEY", "test_api_key")
     monkeypatch.setenv("PADDLE_CLIENT_SIDE_TOKEN", "test_123456789012345678901234567")
+    monkeypatch.setenv("PADDLE_WEBHOOK_SECRET", "whsec_test")
     monkeypatch.setenv("PADDLE_INDIE_PRICE_ID", "pri_test_indie")
     monkeypatch.setenv("PADDLE_ENVIRONMENT", "sandbox")
     monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
+    monkeypatch.setenv("RESEND_API_KEY", "")
+    monkeypatch.setenv("SMTP_HOST", "")
     app = create_app()
     return TestClient(app)
 
 
+def _csrf_token(client: TestClient, path: str) -> str:
+    response = client.get(path)
+    match = re.search(r'name="csrf-token" content="([^"]+)"', response.text)
+    assert match is not None
+    return match.group(1)
+
+
+def _post_form(client: TestClient, *, get_path: str, post_path: str, data: dict[str, str], follow_redirects: bool = True):
+    payload = dict(data)
+    payload["csrf_token"] = _csrf_token(client, get_path)
+    return client.post(post_path, data=payload, follow_redirects=follow_redirects)
+
+
 def test_billing_pay_page_embeds_paddle_checkout_context(monkeypatch, tmp_path):
     with _make_client(monkeypatch, tmp_path) as client:
-        client.post(
-            "/auth/register",
+        _post_form(
+            client,
+            get_path="/auth/register",
+            post_path="/auth/register",
             data={"email": "billing@example.com", "password": "password123"},
             follow_redirects=False,
         )

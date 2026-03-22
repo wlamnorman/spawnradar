@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -15,9 +16,25 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 
 @router.get("")
-async def billing_root_redirect() -> RedirectResponse:
-    """Keep old plan links working by redirecting to the public pricing page."""
-    return RedirectResponse(url="/pricing", status_code=303)
+async def billing_page(
+    request: Request,
+    user: User = Depends(require_user),
+    billing: BillingService = Depends(get_billing_service),
+    templates: Jinja2Templates = Depends(get_templates),
+):
+    """Billing management page for active subscribers."""
+    sub = billing.get_or_create_subscription(user.user_id)
+    if not sub.has_subscription and not sub.is_trialing:
+        return RedirectResponse(url="/pricing", status_code=303)
+    return templates.TemplateResponse(
+        "billing/manage.html",
+        {
+            "request": request,
+            "user": user,
+            "subscription": sub,
+            "portal_enabled": billing.portal_enabled,
+        },
+    )
 
 
 @router.get("/pricing")
@@ -83,16 +100,31 @@ async def checkout_success(
     request: Request,
     user: User = Depends(require_user),
     billing: BillingService = Depends(get_billing_service),
-) -> RedirectResponse:
+    templates: Jinja2Templates = Depends(get_templates),
+):
     """Handle post-checkout redirect from Paddle.
 
-    Paddle appends ?_ptxn=<transaction_id> to this URL. We use it to
-    eagerly sync the subscription so the user sees active status immediately
-    rather than waiting for the webhook to arrive.
+    Renders a polling page that waits for the webhook to activate the
+    subscription, then redirects to /billing automatically.
     """
     transaction_id = request.query_params.get("_ptxn", "")
     await billing.sync_from_transaction(user.user_id, transaction_id)
-    return RedirectResponse(url="/games", status_code=303)
+    sub = billing.get_or_create_subscription(user.user_id)
+    if sub.has_subscription:
+        return RedirectResponse(url="/billing", status_code=303)
+    return templates.TemplateResponse(
+        request, "billing/success.html", {"user": user}
+    )
+
+
+@router.get("/status")
+async def subscription_status(
+    user: User = Depends(require_user),
+    billing: BillingService = Depends(get_billing_service),
+):
+    """JSON endpoint polled by the success page to detect webhook activation."""
+    sub = billing.get_or_create_subscription(user.user_id)
+    return JSONResponse({"active": sub.has_subscription})
 
 
 @router.get("/portal")
@@ -100,14 +132,35 @@ async def customer_portal(
     request: Request,
     user: User = Depends(require_user),
     billing: BillingService = Depends(get_billing_service),
-) -> RedirectResponse:
+    templates: Jinja2Templates = Depends(get_templates),
+):
     """Redirect to a temporary Paddle customer portal session."""
-    if not billing.portal_enabled:
-        raise HTTPException(status_code=503, detail="Billing is not configured.")
+    sub = billing.get_or_create_subscription(user.user_id)
 
-    url = await billing.get_portal_url(user.user_id)
+    def _billing_page(error: str):
+        return templates.TemplateResponse(
+            "billing/manage.html",
+            {
+                "request": request,
+                "user": user,
+                "subscription": sub,
+                "portal_enabled": billing.portal_enabled,
+                "error": error,
+            },
+            status_code=502,
+        )
+
+    if not billing.portal_enabled:
+        return _billing_page("Billing portal is not configured.")
+
+    try:
+        url = await billing.get_portal_url(user.user_id)
+    except httpx.HTTPStatusError:
+        return _billing_page(
+            "Could not open the billing portal. Please email contact@spawnradar.com."
+        )
     if not url:
-        raise HTTPException(status_code=400, detail="No billing account found.")
+        return _billing_page("No billing account found for your user.")
 
     return RedirectResponse(url=url, status_code=303)
 

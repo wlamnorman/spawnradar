@@ -14,6 +14,8 @@ from app.games.repository import (
     MessageTemplateRepository,
 )
 from app.games.service import GameService
+from app.metrics.repository import MetricsRepository
+from app.metrics.service import MetricsService
 from app.prospects.repository import (
     DraftItemRepository,
     OutcomeRepository,
@@ -40,8 +42,20 @@ def session_repo(db_path):
 
 
 @pytest.fixture
-def auth_service(user_repo, session_repo):
-    return AuthService(user_repo, session_repo)
+def auth_service(user_repo, session_repo, metrics_service):
+    return AuthService(
+        user_repo, session_repo, metrics_service=metrics_service
+    )
+
+
+@pytest.fixture
+def metrics_repo(db_path):
+    return MetricsRepository(db_path)
+
+
+@pytest.fixture
+def metrics_service(metrics_repo, sub_repo):
+    return MetricsService(metrics_repo, sub_repo)
 
 
 @pytest.fixture
@@ -60,8 +74,8 @@ def template_repo(db_path):
 
 
 @pytest.fixture
-def game_service(game_repo, asset_repo, template_repo):
-    return GameService(game_repo, asset_repo, template_repo)
+def game_service(game_repo, asset_repo, template_repo, metrics_service):
+    return GameService(game_repo, asset_repo, template_repo, metrics_service)
 
 
 @pytest.fixture
@@ -95,11 +109,12 @@ def run_repo(db_path):
 
 
 @pytest.fixture
-def billing_service(sub_repo, game_repo, run_repo):
+def billing_service(sub_repo, game_repo, run_repo, metrics_service):
     return BillingService(
         sub_repo,
         game_repo,
         run_repo,
+        metrics_service=metrics_service,
         paddle_api_key="test_api_key",
         paddle_client_side_token="test_123456789012345678901234567",
         paddle_indie_price_id="pri_indie",
@@ -117,6 +132,7 @@ def sample_game(game_service, registered_user):
     return game_service.create_game(
         user_id=registered_user.user_id,
         name="PuzzleQuest",
+        summary="A daily browser word puzzle challenge for fast-thinking trivia fans.",
         description="A daily browser-based puzzle game for word puzzle fans",
         genre_tags_raw="puzzle, word game, daily",
         audience_tags_raw="wordle fans, puzzle lovers",

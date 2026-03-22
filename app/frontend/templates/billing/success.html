@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Activating subscription — SpawnRadar{% endblock %}
+{% block content %}
+<section class="billing-page">
+    <div class="card billing-launch-card">
+        <span class="marketing-kicker">Billing</span>
+        <h1 id="status-heading">Activating your subscription...</h1>
+        <p class="subtle" id="status-message">
+            This usually takes just a few seconds.
+        </p>
+        <a href="/billing" class="button" id="fallback-link" style="display: none;">
+            Go to billing →
+        </a>
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    const MAX_WAIT_MS = 30000;
+    const POLL_INTERVAL_MS = 1500;
+    const started = Date.now();
+
+    async function checkStatus() {
+        try {
+            const resp = await fetch("/billing/status");
+            const data = await resp.json();
+            if (data.active) {
+                window.location.href = "/billing";
+                return;
+            }
+        } catch (_) {}
+
+        if (Date.now() - started >= MAX_WAIT_MS) {
+            document.getElementById("status-heading").textContent = "Almost there...";
+            document.getElementById("status-message").textContent =
+                "Taking longer than expected. Your subscription should appear shortly.";
+            document.getElementById("fallback-link").style.display = "";
+            return;
+        }
+
+        setTimeout(checkStatus, POLL_INTERVAL_MS);
+    }
+
+    checkStatus();
+})();
+</script>
+{% endblock %}

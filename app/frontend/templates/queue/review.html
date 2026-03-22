@@ -1,10 +1,8 @@
-{% extends "base.html" %} {% block title %}Review Queue — {{ game.name }} —
-SpawnRadar{% endblock %} {% block game_switcher %}
-<span class="game-switcher-label">{{ game.name }}</span>
-{% endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}{{ game.name }} — Review Queue —
+SpawnRadar{% endblock %} {% block content %}
 <div class="queue-page-header">
     <div>
-        <h1>Review Queue</h1>
+        <h1>{{ game.name }} — Review Queue</h1>
         <p class="subtle" id="queue-count-label">
             {{ queue_items | length }} prospect{% if queue_items | length != 1
             %}s{% endif %} found for
@@ -17,12 +15,34 @@ SpawnRadar{% endblock %} {% block game_switcher %}
         >
         <button
             class="button secondary"
+            data-run-discovery
+            data-game-id="{{ game.game_id }}"
+            data-discovery-ready="{{ 'true' if game_discovery_readiness.can_run else 'false' }}"
+            data-default-label="Run Discovery"
+            data-busy-label="Running Discovery..."
             onclick="runDiscovery('{{ game.game_id }}')"
+            {% if not discovery_status.can_run or not game_discovery_readiness.can_run %}disabled aria-disabled="true"{% endif %}
         >
             Run Discovery
         </button>
     </div>
 </div>
+
+{% if not game_discovery_readiness.can_run %}
+<div class="alert alert-warning">
+    {{ game_discovery_readiness.message }}
+    <a href="/games/{{ game.slug }}/setup">Update game settings</a>.
+</div>
+{% endif %}
+
+<section class="discovery-guidance" aria-label="Discovery limits">
+    <p
+        id="discovery-status-global"
+        class="subtle discovery-status{% if not discovery_status.can_run %} is-blocked{% endif %}"
+    >
+        {{ discovery_status.message }}
+    </p>
+</section>
 
 {% if queue_items %}
 <div class="queue-list" id="queue-list">
@@ -249,59 +269,52 @@ SpawnRadar{% endblock %} {% block game_switcher %}
         No prospects are queued for review. Run discovery to find creators,
         communities, and posting opportunities matching your game's audience.
     </p>
-    <button class="button" onclick="runDiscovery('{{ game.game_id }}')">
+    <button
+        class="button"
+        data-run-discovery
+        data-game-id="{{ game.game_id }}"
+        data-default-label="Run Discovery"
+        data-busy-label="Running Discovery..."
+        onclick="runDiscovery('{{ game.game_id }}')"
+        {% if not discovery_status.can_run %}disabled aria-disabled="true"{% endif %}
+    >
         Run Discovery
     </button>
-    <div
-        id="discovery-status"
-        class="subtle"
-        style="margin-top: 12px; display: none"
-    ></div>
 </div>
 {% endif %}
 
-<div
-    id="discovery-status-global"
-    class="subtle"
-    style="margin-top: 12px; display: none"
-></div>
 {% endblock %} {% block scripts %}
-<script src="/static/queue.js?v=6"></script>
+<script src="/static/discovery.js?v=1"></script>
+<script id="initial-discovery-usage" type="application/json">
+    {{ discovery_status.as_payload() | tojson }}
+</script>
+<script src="/static/queue.js?v=7"></script>
 <script>
+    const initialDiscoveryUsage = JSON.parse(
+        document.getElementById("initial-discovery-usage").textContent
+    );
+    const discoveryController = window.SpawnRadarDiscovery.createController({
+        initialUsage: initialDiscoveryUsage,
+    });
+
+    discoveryController.syncUsage(initialDiscoveryUsage);
+
     async function runDiscovery(gameId) {
-        const status =
-            document.getElementById("discovery-status-global") ||
-            document.getElementById("discovery-status");
-
-        function setStatus(text) {
-            if (status) {
-                status.style.display = "inline";
-                status.textContent = text;
-            }
-        }
-
-        setStatus("Starting discovery…");
-
-        let started = false;
-        try {
-            const res = await fetch(`/api/games/${gameId}/run-ingestion`, {
-                method: "POST",
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                setStatus(data.detail || "Error starting discovery.");
-                return;
-            }
-            started = true;
-        } catch (e) {
-            setStatus("Network error. Please try again.");
-            return;
-        }
-
-        if (started) {
-            setStatus("Searching for prospects…");
-            startDiscoveryPolling(gameId, setStatus);
-        }
+        await discoveryController.run(gameId, {
+            startMessage: "Starting discovery…",
+            keepBusyOnSuccess: true,
+            onSuccess(data, api) {
+                api.setStatus(
+                    "Searching for new prospects… Repeated runs prioritize prospects you have not already seen.",
+                    false
+                );
+                startDiscoveryPolling(gameId, api.setStatus, () => {
+                    api.setBusy(false);
+                    const latestUsage = api.getLatestUsage();
+                    api.setDisabled(!(latestUsage && latestUsage.can_run));
+                });
+            },
+        });
     }
 </script>
 {% endblock %}

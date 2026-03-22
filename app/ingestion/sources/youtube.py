@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from collections.abc import Collection
 from dataclasses import replace
 from typing import Any
 from urllib.parse import quote_plus
@@ -29,7 +30,10 @@ from app.ingestion.constants import (
     RECENT_VIDEO_TITLE_LIMIT,
     YOUTUBE_DISCOVERY_LIMIT,
 )
-from app.ingestion.query_builder import TaggedQuery, build_tagged_queries
+from app.ingestion.query_builder import (
+    TaggedQuery,
+    build_tagged_queries,
+)
 from app.ingestion.raw_data import YouTubeChannelData
 from app.ingestion.registry import Source, register
 
@@ -64,6 +68,8 @@ class YouTubeSource(CandidateSource):
       /videos page.
     """
 
+    platform = "youtube"
+
     def __init__(
         self,
         delay_seconds: float = 1.0,
@@ -83,14 +89,24 @@ class YouTubeSource(CandidateSource):
     def effective_limit(cls, requested_limit: int) -> int:
         return min(requested_limit, YOUTUBE_DISCOVERY_LIMIT)
 
-    async def discover(self, game: Game, limit: int) -> list[CandidateRecord]:
+    async def discover(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> list[CandidateRecord]:
         """Return up to *limit* active YouTube channel candidates for *game*."""
-        queries = _build_queries(game)
-        seen_handles: set[str] = set()
+        queries = _build_queries(game, run_index)
+        seen_handles: set[str] = {
+            handle.lower() for handle in (excluded_handles or ())
+        }
         candidates: list[CandidateRecord] = []
 
         # Collect more than needed so recency filtering doesn't leave us short
-        collect_target = min(limit * 2, 60)
+        collect_target = min(limit * (4 if run_index else 2), 120)
 
         async with httpx.AsyncClient(
             headers=_HEADERS, timeout=self._timeout
@@ -101,17 +117,16 @@ class YouTubeSource(CandidateSource):
                 try:
                     batch = await self._search_channels(
                         client,
-                        tagged_query.text,
+                        tagged_query,
                         limit,
-                        tagged_query.source_genre_tag,
-                        tagged_query.source_audience_tag,
                     )
                 except Exception:
                     continue
 
                 for record in batch:
-                    if record.handle not in seen_handles:
-                        seen_handles.add(record.handle)
+                    normalized_handle = record.handle.lower()
+                    if normalized_handle not in seen_handles:
+                        seen_handles.add(normalized_handle)
                         candidates.append(record)
                         if len(candidates) >= collect_target:
                             break
@@ -127,13 +142,11 @@ class YouTubeSource(CandidateSource):
     async def _search_channels(
         self,
         client: httpx.AsyncClient,
-        query: str,
+        tagged_query: TaggedQuery,
         limit: int,
-        source_genre_tag: str | None = None,
-        source_audience_tag: str | None = None,
     ) -> list[CandidateRecord]:
         """Fetch one search results page and parse channel cards from it."""
-        url = f"{YOUTUBE_SEARCH_URL}?search_query={quote_plus(query)}&sp={CHANNEL_FILTER}"
+        url = f"{YOUTUBE_SEARCH_URL}?search_query={quote_plus(tagged_query.text)}&sp={CHANNEL_FILTER}"
         response = await client.get(url)
         response.raise_for_status()
 
@@ -146,13 +159,7 @@ class YouTubeSource(CandidateSource):
         for renderer in renderers:
             if len(records) >= limit:
                 break
-            record = _parse_channel_renderer(
-                renderer,
-                query,
-                source_genre_tag,
-                source_audience_tag,
-                self._config,
-            )
+            record = _parse_channel_renderer(renderer, tagged_query, self._config)
             if record is None or record.handle in seen_ids:
                 continue
             seen_ids.add(record.handle)
@@ -325,19 +332,44 @@ def _parse_relative_time_to_days(text: str) -> int | None:
 # ---------------------------------------------------------------------------
 
 
-def _build_queries(game: Game) -> list[TaggedQuery]:
-    """Build search queries as (query, source_genre_tag, source_audience_tag)."""
+def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
+    """Build search queries for YouTube scraper discovery."""
     return build_tagged_queries(
         game,
         genre_templates=(
             "{tag} games",
             "indie {tag} game",
             "{tag} game review",
+            "{tag} gameplay",
+            "{tag} gaming channel",
+            "{tag} streamer",
         ),
         audience_templates=(
             "{tag} games",
             "indie games {tag}",
+            "{tag} creator",
+            "{tag} youtuber",
+            "{tag} reviewer",
         ),
+        mechanics_templates=(
+            "games with {tag}",
+            "{tag} games",
+            "best games with {tag}",
+            "{tag} game design",
+        ),
+        tone_templates=(
+            "{tag} games",
+            "{tag} indie games",
+            "{tag} game aesthetic",
+            "best {tag} games",
+        ),
+        game_name_templates=(
+            "{game_name}",
+            "{game_name} gameplay",
+            "{game_name} review",
+            "{game_name} lets play",
+        ),
+        run_index=run_index,
     )
 
 
@@ -375,9 +407,7 @@ def _iter_renderers(node: Any, key: str):
 
 def _parse_channel_renderer(
     renderer: dict,
-    query: str,
-    source_genre_tag: str | None = None,
-    source_audience_tag: str | None = None,
+    tagged_query: TaggedQuery,
     config: YouTubeConfig = DEFAULT_YOUTUBE_CONFIG,
 ) -> CandidateRecord | None:
     """Convert a channelRenderer dict into a CandidateRecord.
@@ -430,14 +460,17 @@ def _parse_channel_renderer(
         if url.startswith("http"):
             avatar_url = url
 
+    tags = tagged_query.source_tags
     raw_data = YouTubeChannelData(
         channel_id=channel_id,
-        query=query,
+        query=tagged_query.text,
         subscriber_text=subscriber_text or None,
         video_count=video_count,
         avatar_url=avatar_url,
-        source_genre_tag=source_genre_tag,
-        source_audience_tag=source_audience_tag,
+        source_genre_tag=tags.genre,
+        source_audience_tag=tags.audience,
+        source_mechanics_tag=tags.mechanics,
+        source_tone_tag=tags.tone,
     ).model_dump()
 
     return CandidateRecord(

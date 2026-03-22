@@ -7,11 +7,17 @@ import logging
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.database import get_connection
 from app.email.service import EmailMessage
+from app.security import (
+    RateLimitRule,
+    client_ip_key,
+    consume_rate_limit,
+    require_csrf_form,
+)
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +38,23 @@ _PITCH_OPEN_TO_OPTIONS = [
     ("interesting_concept", "Genuinely interesting concept"),
     ("demo_available", "Demo or playable build available"),
 ]
+
+_CREATOR_SIGNUP_HOURLY_LIMIT = 3
+
+
+def _consume_creator_signup_attempt(db_path: str, request: Request) -> bool:
+    """Allow a bounded number of public creator signups per IP each hour."""
+    return consume_rate_limit(
+        db_path,
+        "creator_signup",
+        [
+            RateLimitRule(
+                key=client_ip_key(request),
+                limit=_CREATOR_SIGNUP_HOURLY_LIMIT,
+                window_seconds=3600,
+            )
+        ],
+    )
 
 
 @router.get("/creators")
@@ -71,14 +94,24 @@ async def creator_signup(
     pitch_delete_why: Annotated[str, Form()] = "",
     contact_timing: Annotated[str, Form()] = "no_pref",
     creator_notes: Annotated[str, Form()] = "",
+    company: Annotated[str, Form()] = "",
+    _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Handle creator signup form submission."""
+    if company.strip():
+        log.info("Discarded creator signup with honeypot field populated")
+        return RedirectResponse(url="/creators/thanks", status_code=303)
+
+    settings = request.app.state.settings
+    if not _consume_creator_signup_attempt(settings.db_path, request):
+        log.warning("Rate-limited creator signup attempt")
+        return RedirectResponse(url="/creators/thanks", status_code=303)
+
     form_data = await request.form()
     genre_interests = json.dumps(form_data.getlist("genre_interests"))
     pitch_open_to = json.dumps(form_data.getlist("pitch_open_to"))
 
     creator_id = str(uuid.uuid4())
-    settings = request.app.state.settings
 
     try:
         with get_connection(settings.db_path) as conn:

@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 TRIAL_DAYS = 3
+DISCOVERY_RUNS_PER_HOUR = 3
+DISCOVERY_RUNS_PER_DAY = 5
 
 
 class Tier(StrEnum):
@@ -69,8 +71,21 @@ class Subscription:
 
     @property
     def has_access(self) -> bool:
-        """Return True if the user has paid or complimentary access."""
-        return self.has_subscription or self.is_comped
+        """Return True if the user has active paid or complimentary access."""
+        if self.is_comped:
+            return True
+        if not self.has_subscription:
+            return False
+        if self.status not in {"active", "trialing", "canceled"}:
+            return False
+        if self.current_period_end is None:
+            return self.status in {"active", "trialing"}
+        return datetime.fromisoformat(self.current_period_end) > datetime.now(UTC)
+
+    @property
+    def has_product_access(self) -> bool:
+        """Return True if the user can use the product right now."""
+        return self.has_access or self.is_trialing
 
     @property
     def is_trialing(self) -> bool:

@@ -28,6 +28,10 @@ primary_region = 'arn'
     method = 'GET'
     path = '/healthz'
 
+[metrics]
+  port = 8000
+  path = '/metrics'
+
 [[vm]]
   memory = '512mb'
   cpus = 1

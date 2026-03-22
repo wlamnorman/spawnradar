@@ -1,13 +1,8 @@
-{% extends "base.html" %} {% block title %}Setup — {{ game.name }} —
-SpawnRadar{% endblock %} {% block game_switcher %}
-<span class="game-switcher-label">{{ game.name }}</span>
-{% endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}{{ game.name }} — Settings —
+SpawnRadar{% endblock %} {% block content %}
 <div class="setup-header">
     <div>
         <h1>{{ game.name }} — Settings</h1>
-        <p class="subtle">
-            Configure tags, outreach templates, and assets for this game.
-        </p>
     </div>
     <div class="setup-header-actions">
         <a href="/games/{{ game.slug }}/queue" class="button">Open Queue</a>
@@ -17,13 +12,20 @@ SpawnRadar{% endblock %} {% block game_switcher %}
 
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
+{% endif %} {% if not discovery_readiness.can_run %}
+<div class="alert alert-warning">{{ discovery_readiness.message }}</div>
 {% endif %}
 
 <section class="setup-section">
     <h2>Game Info</h2>
     <form method="post" action="/games/{{ game.slug }}" class="game-form">
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token_for(request) }}"
+        />
         <div class="form-group">
-            <label for="name">Name</label>
+            <label for="name">Name <span class="required">*</span></label>
             <input
                 type="text"
                 id="name"
@@ -33,10 +35,63 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             />
         </div>
         <div class="form-group">
-            <label for="description">Description</label>
-            <textarea id="description" name="description" rows="6">
+            <label for="summary">Summary <span class="required">*</span></label>
+            <textarea
+                id="summary"
+                name="summary"
+                class="textarea-compact"
+                rows="2"
+                required
+                maxlength="150"
+                placeholder="One-sentence pitch for your game and who it is for."
+            >{{ game.summary or '' }}</textarea>
+            <p class="field-hint summary-char-hint">
+                <span id="summary-chars">{{ (game.summary or '') | length }}</span>/150
+            </p>
+        </div>
+        <div class="form-group">
+            <label for="description">Description <span class="required">*</span></label>
+            <textarea id="description" name="description" rows="12" required maxlength="1500" placeholder="Describe your game, what makes it distinct, and who it is for.">
 {{ game.description }}</textarea
             >
+            <p class="field-hint summary-char-hint">
+                <span id="description-chars">{{ game.description | length }}</span>/1500
+            </p>
+        </div>
+        <div class="form-group">
+            <label>Platform</label>
+            <div class="checkbox-group">
+                {% for platform, label in [('browser', 'Browser'), ('mobile',
+                'Mobile'), ('PC', 'PC / Steam'), ('Nintendo Switch', 'Nintendo
+                Switch'), ('PlayStation', 'PlayStation'), ('Xbox', 'Xbox'),
+                ('VR', 'VR')] %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="platform_tags"
+                        value="{{ platform }}"
+                        {%
+                        if
+                        platform
+                        in
+                        game.platform_tags
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="website_url">Website URL</label>
+            <input
+                type="text"
+                id="website_url"
+                name="website_url"
+                value="{{ game.website_url or '' }}"
+            />
         </div>
         <div class="form-group">
             <label>Genre tags</label>
@@ -47,13 +102,21 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             </p>
             <div class="tag-picker-grid">
                 <div class="tag-picker-card">
-                    <label for="genre_primary_tags">Primary genre tags</label>
+                    <label for="genre_primary_tags_search"
+                        >Primary genre tags <span class="required">*</span></label
+                    >
                     <input
-                        type="text"
+                        type="hidden"
                         id="genre_primary_tags"
                         name="genre_primary_tags"
-                        list="genre-tag-catalog"
                         value="{{ genre_primary_tags_value }}"
+                    />
+                    <input
+                        type="text"
+                        id="genre_primary_tags_search"
+                        list="genre-tag-catalog"
+                        placeholder="Add a tag…"
+                        data-hidden-id="genre_primary_tags"
                         data-preview-id="genre-primary-preview"
                         data-pill-class="tag-genre"
                     />
@@ -79,15 +142,21 @@ SpawnRadar{% endblock %} {% block game_switcher %}
                     </div>
                 </div>
                 <div class="tag-picker-card">
-                    <label for="genre_secondary_tags"
+                    <label for="genre_secondary_tags_search"
                         >Secondary genre tags</label
                     >
                     <input
-                        type="text"
+                        type="hidden"
                         id="genre_secondary_tags"
                         name="genre_secondary_tags"
-                        list="genre-tag-catalog"
                         value="{{ genre_secondary_tags_value }}"
+                    />
+                    <input
+                        type="text"
+                        id="genre_secondary_tags_search"
+                        list="genre-tag-catalog"
+                        placeholder="Add a tag…"
+                        data-hidden-id="genre_secondary_tags"
                         data-preview-id="genre-secondary-preview"
                         data-pill-class="tag-genre-secondary"
                     />
@@ -106,39 +175,34 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             </div>
         </div>
         <div class="form-group">
-            <label>Audience tags</label>
-            <p class="field-hint">
-                Use audience tags for player identity, not just genre words. You
-                can still type your own tags even if they are not suggested.
-            </p>
-            <div class="tag-picker-grid">
+            <div class="tag-picker-grid tag-picker-grid--3">
                 <div class="tag-picker-card">
-                    <label for="audience_primary_tags"
-                        >Primary audience tags</label
-                    >
+                    <label for="audience_tags_search">Audience tags</label>
+                    <input
+                        type="hidden"
+                        id="audience_tags"
+                        name="audience_tags"
+                        value="{{ audience_tags_value }}"
+                    />
                     <input
                         type="text"
-                        id="audience_primary_tags"
-                        name="audience_primary_tags"
+                        id="audience_tags_search"
                         list="audience-tag-catalog"
-                        value="{{ audience_primary_tags_value }}"
-                        data-preview-id="audience-primary-preview"
+                        placeholder="Add a tag…"
+                        data-hidden-id="audience_tags"
+                        data-preview-id="audience-preview"
                         data-pill-class="tag-audience"
                     />
                     <p class="field-hint">
-                        The clearest player groups for this game.
+                        Player identity, not just genre words.
                     </p>
-                    <div id="audience-primary-preview" class="pill-preview">
-                        {% for tag in game.audience_primary_tags %}
-                        <span class="tag-pill tag-audience">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
+                    <div id="audience-preview" class="pill-preview"></div>
                     <div class="tag-suggestion-bank">
                         {% for tag in featured_audience_tags %}
                         <button
                             type="button"
                             class="tag-suggestion"
-                            data-target="audience_primary_tags"
+                            data-target="audience_tags"
                             data-tag="{{ tag }}"
                         >
                             {{ tag }}
@@ -147,63 +211,74 @@ SpawnRadar{% endblock %} {% block game_switcher %}
                     </div>
                 </div>
                 <div class="tag-picker-card">
-                    <label for="audience_secondary_tags"
-                        >Secondary audience tags</label
-                    >
+                    <label for="mechanics_tags_search">Mechanics tags</label>
+                    <input
+                        type="hidden"
+                        id="mechanics_tags"
+                        name="mechanics_tags"
+                        value="{{ mechanics_tags_value }}"
+                    />
                     <input
                         type="text"
-                        id="audience_secondary_tags"
-                        name="audience_secondary_tags"
-                        list="audience-tag-catalog"
-                        value="{{ audience_secondary_tags_value }}"
-                        data-preview-id="audience-secondary-preview"
-                        data-pill-class="tag-audience-secondary"
+                        id="mechanics_tags_search"
+                        list="mechanics-tag-catalog"
+                        placeholder="Add a tag…"
+                        data-hidden-id="mechanics_tags"
+                        data-preview-id="mechanics-preview"
+                        data-pill-class="tag-mechanics"
                     />
                     <p class="field-hint">
-                        Adjacent player groups that still matter for discovery.
-                        Freeform tags are fine here too.
+                        Core gameplay systems that define the experience.
                     </p>
-                    <div id="audience-secondary-preview" class="pill-preview">
-                        {% for tag in game.audience_secondary_tags %}
-                        <span class="tag-pill tag-audience-secondary"
-                            >{{ tag }}</span
+                    <div id="mechanics-preview" class="pill-preview"></div>
+                    <div class="tag-suggestion-bank">
+                        {% for tag in featured_mechanics_tags %}
+                        <button
+                            type="button"
+                            class="tag-suggestion"
+                            data-target="mechanics_tags"
+                            data-tag="{{ tag }}"
                         >
+                            {{ tag }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="tag-picker-card">
+                    <label for="tone_tags_search">Vibe</label>
+                    <input
+                        type="hidden"
+                        id="tone_tags"
+                        name="tone_tags"
+                        value="{{ tone_tags_value }}"
+                    />
+                    <input
+                        type="text"
+                        id="tone_tags_search"
+                        list="tone-tag-catalog"
+                        placeholder="Add a tag…"
+                        data-hidden-id="tone_tags"
+                        data-preview-id="tone-preview"
+                        data-pill-class="tag-vibe"
+                    />
+                    <p class="field-hint">
+                        Aesthetic and emotional register of the game.
+                    </p>
+                    <div id="tone-preview" class="pill-preview"></div>
+                    <div class="tag-suggestion-bank">
+                        {% for tag in featured_tone_tags %}
+                        <button
+                            type="button"
+                            class="tag-suggestion"
+                            data-target="tone_tags"
+                            data-tag="{{ tag }}"
+                        >
+                            {{ tag }}
+                        </button>
                         {% endfor %}
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="form-group">
-            <label>Platform</label>
-            <div class="checkbox-group">
-                {% for platform in ['browser', 'mobile', 'PC', 'console'] %}
-                <label class="checkbox-label">
-                    <input
-                        type="checkbox"
-                        name="platform_tags"
-                        value="{{ platform }}"
-                        {%
-                        if
-                        platform
-                        in
-                        game.platform_tags
-                        %}checked{%
-                        endif
-                        %}
-                    />
-                    {{ platform }}
-                </label>
-                {% endfor %}
-            </div>
-        </div>
-        <div class="form-group">
-            <label for="website_url">Website URL</label>
-            <input
-                type="text"
-                id="website_url"
-                name="website_url"
-                value="{{ game.website_url or '' }}"
-            />
         </div>
         <div class="form-actions">
             <button type="submit" class="button">Save Game Info</button>
@@ -233,6 +308,11 @@ SpawnRadar{% endblock %} {% block game_switcher %}
                     action="/games/{{ game.slug }}/templates/{{ tpl.template_id }}/delete"
                     onsubmit="return confirm('Delete this template?');"
                 >
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token_for(request) }}"
+                    />
                     <button type="submit" class="button button-sm danger">
                         Delete
                     </button>
@@ -258,6 +338,11 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             action="/games/{{ game.slug }}/templates"
             class="add-form"
         >
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token_for(request) }}"
+            />
             <div class="form-group">
                 <label>Template name</label>
                 <input
@@ -271,6 +356,7 @@ SpawnRadar{% endblock %} {% block game_switcher %}
                 <label>Channel</label>
                 <select name="channel">
                     <option value="youtube_dm">YouTube DM</option>
+                    <option value="twitch_dm">Twitch Whisper</option>
                     <option value="reddit_dm">Reddit DM</option>
                     <option value="email">Email</option>
                     <option value="twitter">Twitter</option>
@@ -292,6 +378,9 @@ SpawnRadar{% endblock %} {% block game_switcher %}
                     rows="6"
                     placeholder="Hi {{creator_name}}, I'm the developer of {{game_name}}..."
                 ></textarea>
+                <p class="field-hint summary-char-hint">
+                    <span id="description-chars">0</span>/1500
+                </p>
             </div>
             <button type="submit" class="button">Add Template</button>
         </form>
@@ -318,6 +407,11 @@ SpawnRadar{% endblock %} {% block game_switcher %}
                     action="/games/{{ game.slug }}/assets/{{ asset.asset_id }}/delete"
                     onsubmit="return confirm('Delete this asset?');"
                 >
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token_for(request) }}"
+                    />
                     <button type="submit" class="button button-sm danger">
                         Delete
                     </button>
@@ -349,6 +443,11 @@ SpawnRadar{% endblock %} {% block game_switcher %}
             action="/games/{{ game.slug }}/assets"
             class="add-form"
         >
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token_for(request) }}"
+            />
             <div class="form-group">
                 <label>Type</label>
                 <select name="asset_type">
@@ -396,40 +495,169 @@ SpawnRadar{% endblock %} {% block game_switcher %}
     <option value="{{ tag }}"></option>
     {% endfor %}
 </datalist>
+<datalist id="mechanics-tag-catalog">
+    {% for tag in mechanics_tag_catalog %}
+    <option value="{{ tag }}"></option>
+    {% endfor %}
+</datalist>
+<datalist id="tone-tag-catalog">
+    {% for tag in tone_tag_catalog %}
+    <option value="{{ tag }}"></option>
+    {% endfor %}
+</datalist>
 {% endblock %} {% block scripts %}
 <script>
+    function bindCharCounter(inputId, counterId) {
+        const input = document.getElementById(inputId);
+        const counter = document.getElementById(counterId);
+        if (!input || !counter) return;
+
+        const sync = () => {
+            counter.textContent = input.value.length;
+        };
+
+        input.addEventListener("input", sync);
+        sync();
+    }
+
+    bindCharCounter("summary", "summary-chars");
+    bindCharCounter("description", "description-chars");
+
+    function escapeHtml(str) {
+        const d = document.createElement("div");
+        d.appendChild(document.createTextNode(str));
+        return d.innerHTML;
+    }
+
     function parseTags(value) {
         return value
             .split(",")
-            .map((tag) => tag.trim())
-            .filter((tag) => tag);
+            .map((t) => t.trim())
+            .filter((t) => t);
     }
 
-    function renderPreview(input) {
-        const preview = document.getElementById(input.dataset.previewId);
+    function getHidden(searchInput) {
+        return document.getElementById(searchInput.dataset.hiddenId);
+    }
+
+    function getTags(searchInput) {
+        const h = getHidden(searchInput);
+        return h ? parseTags(h.value) : [];
+    }
+
+    function setTags(searchInput, tags) {
+        const h = getHidden(searchInput);
+        if (h) h.value = tags.join(", ");
+    }
+
+    function renderPreview(searchInput) {
+        const preview = document.getElementById(searchInput.dataset.previewId);
         if (!preview) return;
-        const pillClass = input.dataset.pillClass || "";
-        preview.innerHTML = parseTags(input.value)
-            .map((tag) => `<span class="tag-pill ${pillClass}">${tag}</span>`)
+        const pillClass = searchInput.dataset.pillClass || "";
+        const tags = getTags(searchInput);
+        preview.innerHTML = tags
+            .map(
+                (tag) =>
+                    `<span class="tag-pill ${pillClass}"><span class="tag-pill-label">${escapeHtml(tag)}</span><button type="button" class="tag-remove" data-tag="${escapeHtml(tag)}" aria-label="Remove ${escapeHtml(tag)}">×</button></span>`,
+            )
             .join("");
+        preview.querySelectorAll(".tag-remove").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                setTags(
+                    searchInput,
+                    getTags(searchInput).filter(
+                        (t) =>
+                            t.toLowerCase() !== btn.dataset.tag.toLowerCase(),
+                    ),
+                );
+                renderPreview(searchInput);
+                updateSuggestionBank(searchInput);
+            });
+        });
     }
 
-    document.querySelectorAll("[data-preview-id]").forEach((input) => {
-        renderPreview(input);
-        input.addEventListener("input", () => renderPreview(input));
+    function updateSuggestionBank(searchInput) {
+        const card = searchInput.closest(".tag-picker-card");
+        if (!card) return;
+        const bank = card.querySelector(".tag-suggestion-bank");
+        if (!bank) return;
+        const selected = getTags(searchInput).map((t) => t.toLowerCase());
+        const filter = searchInput.value.trim().toLowerCase();
+        bank.querySelectorAll(".tag-suggestion").forEach((btn) => {
+            const tag = btn.dataset.tag.toLowerCase();
+            btn.style.display =
+                !selected.includes(tag) && (!filter || tag.includes(filter))
+                    ? ""
+                    : "none";
+        });
+    }
+
+    function showBank(searchInput) {
+        const card = searchInput.closest(".tag-picker-card");
+        if (!card) return;
+        const bank = card.querySelector(".tag-suggestion-bank");
+        if (bank) bank.style.display = "";
+    }
+
+    function hideBank(searchInput) {
+        const card = searchInput.closest(".tag-picker-card");
+        if (!card) return;
+        const bank = card.querySelector(".tag-suggestion-bank");
+        if (bank) bank.style.display = "none";
+    }
+
+    document.querySelectorAll("[data-hidden-id]").forEach((searchInput) => {
+        renderPreview(searchInput);
+        hideBank(searchInput);
+
+        searchInput.addEventListener("input", () => {
+            updateSuggestionBank(searchInput);
+            showBank(searchInput);
+        });
+        searchInput.addEventListener("focus", () => {
+            updateSuggestionBank(searchInput);
+            showBank(searchInput);
+        });
+        searchInput.addEventListener("blur", () => {
+            setTimeout(() => hideBank(searchInput), 200);
+        });
+        searchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                const text = searchInput.value.trim();
+                if (!text) return;
+                const current = getTags(searchInput);
+                const lower = current.map((t) => t.toLowerCase());
+                const toAdd = parseTags(text).filter(
+                    (t) => !lower.includes(t.toLowerCase()),
+                );
+                if (toAdd.length) {
+                    setTags(searchInput, [...current, ...toAdd]);
+                    renderPreview(searchInput);
+                }
+                searchInput.value = "";
+                updateSuggestionBank(searchInput);
+            }
+        });
     });
 
     document.querySelectorAll(".tag-suggestion").forEach((button) => {
         button.addEventListener("click", () => {
-            const input = document.getElementById(button.dataset.target);
-            if (!input) return;
-            const tags = parseTags(input.value);
-            if (!tags.includes(button.dataset.tag)) {
-                tags.push(button.dataset.tag);
-                input.value = tags.join(", ");
-                input.dispatchEvent(new Event("input"));
+            const searchInput = document.querySelector(
+                `[data-hidden-id="${button.dataset.target}"]`,
+            );
+            if (!searchInput) return;
+            const current = getTags(searchInput);
+            if (
+                !current.some(
+                    (t) => t.toLowerCase() === button.dataset.tag.toLowerCase(),
+                )
+            ) {
+                setTags(searchInput, [...current, button.dataset.tag]);
+                renderPreview(searchInput);
             }
-            input.focus();
+            updateSuggestionBank(searchInput);
+            searchInput.focus();
         });
     });
 </script>

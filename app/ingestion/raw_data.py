@@ -68,6 +68,14 @@ class YouTubeChannelData(BaseModel):
         default=None,
         description="The game audience tag whose search query surfaced this channel",
     )
+    source_mechanics_tag: str | None = Field(
+        default=None,
+        description="The game mechanics tag whose search query surfaced this channel",
+    )
+    source_tone_tag: str | None = Field(
+        default=None,
+        description="The game tone tag whose search query surfaced this channel",
+    )
 
     # Images
     avatar_url: str | None = Field(
@@ -149,6 +157,14 @@ class BlueskyActorData(BaseModel):
         default=None,
         description="The game audience tag whose search query surfaced this account",
     )
+    source_mechanics_tag: str | None = Field(
+        default=None,
+        description="The game mechanics tag whose search query surfaced this account",
+    )
+    source_tone_tag: str | None = Field(
+        default=None,
+        description="The game tone tag whose search query surfaced this account",
+    )
     last_post_days_ago: int | None = Field(
         default=None,
         description="Approximate days since the most recent visible post",
@@ -159,4 +175,74 @@ class BlueskyActorData(BaseModel):
             f"Text from the {RECENT_TEXT_SIGNAL_LIMIT} most recent Bluesky "
             "posts used as normalized text signals"
         ),
+    )
+
+
+
+class TwitchChannelData(BaseModel):
+    """Raw data from a Twitch Helix live-channel discovery result."""
+
+    source: Literal["twitch_helix"] = "twitch_helix"
+
+    broadcaster_id: str = Field(description="Twitch broadcaster ID")
+    broadcaster_login: str = Field(description="Twitch login name")
+    query: str = Field(description="Search query that surfaced this channel")
+    game_id: str | None = Field(
+        default=None,
+        description="Twitch category/game ID for the live stream",
+    )
+    game_name: str | None = Field(
+        default=None,
+        description="Twitch category/game name for the live stream",
+    )
+    stream_title: str | None = Field(
+        default=None,
+        description="Current live stream title when available",
+    )
+    is_live: bool = Field(
+        default=True,
+        description="Whether the channel was live when discovered",
+    )
+    started_at: str | None = Field(
+        default=None,
+        description="RFC3339 timestamp of the current live stream start",
+    )
+    viewer_count: int | None = Field(
+        default=None,
+        description="Concurrent live viewer count from Get Streams",
+    )
+    broadcaster_language: str | None = Field(
+        default=None,
+        description="Primary broadcaster language code",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Twitch stream tags returned by Helix",
+    )
+    avatar_url: str | None = Field(
+        default=None,
+        description="Broadcaster profile image URL",
+    )
+    recent_video_thumbnails: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Live preview thumbnails normalized into the same queue-strip field "
+            "used by video-first sources"
+        ),
+    )
+    source_genre_tag: str | None = Field(
+        default=None,
+        description="The game genre tag whose search query surfaced this stream",
+    )
+    source_audience_tag: str | None = Field(
+        default=None,
+        description="The game audience tag whose search query surfaced this stream",
+    )
+    source_mechanics_tag: str | None = Field(
+        default=None,
+        description="The game mechanics tag whose search query surfaced this stream",
+    )
+    source_tone_tag: str | None = Field(
+        default=None,
+        description="The game tone tag whose search query surfaced this stream",
     )
