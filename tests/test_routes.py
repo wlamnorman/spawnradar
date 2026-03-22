@@ -90,8 +90,6 @@ def _post_json(
     )
 
 
-
-
 def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
     _post_form(
         client,
@@ -119,7 +117,9 @@ def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
 def _verify_user_email(db_path: str, email: str) -> None:
     """Mark a user's email as verified directly in the DB."""
     with get_connection(db_path) as conn:
-        conn.execute("UPDATE users SET email_verified = 1 WHERE email = ?", (email,))
+        conn.execute(
+            "UPDATE users SET email_verified = 1 WHERE email = ?", (email,)
+        )
 
 
 def _register_and_login(client: TestClient, email: str, password: str) -> str:
@@ -142,7 +142,9 @@ def _register_and_login(client: TestClient, email: str, password: str) -> str:
     return client.cookies.get("session_id") or ""
 
 
-def _create_incomplete_game_for_user(db_path: str, user_id: str, name: str = "Legacy Game"):
+def _create_incomplete_game_for_user(
+    db_path: str, user_id: str, name: str = "Legacy Game"
+):
     repo = GameRepository(db_path)
     return repo.create(
         game_id=str(uuid4()),
@@ -170,11 +172,13 @@ def _expire_trial(db_path: str, email: str) -> str:
         assert row is not None
         conn.execute(
             "UPDATE subscriptions SET trial_ends_at = ?, updated_at = ? WHERE subscription_id = ?",
-            ("2000-01-01T00:00:00+00:00", "2000-01-01T00:00:00+00:00", row["subscription_id"]),
+            (
+                "2000-01-01T00:00:00+00:00",
+                "2000-01-01T00:00:00+00:00",
+                row["subscription_id"],
+            ),
         )
         return str(row["user_id"])
-
-
 
 
 def _expire_paid_subscription(db_path: str, email: str) -> str:
@@ -186,11 +190,15 @@ def _expire_paid_subscription(db_path: str, email: str) -> str:
         assert row is not None
         conn.execute(
             "UPDATE subscriptions SET status = ?, paddle_subscription_id = ?, current_period_end = ?, updated_at = ? WHERE subscription_id = ?",
-            ("canceled", "sub_expired", "2000-01-01T00:00:00+00:00", "2000-01-01T00:00:00+00:00", row["subscription_id"]),
+            (
+                "canceled",
+                "sub_expired",
+                "2000-01-01T00:00:00+00:00",
+                "2000-01-01T00:00:00+00:00",
+                row["subscription_id"],
+            ),
         )
         return str(row["user_id"])
-
-
 
 
 def _insert_prospect(db_path: str, **kwargs) -> str:
@@ -227,7 +235,9 @@ def _insert_prospect(db_path: str, **kwargs) -> str:
     return str(prospect_id)
 
 
-def _insert_draft_item(db_path: str, game_id: str, prospect_id: str, **kwargs) -> str:
+def _insert_draft_item(
+    db_path: str, game_id: str, prospect_id: str, **kwargs
+) -> str:
     import uuid
     from datetime import UTC, datetime
 
@@ -739,7 +749,9 @@ class TestAuthRoutes:
 
     def test_create_game_requires_summary(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "missing-summary@example.com", "testpass")
+            _register_and_login(
+                client, "missing-summary@example.com", "testpass"
+            )
             response = _post_form(
                 client,
                 get_path="/games/new",
@@ -760,9 +772,13 @@ class TestAuthRoutes:
         assert response.status_code == 400
         assert "Game summary is required." in response.text
 
-    def test_create_game_requires_primary_genre_tag(self, monkeypatch, tmp_path):
+    def test_create_game_requires_primary_genre_tag(
+        self, monkeypatch, tmp_path
+    ):
         with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "missing-primary@example.com", "testpass")
+            _register_and_login(
+                client, "missing-primary@example.com", "testpass"
+            )
             response = _post_form(
                 client,
                 get_path="/games/new",
@@ -1040,7 +1056,9 @@ class TestDiscoveryRoutes:
         )
 
         with get_connection(db_path) as conn:
-            row = conn.execute("SELECT COUNT(*) AS count FROM discovery_runs").fetchone()
+            row = conn.execute(
+                "SELECT COUNT(*) AS count FROM discovery_runs"
+            ).fetchone()
 
         assert row is not None
         assert row["count"] == 0
@@ -1229,7 +1247,9 @@ class TestDiscoveryRoutes:
 
 
 class TestBillingRoutes:
-    def test_billing_root_unauthenticated_redirects(self, monkeypatch, tmp_path):
+    def test_billing_root_unauthenticated_redirects(
+        self, monkeypatch, tmp_path
+    ):
         with _make_client(monkeypatch, tmp_path) as client:
             resp = client.get("/billing", follow_redirects=False)
         assert resp.status_code in (302, 303, 307)
@@ -1525,9 +1545,22 @@ class TestHealthRoute:
             resp = client.get("/healthz")
         assert resp.status_code == 200
 
+    def test_health_and_metrics_do_not_redirect_when_base_url_is_https(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("BASE_URL", "https://spawnradar.fly.dev")
+        with _make_client(monkeypatch, tmp_path) as client:
+            health = client.get("/healthz", follow_redirects=False)
+            metrics = client.get("/metrics", follow_redirects=False)
+
+        assert health.status_code == 200
+        assert metrics.status_code == 200
+
 
 class TestAccessGate:
-    def test_expired_trial_redirects_games_to_pricing(self, monkeypatch, tmp_path):
+    def test_expired_trial_redirects_games_to_pricing(
+        self, monkeypatch, tmp_path
+    ):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "expired@example.com", "testpass")
@@ -1538,7 +1571,9 @@ class TestAccessGate:
         assert resp.status_code == 307
         assert resp.headers["location"] == "/pricing"
 
-    def test_expired_trial_redirects_queue_to_pricing(self, monkeypatch, tmp_path):
+    def test_expired_trial_redirects_queue_to_pricing(
+        self, monkeypatch, tmp_path
+    ):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "queueexpired@example.com", "testpass")
@@ -1615,8 +1650,9 @@ class TestAccessGate:
         assert resp.status_code == 402
         assert resp.json()["detail"] == "Active subscription required."
 
-
-    def test_ended_paid_subscription_redirects_games_to_pricing(self, monkeypatch, tmp_path):
+    def test_ended_paid_subscription_redirects_games_to_pricing(
+        self, monkeypatch, tmp_path
+    ):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "paidended@example.com", "testpass")
@@ -1627,8 +1663,9 @@ class TestAccessGate:
         assert resp.status_code == 307
         assert resp.headers["location"] == "/pricing"
 
-
-    def test_expired_trial_redirects_games_new_to_pricing(self, monkeypatch, tmp_path):
+    def test_expired_trial_redirects_games_new_to_pricing(
+        self, monkeypatch, tmp_path
+    ):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "newexpired@example.com", "testpass")
@@ -1639,14 +1676,18 @@ class TestAccessGate:
         assert resp.status_code == 307
         assert resp.headers["location"] == "/pricing"
 
-    def test_expired_trial_redirects_setup_to_pricing(self, monkeypatch, tmp_path):
+    def test_expired_trial_redirects_setup_to_pricing(
+        self, monkeypatch, tmp_path
+    ):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "setupexpired@example.com", "testpass")
             _create_game_for_user(client, "Setup Game")
             _expire_trial(db, "setupexpired@example.com")
 
-            resp = client.get("/games/setup-game/setup", follow_redirects=False)
+            resp = client.get(
+                "/games/setup-game/setup", follow_redirects=False
+            )
 
         assert resp.status_code == 307
         assert resp.headers["location"] == "/pricing"
@@ -1674,7 +1715,9 @@ class TestAccessGate:
         assert resp.status_code == 402
         assert resp.json()["detail"] == "Active subscription required."
 
-    def test_expired_trial_blocks_draft_action_api(self, monkeypatch, tmp_path):
+    def test_expired_trial_blocks_draft_action_api(
+        self, monkeypatch, tmp_path
+    ):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "draftapi@example.com", "testpass")
@@ -1687,7 +1730,9 @@ class TestAccessGate:
                 ).fetchone()
             assert game_row is not None
             game_id = str(game_row["game_id"])
-            prospect_id = _insert_prospect(db, handle="creatorx", display_name="Creator X")
+            prospect_id = _insert_prospect(
+                db, handle="creatorx", display_name="Creator X"
+            )
             draft_item_id = _insert_draft_item(db, game_id, prospect_id)
             _expire_trial(db, "draftapi@example.com")
 
@@ -1701,10 +1746,14 @@ class TestAccessGate:
         assert resp.status_code == 402
         assert resp.json()["detail"] == "Active subscription required."
 
-    def test_ended_paid_subscription_blocks_queue_api(self, monkeypatch, tmp_path):
+    def test_ended_paid_subscription_blocks_queue_api(
+        self, monkeypatch, tmp_path
+    ):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "paidqueueended@example.com", "testpass")
+            _register_and_login(
+                client, "paidqueueended@example.com", "testpass"
+            )
             _create_game_for_user(client, "Paid Queue Game")
             with get_connection(db) as conn:
                 game_row = conn.execute(

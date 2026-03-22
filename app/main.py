@@ -12,7 +12,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.router import router as admin_router
@@ -188,10 +187,10 @@ def create_app() -> FastAPI:
         getattr(logging, settings.log_level, logging.INFO)
     )
 
+    # Fly already handles public HTTP->HTTPS redirects at the edge via
+    # `force_https = true` in fly.toml. Avoid app-level HTTPS redirects here so
+    # internal Fly health checks and metrics scrapes can stay on plain HTTP.
     secure_transport = settings.uses_https
-
-    if secure_transport:
-        app.add_middleware(HTTPSRedirectMiddleware)
 
     # SessionMiddleware is required by authlib to store OAuth state between
     # the redirect and callback. It's separate from our own session cookie.
