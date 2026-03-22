@@ -47,6 +47,7 @@ async def run_ingestion(
     twitch_client_secret: str = "",
     run_id: str | None = None,
     metrics_service: MetricsService | None = None,
+    sources_override: list[str] | None = None,
 ) -> dict:
     """Run the full discovery → scoring → import pipeline for a game.
 
@@ -82,7 +83,7 @@ async def run_ingestion(
             sum(len(handles) for handles in seen_handles_by_platform.values()),
         )
 
-        sources = _build_sources(game, runtime, limit_per_source)
+        sources = _build_sources(game, runtime, limit_per_source, sources_override=sources_override)
 
         tasks = [
             _run_source(
@@ -146,11 +147,22 @@ def _build_sources(
     game: Game,
     runtime: SourceRuntime,
     limit_per_source: int,
+    sources_override: list[str] | None = None,
 ) -> list[tuple[CandidateSource, int]]:
     """Build source instances for the game's configured discovery sources."""
     sources: list[tuple[CandidateSource, int]] = []
 
-    for source_name in game.discovery_sources:
+    if sources_override:
+        source_names = []
+        for s in sources_override:
+            try:
+                source_names.append(Source(s))
+            except ValueError:
+                log.warning("[%s] Ignoring unknown source override %r", game.name, s)
+    else:
+        source_names = game.discovery_sources
+
+    for source_name in source_names:
         effective_source_name = _resolve_source_name(source_name, runtime)
         try:
             source_cls = get_source(effective_source_name)

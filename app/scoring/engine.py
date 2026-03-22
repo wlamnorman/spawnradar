@@ -172,7 +172,11 @@ def score_prospect(
     if genre_fit_override is not None:
         genre_fit = genre_fit_override
     else:
-        genre_context = {t for t in [source_genre_tag, source_mechanics_tag, source_tone_tag] if t}
+        genre_context = {
+            t
+            for t in [source_genre_tag, source_mechanics_tag, source_tone_tag]
+            if t
+        }
         all_genre_like_tags = (
             game.weighted_genre_tags()
             + game.weighted_mechanics_tags()
@@ -247,7 +251,9 @@ def score_prospect(
     # -----------------------------------------------------------------------
     # Audience size score — peaks in the indie outreach sweet spot (5K–500K)
     # -----------------------------------------------------------------------
-    audience_size_score = _normalize_audience_size(prospect.audience_size)
+    audience_size_score = _normalize_audience_size(
+        prospect.audience_size, prospect.platform
+    )
 
     # -----------------------------------------------------------------------
     # Weighted final score (weights selected by prospect_type)
@@ -354,15 +360,30 @@ def _tag_match_score(
     return min(matched_weight / total_weight, 1.0)
 
 
-def _normalize_audience_size(size: int | None) -> float:
+def _normalize_audience_size(
+    size: int | None, platform: str | None = None
+) -> float:
     """Score audience size for indie game outreach fit.
 
-    Sweet spot is 5K–500K subscribers:
+    For Twitch, audience_size is live viewer count (not followers), so uses
+    viewer-appropriate thresholds: sweet spot is 20–5K concurrent viewers.
+
+    For all other platforms (follower/subscriber counts):
     - Under 1K: 0.0 (too small to drive meaningful attention)
     - 1K–500K:  log-scaled 0.2 → 1.0
     - 500K–5M:  gradual decay 1.0 → 0.3 (reachable but unlikely to respond)
     """
-    if not size or size < 1_000:
+    if not size:
+        return 0.0
+    if platform == "twitch":
+        # Live viewer count thresholds: 5 minimum, sweet spot 20–5K
+        if size < 5:
+            return 0.0
+        if size <= 5_000:
+            return 0.2 + 0.8 * math.log(size / 5) / math.log(1_000)
+        else:
+            return max(1.0 - 0.7 * math.log(size / 5_000) / math.log(10), 0.2)
+    if size < 1_000:
         return 0.0
     if size <= 500_000:
         return 0.2 + 0.8 * math.log(size / 1_000) / math.log(500)

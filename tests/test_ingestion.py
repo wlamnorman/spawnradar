@@ -4,6 +4,9 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import cast
+
+import httpx
 
 from app.database import get_connection
 from app.ingestion.base import CandidateRecord, SourceRuntime
@@ -19,6 +22,7 @@ from app.ingestion.sources.twitch import (
     TwitchSource,
     _candidate_from_search_result,
 )
+from app.ingestion.sources.youtube import _parse_subscriber_count
 from app.prospects.presenter import ReviewQueuePresenter
 from app.prospects.repository import DraftItemRepository, OutcomeRepository
 from app.prospects.service import ProspectService
@@ -55,6 +59,34 @@ class _FakeClient:
         if url.endswith("app.bsky.actor.getProfile"):
             return _FakeResponse(self._profile_payload)
         return _FakeResponse(self._feed_payload)
+
+
+class _FakeTwitchClient:
+    def __init__(self, follower_totals: dict[str, int]) -> None:
+        self._follower_totals = follower_totals
+
+    async def get(
+        self,
+        url: str,
+        *,
+        params: object | None = None,
+        **kwargs: object,
+    ) -> _FakeResponse:
+        del kwargs
+        broadcaster_id = None
+        if isinstance(params, dict):
+            broadcaster_id = params.get("broadcaster_id")
+        if not isinstance(broadcaster_id, str):
+            raise AssertionError(
+                f"Unexpected Twitch follower request: {url} {params!r}"
+            )
+        return _FakeResponse(
+            {
+                "total": self._follower_totals.get(broadcaster_id),
+                "data": [],
+                "pagination": {},
+            }
+        )
 
 
 def test_available_sources_include_bluesky_and_twitch():
@@ -198,6 +230,39 @@ def test_twitch_candidate_parsing_uses_live_stream_enrichment():
         "https://static-cdn.jtvnw.net/live-640x360.jpg"
     ]
     assert candidate.text_signals[0] == "Building games live"
+
+
+def test_twitch_source_fetches_follower_totals_for_cards():
+    source = TwitchSource("test-client", "test-secret")
+
+    follower_totals = asyncio.run(
+        source._fetch_follower_totals(
+            cast(
+                httpx.AsyncClient,
+                _FakeTwitchClient(
+                    {
+                        "141981764": 39_400,
+                        "26610234": 12_345,
+                    }
+                ),
+            ),
+            {"Authorization": "Bearer test", "Client-Id": "test-client"},
+            ["141981764", "26610234", "141981764"],
+        )
+    )
+
+    assert follower_totals == {
+        "141981764": 39_400,
+        "26610234": 12_345,
+    }
+
+
+def test_parse_subscriber_count_supports_localized_persian_counts():
+    assert _parse_subscriber_count("۳۹٫۴ هزار مشترک") == 39_400
+
+
+def test_parse_subscriber_count_supports_localized_arabic_millions():
+    assert _parse_subscriber_count("١٫٢ مليون مشترك") == 1_200_000
 
 
 def test_run_ingestion_imports_bluesky_candidates(
@@ -512,6 +577,7 @@ def test_run_ingestion_imports_twitch_candidates_into_queue(
                     "broadcaster_id": "9001",
                     "broadcaster_login": "indiestrategist",
                     "query": "strategy",
+                    "followers_count": 39_400,
                     "game_name": "Software and Game Development",
                     "stream_title": "Live tactics run",
                     "avatar_url": "https://static-cdn.jtvnw.net/profile.png",
@@ -552,6 +618,8 @@ def test_run_ingestion_imports_twitch_candidates_into_queue(
 
     payload = ReviewQueuePresenter().for_api(queue_items)
     assert payload[0]["platform"] == "twitch"
+    assert payload[0]["contact_value"] == "indiestrategist"
+    assert payload[0]["followers_count"] == 39_400
     assert payload[0]["recent_video_thumbnails"] == [
         "https://static-cdn.jtvnw.net/live-640x360.jpg"
     ]

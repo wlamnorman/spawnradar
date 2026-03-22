@@ -13,6 +13,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
+from httpx import Response
 
 from app.database import get_connection
 from app.main import create_app
@@ -33,7 +34,9 @@ def _make_client(monkeypatch, tmp_path) -> tuple[TestClient, str]:
     monkeypatch.setenv("SECRET_KEY", "test-secret")
     monkeypatch.setenv("PADDLE_WEBHOOK_SECRET", _WEBHOOK_SECRET)
     monkeypatch.setenv("PADDLE_API_KEY", "test_api_key")
-    monkeypatch.setenv("PADDLE_CLIENT_SIDE_TOKEN", "test_123456789012345678901234567")
+    monkeypatch.setenv(
+        "PADDLE_CLIENT_SIDE_TOKEN", "test_123456789012345678901234567"
+    )
     monkeypatch.setenv("PADDLE_INDIE_PRICE_ID", "pri_test_indie")
     monkeypatch.setenv("PADDLE_ENVIRONMENT", "sandbox")
     monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
@@ -44,6 +47,7 @@ def _make_client(monkeypatch, tmp_path) -> tuple[TestClient, str]:
 
 def _csrf_token(client: TestClient, path: str) -> str:
     import re
+
     response = client.get(path)
     match = re.search(r'name="csrf-token" content="([^"]+)"', response.text)
     assert match is not None
@@ -74,12 +78,13 @@ def _get_user_id(db_path: str, email: str) -> str:
     return row["user_id"]
 
 
-def _get_sub_row(db_path: str, user_id: str) -> dict | None:
+def _get_sub_row(db_path: str, user_id: str) -> dict:
     with get_connection(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM subscriptions WHERE user_id = ?", (user_id,)
         ).fetchone()
-    return dict(row) if row else None
+    assert row is not None, f"No subscription found for user {user_id}"
+    return dict(row)
 
 
 def _signed_webhook(
@@ -95,7 +100,7 @@ def _signed_webhook(
     return body, f"ts={ts};h1={sig}"
 
 
-def _post_webhook(client: TestClient, payload: dict, **kwargs) -> object:
+def _post_webhook(client: TestClient, payload: dict, **kwargs) -> Response:
     body, sig_header = _signed_webhook(payload, **kwargs)
     return client.post(
         "/billing/webhook",
@@ -165,7 +170,9 @@ class TestWebhookSignatureVerification:
     def test_invalid_hmac_returns_400(self, monkeypatch, tmp_path):
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
-            body = json.dumps({"event_type": "subscription.created", "data": {}}).encode()
+            body = json.dumps(
+                {"event_type": "subscription.created", "data": {}}
+            ).encode()
             ts = str(int(time.time()))
             response = client.post(
                 "/billing/webhook",
@@ -178,14 +185,17 @@ class TestWebhookSignatureVerification:
         assert response.status_code == 400
 
     def test_wrong_secret_returns_400(self, monkeypatch, tmp_path):
-        client, db_path = _make_client(monkeypatch, tmp_path)
+        client, _ = _make_client(monkeypatch, tmp_path)
         with client:
             event = {"event_type": "subscription.created", "data": {}}
             body, sig_header = _signed_webhook(event, secret="wrong_secret")
             response = client.post(
                 "/billing/webhook",
                 content=body,
-                headers={"Paddle-Signature": sig_header, "Content-Type": "application/json"},
+                headers={
+                    "Paddle-Signature": sig_header,
+                    "Content-Type": "application/json",
+                },
             )
         assert response.status_code == 400
 
@@ -193,18 +203,25 @@ class TestWebhookSignatureVerification:
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
             event = {"event_type": "subscription.created", "data": {}}
-            body, sig_header = _signed_webhook(event, age_seconds=400)  # >5 min old
+            body, sig_header = _signed_webhook(
+                event, age_seconds=400
+            )  # >5 min old
             response = client.post(
                 "/billing/webhook",
                 content=body,
-                headers={"Paddle-Signature": sig_header, "Content-Type": "application/json"},
+                headers={
+                    "Paddle-Signature": sig_header,
+                    "Content-Type": "application/json",
+                },
             )
         assert response.status_code == 400
 
     def test_missing_signature_header_returns_400(self, monkeypatch, tmp_path):
-        client, db_path = _make_client(monkeypatch, tmp_path)
+        client, _ = _make_client(monkeypatch, tmp_path)
         with client:
-            body = json.dumps({"event_type": "subscription.created", "data": {}}).encode()
+            body = json.dumps(
+                {"event_type": "subscription.created", "data": {}}
+            ).encode()
             response = client.post(
                 "/billing/webhook",
                 content=body,
@@ -231,11 +248,16 @@ class TestWebhookSignatureVerification:
         monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
 
         with TestClient(create_app()) as client:
-            body = json.dumps({"event_type": "subscription.activated"}).encode()
+            body = json.dumps(
+                {"event_type": "subscription.activated"}
+            ).encode()
             response = client.post(
                 "/billing/webhook",
                 content=body,
-                headers={"Paddle-Signature": "ts=1;h1=anything", "Content-Type": "application/json"},
+                headers={
+                    "Paddle-Signature": "ts=1;h1=anything",
+                    "Content-Type": "application/json",
+                },
             )
         assert response.status_code == 200
 
@@ -246,26 +268,34 @@ class TestWebhookSignatureVerification:
 
 
 class TestWebhookEventHandling:
-    def test_subscription_created_activates_subscription(self, monkeypatch, tmp_path):
+    def test_subscription_created_activates_subscription(
+        self, monkeypatch, tmp_path
+    ):
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
             _register_and_verify(client, db_path)
             user_id = _get_user_id(db_path, "user@example.com")
             client.get("/games")
-            event = _activation_event(user_id, event_type="subscription.created")
+            event = _activation_event(
+                user_id, event_type="subscription.created"
+            )
             _post_webhook(client, event)
         sub = _get_sub_row(db_path, user_id)
         assert sub["paddle_subscription_id"] == "sub_test"
         assert sub["paddle_customer_id"] == "ctm_test"
         assert sub["status"] == "active"
 
-    def test_subscription_activated_activates_subscription(self, monkeypatch, tmp_path):
+    def test_subscription_activated_activates_subscription(
+        self, monkeypatch, tmp_path
+    ):
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
             _register_and_verify(client, db_path)
             user_id = _get_user_id(db_path, "user@example.com")
             client.get("/games")
-            event = _activation_event(user_id, event_type="subscription.activated")
+            event = _activation_event(
+                user_id, event_type="subscription.activated"
+            )
             _post_webhook(client, event)
         sub = _get_sub_row(db_path, user_id)
         assert sub["paddle_subscription_id"] == "sub_test"
@@ -316,7 +346,9 @@ class TestWebhookEventHandling:
         sub = _get_sub_row(db_path, user_id)
         assert sub["status"] == "active"
 
-    def test_unknown_event_type_is_accepted_and_ignored(self, monkeypatch, tmp_path):
+    def test_unknown_event_type_is_accepted_and_ignored(
+        self, monkeypatch, tmp_path
+    ):
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
             _register_and_verify(client, db_path)
@@ -358,7 +390,9 @@ class TestWebhookEventHandling:
                     "items": [{"price": {"id": "pri_test_indie"}}],
                     "current_billing_period": {
                         "starts_at": datetime.now(UTC).isoformat(),
-                        "ends_at": (datetime.now(UTC) + timedelta(days=30)).isoformat(),
+                        "ends_at": (
+                            datetime.now(UTC) + timedelta(days=30)
+                        ).isoformat(),
                     },
                     "custom_data": {},
                 },
@@ -400,7 +434,7 @@ class TestBillingStatusEndpoint:
     ):
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
-            user_id = _activate_subscription(client, db_path)
+            _ = _activate_subscription(client, db_path)
             response = client.get("/billing/status")
         assert response.status_code == 200
         assert response.json() == {"active": True}
@@ -426,7 +460,9 @@ class TestBillingStatusEndpoint:
                 )
             response = client.get("/billing/status")
         assert response.status_code == 200
-        assert response.json() == {"active": True}  # paddle_subscription_id still set
+        assert response.json() == {
+            "active": True
+        }  # paddle_subscription_id still set
 
     def test_requires_authentication(self, monkeypatch, tmp_path):
         client, db_path = _make_client(monkeypatch, tmp_path)
@@ -523,7 +559,9 @@ class TestBillingManagementPage:
         assert "Manage subscription" in response.text
         assert "Activate subscription" not in response.text
 
-    def test_active_subscriber_sees_next_renewal_date(self, monkeypatch, tmp_path):
+    def test_active_subscriber_sees_next_renewal_date(
+        self, monkeypatch, tmp_path
+    ):
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
             _activate_subscription(client, db_path)
@@ -561,7 +599,7 @@ class TestBillingManagementPage:
         assert "Past due" in response.text
 
     def test_requires_authentication(self, monkeypatch, tmp_path):
-        client, db_path = _make_client(monkeypatch, tmp_path)
+        client, _ = _make_client(monkeypatch, tmp_path)
         with client:
             response = client.get("/billing", follow_redirects=False)
         assert response.status_code in (302, 303, 307)
@@ -581,7 +619,9 @@ class TestBillingNav:
         assert 'href="/pricing"' in response.text
         assert 'href="/billing"' not in response.text
 
-    def test_active_subscriber_sees_billing_in_nav(self, monkeypatch, tmp_path):
+    def test_active_subscriber_sees_billing_in_nav(
+        self, monkeypatch, tmp_path
+    ):
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
             _activate_subscription(client, db_path)

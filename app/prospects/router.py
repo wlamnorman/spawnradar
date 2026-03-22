@@ -9,11 +9,13 @@ from fastapi.templating import Jinja2Templates
 from app.auth.dependencies import require_product_access
 from app.auth.models import User
 from app.billing.service import BillingService
+from app.config import Settings
 from app.dependencies import (
     get_billing_service,
     get_game_repo,
     get_game_service,
     get_prospect_service,
+    get_settings,
     get_templates,
 )
 from app.games.repository import GameRepository
@@ -43,6 +45,7 @@ async def review_queue(
     billing_service: BillingService = Depends(get_billing_service),
     game_service: GameService = Depends(get_game_service),
     templates: Jinja2Templates = Depends(get_templates),
+    settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
     """Render the priority review queue for a game."""
     game = game_repo.get_by_slug(slug)
@@ -55,6 +58,13 @@ async def review_queue(
     discovery_status = billing_service.get_discovery_run_status(user.user_id)
     game_discovery_readiness = game_service.get_discovery_readiness(game)
 
+    source_credentials = {
+        "youtube": True,  # scraping fallback always available
+        "twitch": bool(settings.twitch_client_id and settings.twitch_client_secret),
+        "bluesky": True,
+        "reddit": True,
+    }
+
     return templates.TemplateResponse(
         request,
         "queue/review.html",
@@ -65,6 +75,7 @@ async def review_queue(
             "thumbnail_limit": RECENT_VIDEO_THUMBNAIL_LIMIT,
             "discovery_status": discovery_status,
             "game_discovery_readiness": game_discovery_readiness,
+            "source_credentials": source_credentials,
         },
     )
 

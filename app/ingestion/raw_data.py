@@ -178,7 +178,6 @@ class BlueskyActorData(BaseModel):
     )
 
 
-
 class TwitchChannelData(BaseModel):
     """Raw data from a Twitch Helix live-channel discovery result."""
 
@@ -210,6 +209,14 @@ class TwitchChannelData(BaseModel):
     viewer_count: int | None = Field(
         default=None,
         description="Concurrent live viewer count from Get Streams",
+    )
+    followers_count: int | None = Field(
+        default=None,
+        description=(
+            "Total channel followers from Get Channel Followers. This is "
+            "stored separately from viewer_count because Twitch discovery "
+            "scoring still uses live audience."
+        ),
     )
     broadcaster_language: str | None = Field(
         default=None,

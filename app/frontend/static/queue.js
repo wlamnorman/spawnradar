@@ -19,6 +19,107 @@
       .replace(/'/g, "&#39;");
   }
 
+  function contactChannelLabel(channel) {
+    switch (channel) {
+      case "email":
+        return "Email";
+      case "twitch_dm":
+        return "Twitch DM";
+      case "bluesky_reply":
+        return "Bluesky reply";
+      case "reddit_post":
+        return "Reddit post";
+      case "reddit_comment":
+        return "Reddit comment";
+      default:
+        return channel
+          ? channel
+              .split("_")
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ")
+          : "Profile";
+    }
+  }
+
+  function contactChannelShortLabel(channel) {
+    switch (channel) {
+      case "email":
+        return "Email";
+      case "twitch_dm":
+        return "DM";
+      case "bluesky_reply":
+        return "Reply";
+      case "reddit_post":
+        return "Post";
+      case "reddit_comment":
+        return "Comment";
+      default:
+        return "Profile";
+    }
+  }
+
+  function buildContactPopover(item) {
+    if (!item.contact_channel && !item.contact_value && !item.profile_url) {
+      return "";
+    }
+
+    const routeRow = item.contact_channel
+      ? `<div class="contact-popover-row">
+          <span class="contact-popover-key">Best route</span>
+          <span class="contact-popover-value">${escHtml(contactChannelLabel(item.contact_channel))}</span>
+        </div>`
+      : "";
+
+    const contactRow = item.contact_value
+      ? `<div class="contact-popover-row">
+          <span class="contact-popover-key">${item.contact_channel === "email" ? "Email" : "Contact"}</span>
+          ${
+            item.contact_channel === "email"
+              ? `<a href="mailto:${escHtml(item.contact_value)}" class="contact-popover-link">${escHtml(item.contact_value)}</a>`
+              : `<span class="contact-popover-value">${escHtml(item.contact_value)}</span>`
+          }
+        </div>`
+      : "";
+
+    const profileRow = item.profile_url
+      ? `<div class="contact-popover-row">
+          <span class="contact-popover-key">Profile</span>
+          <a href="${escHtml(item.profile_url)}" target="_blank" rel="noreferrer" class="contact-popover-link">${escHtml(item.handle || "Open profile")}</a>
+        </div>`
+      : "";
+
+    return `<details class="contact-popover">
+      <summary class="contact-trigger">
+        <span class="contact-trigger-label">Contact</span>
+        <span class="contact-trigger-value">${escHtml(item.contact_channel ? contactChannelShortLabel(item.contact_channel) : "Profile")}</span>
+      </summary>
+      <div class="contact-popover-panel">
+        ${routeRow}
+        ${contactRow}
+        ${profileRow}
+      </div>
+    </details>`;
+  }
+
+  function closeContactPopovers(exceptPopover) {
+    document.querySelectorAll(".contact-popover[open]").forEach((popover) => {
+      if (popover !== exceptPopover) {
+        popover.removeAttribute("open");
+      }
+    });
+  }
+
+  function audienceText(item) {
+    if (item.platform === "twitch") {
+      return item.followers_count
+        ? `${Number(item.followers_count).toLocaleString()} followers`
+        : "";
+    }
+    return item.audience_size
+      ? `${Number(item.audience_size).toLocaleString()} followers`
+      : "";
+  }
+
   // ---------------------------------------------------------------------------
   // Card builder — mirrors the queue/review.html Jinja2 card template
   // ---------------------------------------------------------------------------
@@ -50,22 +151,19 @@
       ? `<div class="video-thumbnails">${videoThumbs}</div>`
       : "";
 
-    const contactPill = item.contact_channel
-      ? `<span class="pill">${escHtml(item.contact_channel)}</span>`
-      : "";
-
-    const audienceText = item.audience_size
-      ? `${Number(item.audience_size).toLocaleString()} followers`
-      : "";
+    const audienceLabel = audienceText(item);
+    const contactPopover = buildContactPopover(item);
 
     const breakdown = item.score_breakdown || {};
     const fitSummary = (item.fit_summary || "").trim();
+    const audienceSizeLabel =
+      item.platform === "twitch" ? "Live audience" : "Audience size";
     const dims = [
       ["Genre fit", breakdown.genre_fit],
       ["Audience fit", breakdown.audience_fit],
       ["Platform fit", breakdown.platform_fit],
       ["Contactability", breakdown.contactability],
-      ["Audience size", breakdown.audience_size_score],
+      [audienceSizeLabel, breakdown.audience_size_score],
     ].filter(([, v]) => v != null);
 
     const dimRows = dims
@@ -138,13 +236,15 @@
           </div>
           <div class="meta-row">
             <span class="pill pill-platform">${escHtml(item.platform)}</span>
-            ${contactPill}
-            ${audienceText ? `<span class="subtle prospect-followers">${escHtml(audienceText)}</span>` : ""}
+            ${audienceLabel ? `<span class="subtle prospect-followers">${escHtml(audienceLabel)}</span>` : ""}
           </div>
         </div>
-        <div class="score-badge ${scoreClass}">
-          <span class="score-number">${scorePct}</span>
-          <span class="score-label">fit</span>
+        <div class="queue-topline-actions">
+          ${contactPopover}
+          <div class="score-badge ${scoreClass}">
+            <span class="score-number">${scorePct}</span>
+            <span class="score-label">fit</span>
+          </div>
         </div>
       </div>
       ${videoThumbsHtml}
@@ -321,6 +421,21 @@
     intervalId = setInterval(poll, POLL_INTERVAL_MS);
     poll();
   }
+
+  document.addEventListener("click", (event) => {
+    const popover = event.target.closest(".contact-popover");
+    if (popover) {
+      closeContactPopovers(popover);
+      return;
+    }
+    closeContactPopovers(null);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeContactPopovers(null);
+    }
+  });
 
   window.startDiscoveryPolling = startDiscoveryPolling;
 })();

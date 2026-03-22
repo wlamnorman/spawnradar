@@ -2,7 +2,8 @@
 {% block content %} {% if subscription.is_trialing %}
 <div class="trial-banner">
     <strong>Trial:</strong> {{ subscription.trial_days_remaining }} day{% if
-    subscription.trial_days_remaining != 1 %}s{% endif %} left – <strong>limited use.</strong>
+    subscription.trial_days_remaining != 1 %}s{% endif %} left –
+    <strong>limited use.</strong>
     <a href="/pricing">Activate subscription</a>
 </div>
 {% endif %}
@@ -10,46 +11,67 @@
     <div>
         <h1>Your Games</h1>
         {% if not discovery_status.can_run %}
-        <p class="subtle discovery-status is-blocked">{{ discovery_status.message }}</p>
+        <p class="subtle discovery-status is-blocked">
+            {{ discovery_status.message }}
+        </p>
         {% endif %}
     </div>
-    <div class="quota-bars">
-        <p class="quota-bars-title">Discovery Limits</p>
-        {% for window, label in [
-            (discovery_status.hourly,  "Hourly"),
-            (discovery_status.daily,   "Daily"),
-            (discovery_status.monthly, "Monthly"),
-        ] %}{% if window.limit > 0 %}
-        {% set pct = ((window.remaining / window.limit) * 100) | round(1) %}
-        <div class="quota-bar-row">
-            <span class="quota-bar-label">{{ label }}</span>
-            <div class="quota-bar-track">
-                <div class="quota-bar-fill" style="width: {{ pct }}%;"></div>
-            </div>
-            <span class="quota-bar-count">{{ window.remaining }} / {{ window.limit }} left</span>
-        </div>
-        {% endif %}{% endfor %}
-    </div>
+    {% include "partials/discovery_quota_bars.html" %}
 </div>
 
 <div class="game-grid">
-    {% for game in games %} {% set readiness = game_discovery_readiness.get(game.game_id) %} {% set count = queue_counts.get(game.game_id, 0) %}
+    {% for game in games %} {% set readiness =
+    game_discovery_readiness.get(game.game_id) %} {% set count =
+    queue_counts.get(game.game_id, 0) %}
     <div class="game-card">
         <div class="game-card-header">
             <h2 class="game-card-title">
-                <a href="/games/{{ game.slug }}/setup" class="game-card-title-link">{{ game.name }}</a>
+                <a
+                    href="/games/{{ game.slug }}/setup"
+                    class="game-card-title-link"
+                    >{{ game.name }}</a
+                >
             </h2>
             <div class="game-card-controls">
                 <div class="card-menu">
-                    <button type="button" class="card-icon-btn card-menu-trigger" title="More options" onclick="toggleCardMenu(this)">⋯</button>
+                    <button
+                        type="button"
+                        class="card-icon-btn card-menu-trigger"
+                        title="More options"
+                        onclick="toggleCardMenu(this)"
+                    >
+                        ⋯
+                    </button>
                     <div class="card-menu-dropdown hidden">
-                        <form method="post" action="/games/{{ game.slug }}/duplicate">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token_for(request) }}" />
-                            <button type="submit" class="card-menu-item">Duplicate</button>
+                        <form
+                            method="post"
+                            action="/games/{{ game.slug }}/duplicate"
+                        >
+                            <input
+                                type="hidden"
+                                name="csrf_token"
+                                value="{{ csrf_token_for(request) }}"
+                            />
+                            <button type="submit" class="card-menu-item">
+                                Duplicate
+                            </button>
                         </form>
-<form method="post" action="/games/{{ game.slug }}/delete" onsubmit="return confirm('Permanently delete {{ game.name | e }}? This cannot be undone.')">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token_for(request) }}" />
-                            <button type="submit" class="card-menu-item card-menu-item--danger">Delete</button>
+                        <form
+                            method="post"
+                            action="/games/{{ game.slug }}/delete"
+                            onsubmit="return confirm('Permanently delete {{ game.name | e }}? This cannot be undone.')"
+                        >
+                            <input
+                                type="hidden"
+                                name="csrf_token"
+                                value="{{ csrf_token_for(request) }}"
+                            />
+                            <button
+                                type="submit"
+                                class="card-menu-item card-menu-item--danger"
+                            >
+                                Delete
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -63,20 +85,15 @@
         <div class="tag-row">
             {% for tag in game.platform_tags %}
             <span class="tag-pill tag-platform">{{ tag }}</span>
-            {% endfor %}
-            {% for tag in game.genre_primary_tags %}
+            {% endfor %} {% for tag in game.genre_primary_tags %}
             <span class="tag-pill tag-genre">{{ tag }}</span>
-            {% endfor %}
-            {% for tag in game.genre_secondary_tags %}
+            {% endfor %} {% for tag in game.genre_secondary_tags %}
             <span class="tag-pill tag-genre-secondary">{{ tag }}</span>
-            {% endfor %}
-            {% for tag in game.audience_primary_tags %}
+            {% endfor %} {% for tag in game.audience_primary_tags %}
             <span class="tag-pill tag-audience">{{ tag }}</span>
-            {% endfor %}
-            {% for tag in game.ordered_mechanics_tags() %}
+            {% endfor %} {% for tag in game.ordered_mechanics_tags() %}
             <span class="tag-pill tag-mechanics">{{ tag }}</span>
-            {% endfor %}
-            {% for tag in game.ordered_tone_tags() %}
+            {% endfor %} {% for tag in game.ordered_tone_tags() %}
             <span class="tag-pill tag-vibe">{{ tag }}</span>
             {% endfor %}
         </div>
@@ -86,14 +103,17 @@
                 {% if count > 0 %}
                 <span class="queue-badge">{{ count }} ranked leads</span>
                 {% endif %}
-                <a href="/games/{{ game.slug }}/queue" class="button">Open Queue & Run Discovery</a>
+                <a href="/games/{{ game.slug }}/queue" class="button"
+                    >Open Queue & Run Discovery</a
+                >
             </div>
             {% if not readiness.can_run %}
             <p class="game-card-note">{{ readiness.message }}</p>
             {% endif %}
         </div>
     </div>
-    {% endfor %} {% for slot_index in range(placeholder_slots) %} {% if slot_index < unlocked_placeholder_slots %}
+    {% endfor %} {% for slot_index in range(placeholder_slots) %} {% if
+    slot_index < unlocked_placeholder_slots %}
     <a href="/games/new" class="game-card game-card-add">
         <div class="game-card-add-inner">
             <span class="add-icon">+</span>
@@ -101,7 +121,10 @@
         </div>
     </a>
     {% else %}
-    <div class="game-card game-card-add game-card-add-locked" aria-disabled="true">
+    <div
+        class="game-card game-card-add game-card-add-locked"
+        aria-disabled="true"
+    >
         <div class="game-card-add-inner">
             <span class="add-icon">+</span>
             <span>Add Game</span>
@@ -128,7 +151,9 @@
         const toHide = pills.filter((p) => p.offsetTop >= cutoffTop);
         const lastVisible = pills.filter((p) => p.offsetTop < cutoffTop);
 
-        toHide.forEach((p) => { p.style.display = "none"; });
+        toHide.forEach((p) => {
+            p.style.display = "none";
+        });
         let hiddenCount = toHide.length;
 
         const morePill = document.createElement("span");
@@ -148,13 +173,17 @@
     function toggleCardMenu(btn) {
         const dropdown = btn.nextElementSibling;
         const isOpen = !dropdown.classList.contains("hidden");
-        document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.add("hidden"));
+        document
+            .querySelectorAll(".card-menu-dropdown")
+            .forEach((d) => d.classList.add("hidden"));
         if (!isOpen) dropdown.classList.remove("hidden");
     }
 
     document.addEventListener("click", (e) => {
         if (!e.target.closest(".card-menu")) {
-            document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.add("hidden"));
+            document
+                .querySelectorAll(".card-menu-dropdown")
+                .forEach((d) => d.classList.add("hidden"));
         }
     });
 </script>

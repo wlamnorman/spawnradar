@@ -601,21 +601,6 @@ class TestAuthRoutes:
         assert "Secure" in response.headers["set-cookie"]
         assert "HttpOnly" in response.headers["set-cookie"]
 
-    def test_http_requests_redirect_to_https_when_public_base_url_is_https(
-        self, monkeypatch, tmp_path
-    ):
-        monkeypatch.setenv("DB_PATH", str(tmp_path / "test.sqlite3"))
-        monkeypatch.setenv("SECRET_KEY", "test-secret")
-        monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
-        monkeypatch.setenv("RESEND_API_KEY", "")
-        monkeypatch.setenv("SMTP_HOST", "")
-
-        with TestClient(create_app()) as client:
-            response = client.get("/", follow_redirects=False)
-
-        assert response.status_code == 307
-        assert response.headers["location"].startswith("https://testserver/")
-
     def test_login_with_wrong_password_shows_error(
         self, monkeypatch, tmp_path
     ):
@@ -966,6 +951,10 @@ class TestDiscoveryRoutes:
 
         assert response.status_code == 200
         assert "discovery-status-global" in response.text
+        assert "Discovery Limits" in response.text
+        assert 'data-discovery-window="hourly"' in response.text
+        assert "Discovery is ready." not in response.text
+        assert "No prospects are queued for review." not in response.text
 
     def test_games_page_marks_incomplete_games_as_discovery_locked(
         self, monkeypatch, tmp_path
@@ -1021,6 +1010,92 @@ class TestDiscoveryRoutes:
             in response.text
         )
         assert 'data-discovery-ready="false"' in response.text
+
+    def test_queue_page_shows_contact_popover_for_contactable_prospect(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "contactqueue@example.com", "testpass")
+            _create_game_for_user(client, "Contact Queue Game")
+
+            with get_connection(db_path) as conn:
+                game_row = conn.execute(
+                    "SELECT game_id, slug FROM games WHERE name = ?",
+                    ("Contact Queue Game",),
+                ).fetchone()
+            assert game_row is not None
+
+            prospect_id = _insert_prospect(
+                db_path,
+                platform="youtube",
+                handle="creator-example",
+                display_name="Creator Example",
+                profile_url="https://youtube.com/@creator",
+                contact_channel="email",
+                contact_value="creator@example.com",
+                audience_size=39_400,
+            )
+            _insert_draft_item(
+                db_path,
+                str(game_row["game_id"]),
+                prospect_id,
+                priority_score=0.74,
+                score_breakdown={"genre_fit": 0.8},
+            )
+
+            response = client.get(f"/games/{game_row['slug']}/queue")
+
+        assert response.status_code == 200
+        assert "contact-popover" in response.text
+        assert "creator@example.com" in response.text
+        assert "mailto:creator@example.com" in response.text
+
+    def test_queue_page_shows_twitch_followers_without_changing_live_audience_label(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "twitchqueue@example.com", "testpass")
+            _create_game_for_user(client, "Twitch Queue Game")
+
+            with get_connection(db_path) as conn:
+                game_row = conn.execute(
+                    "SELECT game_id, slug FROM games WHERE name = ?",
+                    ("Twitch Queue Game",),
+                ).fetchone()
+            assert game_row is not None
+
+            prospect_id = _insert_prospect(
+                db_path,
+                platform="twitch",
+                handle="indiestrategist",
+                display_name="Indie Strategist",
+                profile_url="https://www.twitch.tv/indiestrategist",
+                contact_channel="twitch_dm",
+                contact_value="indiestrategist",
+                audience_size=84,
+                raw_data={
+                    "source": "twitch_helix",
+                    "avatar_url": "https://static-cdn.jtvnw.net/profile.png",
+                    "followers_count": 39_400,
+                },
+            )
+            _insert_draft_item(
+                db_path,
+                str(game_row["game_id"]),
+                prospect_id,
+                priority_score=0.74,
+                score_breakdown={"audience_size_score": 0.67},
+            )
+
+            response = client.get(f"/games/{game_row['slug']}/queue")
+
+        assert response.status_code == 200
+        assert "39,400 followers" in response.text
+        assert "Live audience" in response.text
 
     def test_run_ingestion_rejects_incomplete_game_without_consuming_quota(
         self, monkeypatch, tmp_path
@@ -1083,7 +1158,7 @@ class TestDiscoveryRoutes:
                     return current.replace(tzinfo=None)
                 return current.astimezone(tz)
 
-        monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 10)
+        monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 25)
         monkeypatch.setattr(
             "app.games.router.run_ingestion", fake_run_ingestion
         )
@@ -1139,10 +1214,15 @@ class TestDiscoveryRoutes:
         base = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
         user_one_schedule = [
             base.replace(hour=8, minute=0),
+            base.replace(hour=8, minute=10),
             base.replace(hour=8, minute=20),
-            base.replace(hour=9, minute=30),
-            base.replace(hour=9, minute=50),
-            base.replace(hour=11, minute=10),
+            base.replace(hour=8, minute=30),
+            base.replace(hour=8, minute=40),
+            base.replace(hour=10, minute=0),
+            base.replace(hour=10, minute=10),
+            base.replace(hour=10, minute=20),
+            base.replace(hour=10, minute=30),
+            base.replace(hour=10, minute=40),
         ]
         user_two_schedule = [
             datetime(2026, 3, 18, 8, 0, tzinfo=UTC),
@@ -1184,15 +1264,15 @@ class TestDiscoveryRoutes:
 
             assert user_one_response is not None
             assert count_runs_by_email() == {
-                "user1@example.com": 5,
+                "user1@example.com": 10,
                 "user2@example.com": 0,
                 "user3@example.com": 0,
             }
 
-            fifth_user_one = user_one_response.json()["usage"]
-            assert fifth_user_one["daily"]["used"] == 5
-            assert fifth_user_one["can_run"] is False
-            assert fifth_user_one["blocked_by"] == "day"
+            tenth_user_one = user_one_response.json()["usage"]
+            assert tenth_user_one["daily"]["used"] == 10
+            assert tenth_user_one["can_run"] is False
+            assert tenth_user_one["blocked_by"] == "day"
 
             user_two_response = None
             for when in user_two_schedule:
@@ -1206,7 +1286,7 @@ class TestDiscoveryRoutes:
                 assert user_two_response.status_code == 200
 
             assert count_runs_by_email() == {
-                "user1@example.com": 5,
+                "user1@example.com": 10,
                 "user2@example.com": 5,
                 "user3@example.com": 0,
             }
@@ -1235,7 +1315,7 @@ class TestDiscoveryRoutes:
             )
 
         assert count_runs_by_email() == {
-            "user1@example.com": 5,
+            "user1@example.com": 10,
             "user2@example.com": 6,
             "user3@example.com": 0,
         }

@@ -548,6 +548,14 @@ async def run_ingestion_api(
 
     limit = billing_service.get_prospects_limit(user.user_id)
 
+    sources_override: list[str] | None = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict) and body.get("sources"):
+            sources_override = [str(s) for s in body["sources"]]
+    except Exception:
+        pass
+
     background_tasks.add_task(
         run_ingestion,
         game,
@@ -560,6 +568,7 @@ async def run_ingestion_api(
         settings.twitch_client_secret,
         run_id=discovery_status.run_id,
         metrics_service=metrics_service,
+        sources_override=sources_override,
     )
 
     return JSONResponse(

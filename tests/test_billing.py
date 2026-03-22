@@ -100,13 +100,13 @@ def test_indie_tier_prospects_limit_is_fifty():
     assert TIER_LIMITS[Tier.INDIE]["prospects_per_run"] == 50
 
 
-def test_trial_discovery_runs_limit_is_three():
-    assert TRIAL_LIMITS["discovery_runs_per_month"] == 3
+def test_trial_discovery_runs_limit_is_twenty_five():
+    assert TRIAL_LIMITS["discovery_runs_per_month"] == 25
 
 
-def test_discovery_rate_limits_are_three_per_hour_and_five_per_day():
-    assert DISCOVERY_RUNS_PER_HOUR == 3
-    assert DISCOVERY_RUNS_PER_DAY == 5
+def test_discovery_rate_limits_are_five_per_hour_and_ten_per_day():
+    assert DISCOVERY_RUNS_PER_HOUR == 5
+    assert DISCOVERY_RUNS_PER_DAY == 10
 
 
 def test_record_discovery_run_returns_windowed_usage(
@@ -120,11 +120,11 @@ def test_record_discovery_run_returns_windowed_usage(
 
     assert status.can_run is True
     assert status.hourly.used == 1
-    assert status.hourly.remaining == 2
+    assert status.hourly.remaining == 4
     assert status.daily.used == 1
-    assert status.daily.remaining == 2  # capped at monthly trial limit (3)
+    assert status.daily.remaining == 9
     assert status.monthly.used == 1
-    assert status.monthly.remaining == 2
+    assert status.monthly.remaining == 24
 
 
 def test_trial_discovery_status_uses_trial_specific_message(
@@ -163,29 +163,18 @@ def test_paid_discovery_status_uses_windowed_ready_message(
     )
 
 
-def test_record_discovery_run_blocks_after_three_runs_in_an_hour(
+def test_record_discovery_run_blocks_after_five_runs_in_an_hour(
     billing_service, run_repo, registered_user, sample_game, monkeypatch
 ):
-    monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 10)
+    monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 25)
     now = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
-    run_repo.create(
-        "run_1",
-        registered_user.user_id,
-        sample_game.game_id,
-        created_at=(now - timedelta(minutes=30)).isoformat(),
-    )
-    run_repo.create(
-        "run_2",
-        registered_user.user_id,
-        sample_game.game_id,
-        created_at=(now - timedelta(minutes=20)).isoformat(),
-    )
-    run_repo.create(
-        "run_3",
-        registered_user.user_id,
-        sample_game.game_id,
-        created_at=(now - timedelta(minutes=5)).isoformat(),
-    )
+    for index, minutes_ago in enumerate((55, 45, 35, 25, 5), start=1):
+        run_repo.create(
+            f"run_{index}",
+            registered_user.user_id,
+            sample_game.game_id,
+            created_at=(now - timedelta(minutes=minutes_ago)).isoformat(),
+        )
 
     with pytest.raises(ValueError, match="this hour"):
         billing_service.record_discovery_run(
@@ -193,16 +182,21 @@ def test_record_discovery_run_blocks_after_three_runs_in_an_hour(
         )
 
 
-def test_record_discovery_run_blocks_after_five_runs_in_a_day(
+def test_record_discovery_run_blocks_after_ten_runs_in_a_day(
     billing_service, run_repo, registered_user, sample_game, monkeypatch
 ):
-    monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 10)
+    monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 25)
     now = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
     timestamps = [
-        now - timedelta(hours=20),
-        now - timedelta(hours=18),
-        now - timedelta(hours=12),
-        now - timedelta(hours=6),
+        now - timedelta(hours=23, minutes=55),
+        now - timedelta(hours=21),
+        now - timedelta(hours=19),
+        now - timedelta(hours=17),
+        now - timedelta(hours=15),
+        now - timedelta(hours=13),
+        now - timedelta(hours=11),
+        now - timedelta(hours=9),
+        now - timedelta(hours=7),
         now - timedelta(hours=2),
     ]
     for index, timestamp in enumerate(timestamps, start=1):
@@ -325,7 +319,7 @@ def test_trial_discovery_runs_count_toward_monthly_limit_after_activation(
 ):
     """Runs used during trial must not disappear when the subscription activates.
 
-    A user who burns 2 of their 3 trial runs and then converts to a paid
+    A user who burns 2 of their 25 trial runs and then converts to a paid
     subscription should start the month with 2 runs already counted — they
     cannot game the limit by upgrading mid-month.
     """
@@ -334,13 +328,25 @@ def test_trial_discovery_runs_count_toward_monthly_limit_after_activation(
     now = datetime.now(UTC)
 
     # Record 2 discovery runs while the user is still on trial.
-    run_repo.create(str(uuid.uuid4()), registered_user.user_id, sample_game.game_id, created_at=now.isoformat())
-    run_repo.create(str(uuid.uuid4()), registered_user.user_id, sample_game.game_id, created_at=now.isoformat())
+    run_repo.create(
+        str(uuid.uuid4()),
+        registered_user.user_id,
+        sample_game.game_id,
+        created_at=now.isoformat(),
+    )
+    run_repo.create(
+        str(uuid.uuid4()),
+        registered_user.user_id,
+        sample_game.game_id,
+        created_at=now.isoformat(),
+    )
 
     # Confirm the trial status reflects 2 runs used.
-    trial_status = billing_service.get_discovery_run_status(registered_user.user_id, now=now)
+    trial_status = billing_service.get_discovery_run_status(
+        registered_user.user_id, now=now
+    )
     assert trial_status.monthly.used == 2
-    assert trial_status.monthly.remaining == 1  # TRIAL_LIMITS monthly = 3
+    assert trial_status.monthly.remaining == 23
 
     # Activate a paid subscription (simulates Paddle webhook).
     billing_service._subs.update_from_paddle(
@@ -352,9 +358,16 @@ def test_trial_discovery_runs_count_toward_monthly_limit_after_activation(
 
     # After activation the monthly window is the same calendar month —
     # the 2 runs already recorded must still count toward the paid limit.
-    paid_status = billing_service.get_discovery_run_status(registered_user.user_id, now=now)
+    paid_status = billing_service.get_discovery_run_status(
+        registered_user.user_id, now=now
+    )
     assert paid_status.monthly.used == 2
-    assert paid_status.monthly.remaining == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"] - 2
+    assert (
+        paid_status.monthly.remaining
+        == TIER_LIMITS[Tier.INDIE]["discovery_runs_per_month"] - 2
+    )
+
+
 def test_comped_access_gets_paid_limits(billing_service, registered_user):
     billing_service.grant_comped_access(registered_user.user_id)
 
@@ -752,4 +765,3 @@ def test_canceled_subscription_keeps_access_until_period_end():
         updated_at=sub.updated_at,
     )
     assert sub.has_access is True
-

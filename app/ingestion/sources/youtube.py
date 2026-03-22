@@ -42,6 +42,46 @@ CHANNEL_FILTER = "EgIQAg%3D%3D"  # YouTube search filter: channels only
 
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+_LOCALIZED_DIGIT_TRANSLATION = str.maketrans(
+    {
+        "٠": "0",
+        "١": "1",
+        "٢": "2",
+        "٣": "3",
+        "٤": "4",
+        "٥": "5",
+        "٦": "6",
+        "٧": "7",
+        "٨": "8",
+        "٩": "9",
+        "۰": "0",
+        "۱": "1",
+        "۲": "2",
+        "۳": "3",
+        "۴": "4",
+        "۵": "5",
+        "۶": "6",
+        "۷": "7",
+        "۸": "8",
+        "۹": "9",
+        "٫": ".",
+        "٬": ",",
+    }
+)
+_SUBSCRIBER_MULTIPLIER_ALIASES: tuple[tuple[str, int], ...] = (
+    ("b", 1_000_000_000),
+    ("billion", 1_000_000_000),
+    ("میلیارد", 1_000_000_000),
+    ("مليار", 1_000_000_000),
+    ("m", 1_000_000),
+    ("million", 1_000_000),
+    ("میلیون", 1_000_000),
+    ("مليون", 1_000_000),
+    ("k", 1_000),
+    ("thousand", 1_000),
+    ("هزار", 1_000),
+    ("الف", 1_000),
+)
 
 _HEADERS = {
     "User-Agent": (
@@ -159,7 +199,9 @@ class YouTubeSource(CandidateSource):
         for renderer in renderers:
             if len(records) >= limit:
                 break
-            record = _parse_channel_renderer(renderer, tagged_query, self._config)
+            record = _parse_channel_renderer(
+                renderer, tagged_query, self._config
+            )
             if record is None or record.handle in seen_ids:
                 continue
             seen_ids.add(record.handle)
@@ -543,13 +585,27 @@ def _parse_video_count(text: str) -> int | None:
 
 def _parse_subscriber_count(text: str) -> int | None:
     """Parse subscriber count like '1.2M subscribers' -> 1200000."""
-    normalized = text.lower().replace(",", "").strip()
-    match = re.search(r"(\d+(?:\.\d+)?)\s*([kmb])?", normalized)
+    if not text:
+        return None
+    normalized = " ".join(
+        text.lower().translate(_LOCALIZED_DIGIT_TRANSLATION).split()
+    )
+    match = re.search(r"\d+(?:[.,]\d+)?", normalized)
     if not match:
         return None
-    number = float(match.group(1))
-    suffix = match.group(2) or ""
-    multiplier = {"": 1, "k": 1_000, "m": 1_000_000, "b": 1_000_000_000}.get(
-        suffix, 1
-    )
+
+    number_text = match.group(0)
+    suffix_region = normalized[match.end() :].lstrip()
+    multiplier = 1
+    has_multiplier_suffix = False
+    for alias, alias_multiplier in _SUBSCRIBER_MULTIPLIER_ALIASES:
+        if suffix_region.startswith(alias):
+            multiplier = alias_multiplier
+            has_multiplier_suffix = True
+            break
+
+    if has_multiplier_suffix:
+        number = float(number_text.replace(",", "."))
+    else:
+        number = float(number_text.replace(",", ""))
     return int(number * multiplier)

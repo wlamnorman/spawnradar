@@ -22,7 +22,9 @@ class QueueItemPayload(TypedDict):
     display_name: str
     profile_url: str | None
     contact_channel: str | None
+    contact_value: str | None
     audience_size: int | None
+    followers_count: int | None
     avatar_url: str | None
     recent_video_thumbnails: list[str]
     status: str
@@ -61,7 +63,9 @@ class ReviewQueuePresenter:
                     "display_name": item.prospect.display_name,
                     "profile_url": item.prospect.profile_url,
                     "contact_channel": item.prospect.contact_channel,
+                    "contact_value": item.prospect.contact_value,
                     "audience_size": item.prospect.audience_size,
+                    "followers_count": _raw_int(raw, "followers_count"),
                     "avatar_url": raw.get("avatar_url"),
                     "recent_video_thumbnails": _recent_thumbnails(
                         raw, self._thumbnail_limit
@@ -113,3 +117,13 @@ def _recent_thumbnails(raw_data: dict, limit: int) -> list[str]:
     if not isinstance(value, list):
         return []
     return [thumb for thumb in value[:limit] if isinstance(thumb, str)]
+
+
+def _raw_int(raw_data: dict, key: str) -> int | None:
+    """Read an integer from stored raw prospect data when present."""
+    value = raw_data.get(key)
+    return (
+        value
+        if isinstance(value, int) and not isinstance(value, bool)
+        else None
+    )

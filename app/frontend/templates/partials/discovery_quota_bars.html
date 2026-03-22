@@ -1,0 +1,26 @@
+<div class="quota-bars" aria-label="Discovery limits">
+    <p class="quota-bars-title">Discovery Limits</p>
+    {% for window_name, label in [
+        ("hourly", "Hourly"),
+        ("daily", "Daily"),
+        ("monthly", "Monthly"),
+    ] %}
+        {% set window = discovery_status | attr(window_name) %}
+        {% if window.limit > 0 %}
+        {% set pct = ((window.remaining / window.limit) * 100) | round(1) %}
+        <div class="quota-bar-row" data-discovery-window="{{ window_name }}">
+            <span class="quota-bar-label">{{ label }}</span>
+            <div class="quota-bar-track">
+                <div
+                    class="quota-bar-fill"
+                    data-discovery-fill
+                    style="width: {{ pct }}%;"
+                ></div>
+            </div>
+            <span class="quota-bar-count" data-discovery-count>
+                {{ window.remaining }} / {{ window.limit }} left
+            </span>
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>

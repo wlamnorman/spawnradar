@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from collections.abc import Collection, Mapping
+from dataclasses import replace
 from typing import Any
 
 import httpx
@@ -22,6 +24,11 @@ _HEADERS = {
     "User-Agent": "SpawnRadar/1.0 (+https://spawnradar.com)",
     "Accept": "application/json",
 }
+_MIN_VIEWER_COUNT = 3
+_FOLLOWER_FETCH_CONCURRENCY = 8
+
+log = logging.getLogger(__name__)
+
 _DEV_KEYWORDS = (
     "developer",
     "devlog",
@@ -75,7 +82,9 @@ class TwitchSource(CandidateSource):
         collect_target = min(limit * (4 if run_index else 2), 120)
         cursors = page_cursors if page_cursors is not None else {}
 
-        async with httpx.AsyncClient(timeout=self._timeout, headers=_HEADERS) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout, headers=_HEADERS
+        ) as client:
             access_token = await self._fetch_app_access_token(client)
             auth_headers = {
                 **_HEADERS,
@@ -106,7 +115,11 @@ class TwitchSource(CandidateSource):
                     cursors.pop(cursor_key, None)
 
                 for channel in batch:
-                    handle = str(channel.get("broadcaster_login", "")).strip().lower()
+                    handle = (
+                        str(channel.get("broadcaster_login", ""))
+                        .strip()
+                        .lower()
+                    )
                     if not handle or handle in seen_handles:
                         continue
                     seen_handles.add(handle)
@@ -117,7 +130,9 @@ class TwitchSource(CandidateSource):
                 if i < len(queries) - 1:
                     await asyncio.sleep(self._delay)
 
-            candidates = await self._enrich_results(client, auth_headers, search_results)
+            candidates = await self._enrich_results(
+                client, auth_headers, search_results
+            )
 
         return candidates[:limit]
 
@@ -134,7 +149,9 @@ class TwitchSource(CandidateSource):
         payload = response.json()
         token = str(payload.get("access_token", "")).strip()
         if not token:
-            raise ValueError("Twitch app access token missing from OAuth response.")
+            raise ValueError(
+                "Twitch app access token missing from OAuth response."
+            )
         return token
 
     async def _search_channels(
@@ -162,8 +179,14 @@ class TwitchSource(CandidateSource):
         response.raise_for_status()
         body = response.json()
         pagination = body.get("pagination")
-        next_cursor = pagination.get("cursor") if isinstance(pagination, dict) else None
-        records = [item for item in _as_list(body.get("data")) if isinstance(item, dict)]
+        next_cursor = (
+            pagination.get("cursor") if isinstance(pagination, dict) else None
+        )
+        records = [
+            item
+            for item in _as_list(body.get("data"))
+            if isinstance(item, dict)
+        ]
         return records, str(next_cursor).strip() if next_cursor else None
 
     async def _enrich_results(
@@ -175,11 +198,15 @@ class TwitchSource(CandidateSource):
         if not search_results:
             return []
 
-        broadcaster_ids = [str(result[0].get("id", "")).strip() for result in search_results]
+        broadcaster_ids = [
+            str(result[0].get("id", "")).strip() for result in search_results
+        ]
         users_by_id = await self._fetch_users(client, headers, broadcaster_ids)
-        streams_by_user = await self._fetch_streams(client, headers, broadcaster_ids)
+        streams_by_user = await self._fetch_streams(
+            client, headers, broadcaster_ids
+        )
 
-        candidates: list[CandidateRecord] = []
+        candidate_rows: list[tuple[str, CandidateRecord]] = []
         for channel, tagged_query in search_results:
             broadcaster_id = str(channel.get("id", "")).strip()
             candidate = _candidate_from_search_result(
@@ -189,8 +216,20 @@ class TwitchSource(CandidateSource):
                 tagged_query,
             )
             if candidate is not None:
-                candidates.append(candidate)
-        return candidates
+                candidate_rows.append((broadcaster_id, candidate))
+
+        follower_totals = await self._fetch_follower_totals(
+            client,
+            headers,
+            [broadcaster_id for broadcaster_id, _candidate in candidate_rows],
+        )
+
+        return [
+            _with_follower_count(
+                candidate, follower_totals.get(broadcaster_id)
+            )
+            for broadcaster_id, candidate in candidate_rows
+        ]
 
     async def _fetch_users(
         self,
@@ -240,6 +279,57 @@ class TwitchSource(CandidateSource):
                     rows[user_id] = item
         return rows
 
+    async def _fetch_follower_totals(
+        self,
+        client: httpx.AsyncClient,
+        headers: dict[str, str],
+        broadcaster_ids: list[str],
+    ) -> dict[str, int]:
+        """Return Twitch follower totals keyed by broadcaster ID.
+
+        Helix's Get Channel Followers endpoint returns the aggregate ``total``
+        even when the caller lacks moderator-level follower visibility. We use
+        that public total to enrich cards, but discovery still succeeds if
+        Twitch tightens the behavior or any request fails.
+        """
+        follower_totals: dict[str, int] = {}
+        semaphore = asyncio.Semaphore(_FOLLOWER_FETCH_CONCURRENCY)
+
+        async def fetch_total(broadcaster_id: str) -> None:
+            async with semaphore:
+                try:
+                    response = await client.get(
+                        f"{_TWITCH_API_BASE}/channels/followers",
+                        params={"broadcaster_id": broadcaster_id, "first": 1},
+                        headers=headers,
+                    )
+                    response.raise_for_status()
+                    body = response.json()
+                except (httpx.HTTPError, ValueError) as exc:
+                    log.debug(
+                        "Skipping Twitch follower enrichment for %s: %s",
+                        broadcaster_id,
+                        exc,
+                    )
+                    return
+
+            if not isinstance(body, Mapping):
+                return
+
+            total = _optional_int(body.get("total"))
+            if total is not None:
+                follower_totals[broadcaster_id] = total
+
+        await asyncio.gather(
+            *(
+                fetch_total(broadcaster_id)
+                for broadcaster_id in sorted(
+                    {bid for bid in broadcaster_ids if bid}
+                )
+            )
+        )
+        return follower_totals
+
 
 def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     return build_tagged_queries(
@@ -287,23 +377,47 @@ def _candidate_from_search_result(
     stream = stream or {}
 
     display_name = str(
-        channel.get("display_name")
-        or user.get("display_name")
-        or login
+        channel.get("display_name") or user.get("display_name") or login
     ).strip()
     description = str(user.get("description", "")).strip() or None
-    title = str(stream.get("title") or channel.get("title") or "").strip() or None
-    game_id = str(stream.get("game_id") or channel.get("game_id") or "").strip() or None
-    game_name = str(stream.get("game_name") or channel.get("game_name") or "").strip() or None
-    language = str(
-        stream.get("language") or channel.get("broadcaster_language") or ""
-    ).strip() or None
-    started_at = str(stream.get("started_at") or channel.get("started_at") or "").strip() or None
+    title = (
+        str(stream.get("title") or channel.get("title") or "").strip() or None
+    )
+    game_id = (
+        str(stream.get("game_id") or channel.get("game_id") or "").strip()
+        or None
+    )
+    game_name = (
+        str(stream.get("game_name") or channel.get("game_name") or "").strip()
+        or None
+    )
+    language = (
+        str(
+            stream.get("language") or channel.get("broadcaster_language") or ""
+        ).strip()
+        or None
+    )
+    started_at = (
+        str(
+            stream.get("started_at") or channel.get("started_at") or ""
+        ).strip()
+        or None
+    )
     tags = _string_list(stream.get("tags") or channel.get("tags"))
     viewer_count = _optional_int(stream.get("viewer_count"))
-    avatar_url = str(user.get("profile_image_url") or channel.get("thumbnail_url") or "").strip() or None
+    if viewer_count is None or viewer_count < _MIN_VIEWER_COUNT:
+        return None
+    avatar_url = (
+        str(
+            user.get("profile_image_url") or channel.get("thumbnail_url") or ""
+        ).strip()
+        or None
+    )
     preview_thumbnail = _normalize_thumbnail(
-        str(stream.get("thumbnail_url") or channel.get("thumbnail_url") or "").strip() or None
+        str(
+            stream.get("thumbnail_url") or channel.get("thumbnail_url") or ""
+        ).strip()
+        or None
     )
 
     contact_channel = "twitch_dm"
@@ -328,7 +442,9 @@ def _candidate_from_search_result(
         broadcaster_language=language,
         tags=tags,
         avatar_url=avatar_url,
-        recent_video_thumbnails=[preview_thumbnail] if preview_thumbnail else [],
+        recent_video_thumbnails=[preview_thumbnail]
+        if preview_thumbnail
+        else [],
         source_genre_tag=tags_context.genre,
         source_audience_tag=tags_context.audience,
         source_mechanics_tag=tags_context.mechanics,
@@ -336,7 +452,9 @@ def _candidate_from_search_result(
     ).model_dump()
 
     text_signals = _text_signals(title, description, game_name, tags)
-    prospect_type = _infer_prospect_type(display_name, description, title, game_name, tags)
+    prospect_type = _infer_prospect_type(
+        display_name, description, title, game_name, tags
+    )
 
     summary_bits = [bit for bit in (title, description) if bit]
     summary = " ".join(summary_bits).strip() or None
@@ -390,7 +508,15 @@ def _infer_prospect_type(
     tags: list[str],
 ) -> str:
     haystack = " ".join(
-        part for part in [display_name, description, title, game_name, " ".join(tags)] if part
+        part
+        for part in [
+            display_name,
+            description,
+            title,
+            game_name,
+            " ".join(tags),
+        ]
+        if part
     ).lower()
     if any(keyword in haystack for keyword in _DEV_KEYWORDS):
         return "developer"
@@ -403,8 +529,19 @@ def _normalize_thumbnail(value: str | None) -> str | None:
     return value.replace("{width}", "640").replace("{height}", "360")
 
 
+def _with_follower_count(
+    candidate: CandidateRecord, follower_count: int | None
+) -> CandidateRecord:
+    if follower_count is None:
+        return candidate
+    return replace(
+        candidate,
+        raw_data={**candidate.raw_data, "followers_count": follower_count},
+    )
+
+
 def _chunks(values: list[str], size: int) -> list[list[str]]:
-    return [values[i:i + size] for i in range(0, len(values), size)]
+    return [values[i : i + size] for i in range(0, len(values), size)]
 
 
 def _as_list(value: object) -> list[object]:

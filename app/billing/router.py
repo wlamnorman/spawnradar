@@ -27,9 +27,9 @@ async def billing_page(
     if not sub.has_subscription and not sub.is_trialing:
         return RedirectResponse(url="/pricing", status_code=303)
     return templates.TemplateResponse(
+        request,
         "billing/manage.html",
         {
-            "request": request,
             "user": user,
             "subscription": sub,
             "portal_enabled": billing.portal_enabled,
@@ -139,9 +139,9 @@ async def customer_portal(
 
     def _billing_page(error: str):
         return templates.TemplateResponse(
+            request,
             "billing/manage.html",
             {
-                "request": request,
                 "user": user,
                 "subscription": sub,
                 "portal_enabled": billing.portal_enabled,
