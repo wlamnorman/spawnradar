@@ -309,6 +309,13 @@ class MetricsService:
             ),
         )
 
+    def get_discovery_run_fact(self, run_id: str) -> DiscoveryRunFact | None:
+        return self._best_effort(
+            "discovery_run_fact_lookup",
+            None,
+            lambda: self._repo.get_discovery_run_fact(run_id),
+        )
+
     def record_prospect_score(
         self,
         run_id: str,

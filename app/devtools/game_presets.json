@@ -31,10 +31,10 @@
     "description": "You've inherited your grandmother's greenhouse on the edge of Ashwick - a sleepy coastal village with a strange problem: every seven days, the townsfolk wake up with no memory of the week before.\n\nTend your magical garden, brew tonics and build relationships with the villagers before the reset. Each cycle you remember what they forget and bit by bit, you piece together the curse that has kept Ashwick frozen in time.\n\nFeatures:\n\nCozy farming and shop management - plant, harvest, brew and sell tonics to the villagers each week\n\nA living mystery - every NPC has a hidden truth; the more you befriend them, the more slips through the amnesia\n\nTime-loop structure with persistent progress - you remember everything; use that knowledge to go further each cycle\n\nHand-painted art style with a warm, melancholic atmosphere\n\nRich cast of villagers, each with their own routines, secrets and story arcs\n\nNo combat - just curiosity, kindness and careful observation",
     "genre_tags_raw": "",
     "genre_primary_tags_raw": "farming sim, mystery, life sim",
-    "genre_secondary_tags_raw": "narrative adventure",
-    "mechanics_primary_tags_raw": "time loop, resource management, relationship building",
-    "vibe_primary_tags_raw": "cozy, melancholic, atmospheric, hand-drawn",
-    "kindred_primary_tags_raw": "",
+    "genre_secondary_tags_raw": "narrative adventure, management",
+    "mechanics_primary_tags_raw": "resource management, meta-progression, branching narrative",
+    "vibe_primary_tags_raw": "cozy, atmospheric, hand-drawn, relaxing",
+    "kindred_primary_tags_raw": "stardew valley, animal crossing, outer wilds, spiritfarer, night in the woods, oxenfree, disco elysium, what remains of edith finch",
     "platform_tags": ["PC", "mobile"],
     "website_url": null
   }

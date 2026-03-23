@@ -22,15 +22,13 @@ from app.auth.dependencies import require_product_access
 from app.auth.models import User
 from app.billing.models import TIER_LIMITS, TRIAL_LIMITS
 from app.billing.service import BillingService
-from app.config import Settings
 from app.dependencies import (
     get_asset_repo,
     get_billing_service,
+    get_discovery_run_service,
     get_draft_repo,
     get_game_repo,
     get_game_service,
-    get_metrics_service,
-    get_settings,
     get_template_repo,
     get_templates,
 )
@@ -41,8 +39,7 @@ from app.games.repository import (
 )
 from app.games.service import GameService
 from app.games.tags import catalog_for, featured_tags_for
-from app.ingestion.pipeline import run_ingestion
-from app.metrics.service import MetricsService
+from app.ingestion.service import DiscoveryRunService
 from app.prospects.repository import DraftItemRepository
 from app.security import require_csrf_form, require_csrf_header
 
@@ -517,8 +514,9 @@ async def run_ingestion_api(
     game_repo: GameRepository = Depends(get_game_repo),
     billing_service: BillingService = Depends(get_billing_service),
     game_service: GameService = Depends(get_game_service),
-    metrics_service: MetricsService = Depends(get_metrics_service),
-    settings: Settings = Depends(get_settings),
+    discovery_run_service: DiscoveryRunService = Depends(
+        get_discovery_run_service
+    ),
     _csrf: None = Depends(require_csrf_header),
 ) -> JSONResponse:
     """Trigger the discovery + scoring pipeline for a game (runs in background)."""
@@ -548,17 +546,10 @@ async def run_ingestion_api(
         pass
 
     background_tasks.add_task(
-        run_ingestion,
+        discovery_run_service.run_ingestion,
         game,
-        settings.db_path,
-        limit,
-        settings.youtube_api_key,
-        settings.anthropic_api_key,
-        settings.youtube_cache_dir,
-        settings.twitch_client_id,
-        settings.twitch_client_secret,
+        limit_per_source=limit,
         run_id=discovery_status.run_id,
-        metrics_service=metrics_service,
         sources_override=sources_override,
     )
 
@@ -566,6 +557,7 @@ async def run_ingestion_api(
         {
             "ok": True,
             "message": "Discovery pipeline started in the background.",
+            "run_id": discovery_status.run_id,
             "usage": discovery_status.as_payload(),
         }
     )

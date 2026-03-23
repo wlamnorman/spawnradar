@@ -20,6 +20,7 @@ from app.games.repository import (
     MessageTemplateRepository,
 )
 from app.games.service import GameService
+from app.ingestion.service import DiscoveryRunService
 from app.metrics.service import MetricsService
 from app.prospects.repository import DraftItemRepository, ProspectRepository
 from app.prospects.service import ProspectService
@@ -51,6 +52,10 @@ def get_billing_service(request: Request) -> BillingService:
 
 def get_prospect_service(request: Request) -> ProspectService:
     return request.app.state.prospect_service
+
+
+def get_discovery_run_service(request: Request) -> DiscoveryRunService:
+    return request.app.state.discovery_run_service
 
 
 def get_metrics_service(request: Request) -> MetricsService:

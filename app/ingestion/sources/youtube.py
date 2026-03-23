@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from collections.abc import Collection
+from collections.abc import AsyncIterator, Collection
 from dataclasses import replace
 from typing import Any
 from urllib.parse import quote_plus
@@ -138,21 +138,40 @@ class YouTubeSource(CandidateSource):
         excluded_handles: Collection[str] | None = None,
         page_cursors: dict[str, str] | None = None,
     ) -> list[CandidateRecord]:
-        """Return up to *limit* active YouTube channel candidates for *game*."""
+        results: list[CandidateRecord] = []
+        async for batch in self.discover_batches(
+            game,
+            limit,
+            run_index=run_index,
+            excluded_handles=excluded_handles,
+            page_cursors=page_cursors,
+        ):
+            results.extend(batch)
+        return results[:limit]
+
+    async def discover_batches(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> AsyncIterator[list[CandidateRecord]]:
+        """Yield active YouTube channel batches query-by-query."""
+        del page_cursors
         queries = _build_queries(game, run_index)
         seen_handles: set[str] = {
             handle.lower() for handle in (excluded_handles or ())
         }
-        candidates: list[CandidateRecord] = []
-
-        # Collect more than needed so recency filtering doesn't leave us short
         collect_target = min(limit * (4 if run_index else 2), 120)
+        yielded_count = 0
 
         async with httpx.AsyncClient(
             headers=_HEADERS, timeout=self._timeout
         ) as client:
             for i, tagged_query in enumerate(queries):
-                if len(candidates) >= collect_target:
+                if yielded_count >= collect_target:
                     break
                 try:
                     batch = await self._search_channels(
@@ -163,21 +182,26 @@ class YouTubeSource(CandidateSource):
                 except Exception:
                     continue
 
+                query_candidates: list[CandidateRecord] = []
                 for record in batch:
                     normalized_handle = record.handle.lower()
-                    if normalized_handle not in seen_handles:
-                        seen_handles.add(normalized_handle)
-                        candidates.append(record)
-                        if len(candidates) >= collect_target:
-                            break
+                    if normalized_handle in seen_handles:
+                        continue
+                    seen_handles.add(normalized_handle)
+                    query_candidates.append(record)
+
+                if query_candidates:
+                    active_batch = await self._filter_inactive(
+                        client, query_candidates
+                    )
+                    remaining = collect_target - yielded_count
+                    active_batch = active_batch[:remaining]
+                    if active_batch:
+                        yielded_count += len(active_batch)
+                        yield active_batch
 
                 if i < len(queries) - 1:
                     await asyncio.sleep(self._delay)
-
-            # Drop channels that haven't uploaded recently
-            candidates = await self._filter_inactive(client, candidates)
-
-        return candidates[:limit]
 
     async def _search_channels(
         self,

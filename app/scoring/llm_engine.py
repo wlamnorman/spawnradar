@@ -6,7 +6,7 @@ game type?) and why_selected (a plain-English explanation for the queue UI).
 
 Cost (claude-haiku-4-5):
   ~600 input + ~200 output tokens per channel ≈ $0.0016/channel
-  30 channels/run ≈ $0.048/run — essentially free.
+  80–110 channels/run ≈ $0.13–$0.18/run.
 
 All channels in a run are scored concurrently (asyncio.gather), so the
 LLM step adds roughly one API call's latency, not N.
@@ -124,7 +124,7 @@ Return a JSON object with exactly these fields:
 - "genre_fit": float 0.0–1.0 — does this channel cover games in this genre or adjacent ones?
 - "vibe_fit": float 0.0–1.0 — does this channel's content aesthetic and vibe match the game's tone and feel?
 - "format_fit": float 0.0–1.0 — does their content format suit this type of game? (e.g. "I tried this weird browser game" formats score high for small indie games; deep 45-min critiques of AAA titles score low; for Reddit communities return 0.5)
-- "platform_fit": float 0.0–1.0 — does this creator or community cover the game's target platform(s)? Game platform tags may include: PC, Nintendo Switch, PlayStation, Xbox, VR, mobile, browser. A channel that covers the matching platform(s) scores 1.0; a channel focused on different platforms scores 0.1–0.3; a broad channel with no clear platform focus scores 0.5. If no platform tags are specified, return 0.5.
+- "platform_fit": float 0.0–1.0 — does this creator or community cover the game's target platform(s)? Game platform tags may include: PC, Nintendo Switch, PlayStation, Xbox, VR, mobile, browser, board game. A channel that covers the matching platform(s) scores 1.0; a channel focused on different platforms scores 0.1–0.3; a broad channel with no clear platform focus scores 0.5. If no platform tags are specified, return 0.5.
 - "fit_summary": string — one sentence explaining the overall fit
 - "why_selected": string — plain-English reason why this creator is (or isn't) worth reaching out to, e.g. "Covers browser puzzle games weekly, active community, posts business email in description"
 

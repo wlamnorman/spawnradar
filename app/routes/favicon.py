@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from fastapi.responses import FileResponse
 
 router = APIRouter()
@@ -43,3 +43,12 @@ def _register_root_favicon_asset(route_path: str, asset_path: str) -> None:
 
 for route_path, asset_path in _ROOT_FAVICON_ASSETS:
     _register_root_favicon_asset(route_path, asset_path)
+
+
+@router.get(
+    "/.well-known/appspecific/com.chrome.devtools.json",
+    include_in_schema=False,
+)
+async def chrome_devtools_appspecific() -> Response:
+    """Silence harmless Chrome DevTools discovery probes."""
+    return Response(status_code=204)

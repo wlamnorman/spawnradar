@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import AsyncIterator, Collection, Mapping
 from dataclasses import replace
 from typing import Any
 
@@ -76,10 +76,30 @@ class TwitchSource(CandidateSource):
         excluded_handles: Collection[str] | None = None,
         page_cursors: dict[str, str] | None = None,
     ) -> list[CandidateRecord]:
+        results: list[CandidateRecord] = []
+        async for batch in self.discover_batches(
+            game,
+            limit,
+            run_index=run_index,
+            excluded_handles=excluded_handles,
+            page_cursors=page_cursors,
+        ):
+            results.extend(batch)
+        return results[:limit]
+
+    async def discover_batches(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> AsyncIterator[list[CandidateRecord]]:
         queries = _build_queries(game, run_index)
         seen_handles = {handle.lower() for handle in (excluded_handles or ())}
-        candidates: list[CandidateRecord] = []
         collect_target = min(limit * (4 if run_index else 2), 120)
+        yielded_count = 0
         cursors = page_cursors if page_cursors is not None else {}
 
         async with httpx.AsyncClient(
@@ -92,9 +112,8 @@ class TwitchSource(CandidateSource):
                 "Client-Id": self._client_id,
             }
 
-            search_results: list[tuple[dict[str, Any], TaggedQuery]] = []
             for i, tagged_query in enumerate(queries):
-                if len(search_results) >= collect_target:
+                if yielded_count >= collect_target:
                     break
 
                 cursor_key = f"search:{tagged_query.text}"
@@ -114,6 +133,8 @@ class TwitchSource(CandidateSource):
                 else:
                     cursors.pop(cursor_key, None)
 
+                search_results: list[tuple[dict[str, Any], TaggedQuery]] = []
+                remaining = collect_target - yielded_count
                 for channel in batch:
                     handle = (
                         str(channel.get("broadcaster_login", ""))
@@ -124,17 +145,19 @@ class TwitchSource(CandidateSource):
                         continue
                     seen_handles.add(handle)
                     search_results.append((channel, tagged_query))
-                    if len(search_results) >= collect_target:
+                    if len(search_results) >= remaining:
                         break
+
+                if search_results:
+                    candidates = await self._enrich_results(
+                        client, auth_headers, search_results
+                    )
+                    if candidates:
+                        yielded_count += len(candidates)
+                        yield candidates
 
                 if i < len(queries) - 1:
                     await asyncio.sleep(self._delay)
-
-            candidates = await self._enrich_results(
-                client, auth_headers, search_results
-            )
-
-        return candidates[:limit]
 
     async def _fetch_app_access_token(self, client: httpx.AsyncClient) -> str:
         response = await client.post(
@@ -201,9 +224,9 @@ class TwitchSource(CandidateSource):
         broadcaster_ids = [
             str(result[0].get("id", "")).strip() for result in search_results
         ]
-        users_by_id = await self._fetch_users(client, headers, broadcaster_ids)
-        streams_by_user = await self._fetch_streams(
-            client, headers, broadcaster_ids
+        users_by_id, streams_by_user = await asyncio.gather(
+            self._fetch_users(client, headers, broadcaster_ids),
+            self._fetch_streams(client, headers, broadcaster_ids),
         )
 
         candidate_rows: list[tuple[str, CandidateRecord]] = []

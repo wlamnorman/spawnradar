@@ -13,6 +13,7 @@ from app.ingestion.base import CandidateRecord, SourceRuntime
 from app.ingestion.pipeline import _resolve_source_name, run_ingestion
 from app.ingestion.query_builder import SourceTags, TaggedQuery
 from app.ingestion.registry import Source, available_sources
+from app.ingestion.service import DiscoveryRunService
 from app.ingestion.sources.bluesky import (
     BlueskySource,
     _fetch_recent_posts,
@@ -26,6 +27,7 @@ from app.ingestion.sources.youtube import _parse_subscriber_count
 from app.prospects.presenter import ReviewQueuePresenter
 from app.prospects.repository import DraftItemRepository, OutcomeRepository
 from app.prospects.service import ProspectService
+from app.scoring.llm_engine import LLMFitScores
 
 
 class _FakeResponse:
@@ -100,6 +102,10 @@ def test_resolve_source_name_prefers_youtube_api_with_key():
     assert _resolve_source_name(Source.YOUTUBE, runtime) == Source.YOUTUBE_API
     assert _resolve_source_name(Source.BLUESKY, runtime) == Source.BLUESKY
     assert _resolve_source_name(Source.TWITCH, runtime) == Source.TWITCH
+    assert (
+        DiscoveryRunService.resolve_source_name(Source.YOUTUBE, runtime)
+        == Source.YOUTUBE_API
+    )
 
 
 def test_bluesky_actor_parsing_and_feed_enrichment():
@@ -279,7 +285,7 @@ def test_run_ingestion_imports_bluesky_candidates(
     )
     game = replace(game, discovery_sources=[Source.BLUESKY])
 
-    async def fake_discover(
+    async def fake_discover_batches(
         self,
         game,
         limit,
@@ -289,7 +295,7 @@ def test_run_ingestion_imports_bluesky_candidates(
         page_cursors=None,
     ):
         del self, game, limit, run_index, excluded_handles
-        return [
+        yield [
             CandidateRecord(
                 platform="bluesky",
                 handle="solo-dev.bsky.social",
@@ -316,7 +322,9 @@ def test_run_ingestion_imports_bluesky_candidates(
             )
         ]
 
-    monkeypatch.setattr(BlueskySource, "discover", fake_discover)
+    monkeypatch.setattr(
+        BlueskySource, "discover_batches", fake_discover_batches
+    )
 
     summary = asyncio.run(
         run_ingestion(
@@ -361,7 +369,7 @@ def test_run_ingestion_reruns_pass_run_index_and_exclude_seen_handles(
 
     calls: list[dict[str, object]] = []
 
-    async def fake_discover(
+    async def fake_discover_batches(
         self,
         game,
         limit,
@@ -378,7 +386,7 @@ def test_run_ingestion_reruns_pass_run_index_and_exclude_seen_handles(
             }
         )
         if run_index == 0:
-            return [
+            yield [
                 CandidateRecord(
                     platform="bluesky",
                     handle="alpha.bsky.social",
@@ -416,12 +424,13 @@ def test_run_ingestion_reruns_pass_run_index_and_exclude_seen_handles(
                     prospect_type="creator",
                 ),
             ]
+            return
 
         assert set(excluded_handles or set()) == {
             "alpha.bsky.social",
             "beta.bsky.social",
         }
-        return [
+        yield [
             CandidateRecord(
                 platform="bluesky",
                 handle="gamma.bsky.social",
@@ -460,7 +469,9 @@ def test_run_ingestion_reruns_pass_run_index_and_exclude_seen_handles(
             ),
         ]
 
-    monkeypatch.setattr(BlueskySource, "discover", fake_discover)
+    monkeypatch.setattr(
+        BlueskySource, "discover_batches", fake_discover_batches
+    )
 
     first_summary = asyncio.run(
         run_ingestion(game, db_path, limit_per_source=5)
@@ -509,6 +520,464 @@ def test_run_ingestion_reruns_pass_run_index_and_exclude_seen_handles(
     assert draft_count == 4
 
 
+def test_discovery_run_service_runs_ingestion_directly(
+    monkeypatch,
+    discovery_run_service,
+    game_service,
+    registered_user,
+):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="Service Discovery",
+        summary="Run discovery through the service entry point.",
+        description="Run discovery through the service entry point.",
+        genre_tags_raw="strategy, tactics",
+        platform_tags=["pc"],
+        website_url=None,
+    )
+    game = replace(game, discovery_sources=[Source.BLUESKY])
+
+    async def fake_discover_batches(
+        self,
+        game,
+        limit,
+        *,
+        run_index=0,
+        excluded_handles=None,
+        page_cursors=None,
+    ):
+        del self, game, limit, run_index, excluded_handles, page_cursors
+        yield [
+            CandidateRecord(
+                platform="bluesky",
+                handle="service-fit.bsky.social",
+                display_name="Service Fit",
+                profile_url="https://bsky.app/profile/service-fit.bsky.social",
+                contact_channel="email",
+                contact_value="service@example.com",
+                audience_size=1400,
+                engagement_rate=None,
+                description="PC strategy creator covering tactics games.",
+                raw_data={
+                    "did": "did:plc:service",
+                    "handle": "service-fit.bsky.social",
+                },
+                last_active_days=1,
+                text_signals=["Coverage of PC strategy and tactics games."],
+                prospect_type="creator",
+            )
+        ]
+
+    monkeypatch.setattr(
+        BlueskySource, "discover_batches", fake_discover_batches
+    )
+
+    summary = asyncio.run(
+        discovery_run_service.run_ingestion(game, limit_per_source=5)
+    )
+
+    assert summary == {"discovered": 1, "scored": 1, "imported": 1}
+
+
+def test_run_ingestion_queues_first_batch_before_source_finishes(
+    monkeypatch, db_path, game_service, registered_user
+):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="Incremental Discovery",
+        summary="Discovery should surface candidates before the source is done.",
+        description="Discovery should surface candidates before the source is done.",
+        genre_tags_raw="strategy, tactics",
+        platform_tags=["pc"],
+        website_url=None,
+    )
+    game = replace(game, discovery_sources=[Source.BLUESKY])
+
+    first_batch_processed = asyncio.Event()
+    release_second_batch = asyncio.Event()
+
+    async def fake_discover_batches(
+        self,
+        game,
+        limit,
+        *,
+        run_index=0,
+        excluded_handles=None,
+        page_cursors=None,
+    ):
+        del self, game, limit, run_index, excluded_handles, page_cursors
+        yield [
+            CandidateRecord(
+                platform="bluesky",
+                handle="first-wave.bsky.social",
+                display_name="First Wave",
+                profile_url="https://bsky.app/profile/first-wave.bsky.social",
+                contact_channel="bluesky_reply",
+                contact_value=None,
+                audience_size=1000,
+                engagement_rate=None,
+                description="PC strategy creator covering turn-based tactics.",
+                raw_data={
+                    "did": "did:plc:first",
+                    "handle": "first-wave.bsky.social",
+                },
+                last_active_days=1,
+                text_signals=["First batch post about PC tactics games"],
+                prospect_type="creator",
+            )
+        ]
+        first_batch_processed.set()
+        await release_second_batch.wait()
+        yield [
+            CandidateRecord(
+                platform="bluesky",
+                handle="second-wave.bsky.social",
+                display_name="Second Wave",
+                profile_url="https://bsky.app/profile/second-wave.bsky.social",
+                contact_channel="bluesky_reply",
+                contact_value=None,
+                audience_size=900,
+                engagement_rate=None,
+                description="Second strategy creator covering tactics players.",
+                raw_data={
+                    "did": "did:plc:second",
+                    "handle": "second-wave.bsky.social",
+                },
+                last_active_days=2,
+                text_signals=["Second batch post about strategy tactics"],
+                prospect_type="creator",
+            )
+        ]
+
+    monkeypatch.setattr(
+        BlueskySource, "discover_batches", fake_discover_batches
+    )
+
+    async def _run_and_assert() -> None:
+        task = asyncio.create_task(
+            run_ingestion(game, db_path, limit_per_source=5)
+        )
+        await asyncio.wait_for(first_batch_processed.wait(), timeout=1.0)
+
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS count FROM draft_items WHERE game_id = ?",
+                (game.game_id,),
+            ).fetchone()
+        assert row is not None
+        assert row["count"] == 1
+
+        release_second_batch.set()
+        summary = await task
+        assert summary == {"discovered": 2, "scored": 2, "imported": 2}
+
+    asyncio.run(_run_and_assert())
+
+
+def test_run_ingestion_caps_new_queue_inserts_without_removing_old_results(
+    monkeypatch, db_path, game_service, registered_user
+):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="Capped Discovery",
+        summary="Keep prior queue items and cap new imports per run.",
+        description="Keep prior queue items and cap new imports per run.",
+        genre_tags_raw="strategy, tactics",
+        platform_tags=["pc"],
+        website_url=None,
+    )
+    game = replace(game, discovery_sources=[Source.BLUESKY])
+
+    run_calls = 0
+
+    def _candidate(handle: str, index: int) -> CandidateRecord:
+        return CandidateRecord(
+            platform="bluesky",
+            handle=handle,
+            display_name=f"Creator {index}",
+            profile_url=f"https://bsky.app/profile/{handle}",
+            contact_channel="bluesky_reply",
+            contact_value=None,
+            audience_size=1_000 - index,
+            engagement_rate=None,
+            description="Strategy creator covering turn-based tactics on PC.",
+            raw_data={
+                "did": f"did:plc:{handle}",
+                "handle": handle,
+            },
+            last_active_days=1,
+            text_signals=[
+                "Turn-based tactics and strategy coverage for PC indie games."
+            ],
+            prospect_type="creator",
+        )
+
+    async def fake_discover_batches(
+        self,
+        game,
+        limit,
+        *,
+        run_index=0,
+        excluded_handles=None,
+        page_cursors=None,
+    ):
+        del self, game, limit, run_index, excluded_handles, page_cursors
+        nonlocal run_calls
+        run_calls += 1
+        if run_calls == 1:
+            yield [_candidate("existing-creator.bsky.social", 0)]
+            return
+
+        for batch_index in range(3):
+            offset = batch_index * 30
+            yield [
+                _candidate(
+                    f"creator-{offset + item}.bsky.social",
+                    offset + item + 1,
+                )
+                for item in range(30)
+            ]
+
+    monkeypatch.setattr(
+        BlueskySource, "discover_batches", fake_discover_batches
+    )
+
+    first_summary = asyncio.run(
+        run_ingestion(game, db_path, limit_per_source=5)
+    )
+    second_summary = asyncio.run(
+        run_ingestion(game, db_path, limit_per_source=50)
+    )
+
+    assert first_summary == {"discovered": 1, "scored": 1, "imported": 1}
+    assert second_summary["imported"] == 50
+    assert second_summary["scored"] == 50
+
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS count FROM draft_items WHERE game_id = ?",
+            (game.game_id,),
+        ).fetchone()
+        handles = conn.execute(
+            """
+            SELECT p.handle
+            FROM draft_items d
+            JOIN prospects p ON d.prospect_id = p.prospect_id
+            WHERE d.game_id = ?
+            ORDER BY p.handle
+            """,
+            (game.game_id,),
+        ).fetchall()
+
+    assert row is not None
+    assert row["count"] == 51
+    handle_values = [record["handle"] for record in handles]
+    assert "creator-0.bsky.social" in handle_values
+    assert "existing-creator.bsky.social" in handle_values
+
+
+def test_run_ingestion_prefilters_official_and_stale_tiny_before_llm(
+    monkeypatch, db_path, game_service, registered_user
+):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="Signal Check",
+        summary="Find active strategy creators worth contacting.",
+        description="Find active strategy creators worth contacting.",
+        genre_tags_raw="strategy, tactics",
+        platform_tags=["pc"],
+        website_url=None,
+    )
+    game = replace(game, discovery_sources=[Source.BLUESKY])
+
+    async def fake_discover_batches(
+        self,
+        game,
+        limit,
+        *,
+        run_index=0,
+        excluded_handles=None,
+        page_cursors=None,
+    ):
+        del self, game, limit, run_index, excluded_handles, page_cursors
+        yield [
+            CandidateRecord(
+                platform="bluesky",
+                handle="official-strategy.bsky.social",
+                display_name="Official Strategy Game",
+                profile_url="https://bsky.app/profile/official-strategy.bsky.social",
+                contact_channel="bluesky_reply",
+                contact_value=None,
+                audience_size=8_000,
+                engagement_rate=None,
+                description="Official account for a strategy game launch.",
+                raw_data={
+                    "did": "did:plc:official",
+                    "handle": "official-strategy.bsky.social",
+                },
+                last_active_days=2,
+                text_signals=[
+                    "Official strategy game trailer and launch post."
+                ],
+                prospect_type="creator",
+            ),
+            CandidateRecord(
+                platform="bluesky",
+                handle="tiny-stale.bsky.social",
+                display_name="Tiny Stale",
+                profile_url="https://bsky.app/profile/tiny-stale.bsky.social",
+                contact_channel="bluesky_reply",
+                contact_value=None,
+                audience_size=120,
+                engagement_rate=None,
+                description="Turn-based tactics posts every few months.",
+                raw_data={
+                    "did": "did:plc:tiny",
+                    "handle": "tiny-stale.bsky.social",
+                },
+                last_active_days=45,
+                text_signals=["A tactics prototype update from last season."],
+                prospect_type="creator",
+            ),
+            CandidateRecord(
+                platform="bluesky",
+                handle="one-follower.bsky.social",
+                display_name="One Follower",
+                profile_url="https://bsky.app/profile/one-follower.bsky.social",
+                contact_channel="bluesky_reply",
+                contact_value=None,
+                audience_size=1,
+                engagement_rate=None,
+                description="PC strategy creator covering tactics and roguelites.",
+                raw_data={
+                    "did": "did:plc:tinyone",
+                    "handle": "one-follower.bsky.social",
+                    "followers_count": 1,
+                },
+                last_active_days=1,
+                text_signals=[
+                    "Weekly PC tactics breakdown and roguelite strategy recommendations."
+                ],
+                prospect_type="creator",
+            ),
+            CandidateRecord(
+                platform="bluesky",
+                handle="soft-drop.bsky.social",
+                display_name="Soft Drop",
+                profile_url="https://bsky.app/profile/soft-drop.bsky.social",
+                contact_channel="bluesky_reply",
+                contact_value=None,
+                audience_size=75,
+                engagement_rate=None,
+                description="Strategy creator talking about indie games.",
+                raw_data={
+                    "did": "did:plc:softdrop",
+                    "handle": "soft-drop.bsky.social",
+                    "followers_count": 75,
+                },
+                last_active_days=1,
+                text_signals=["Talking about indie strategy games this week."],
+                prospect_type="creator",
+            ),
+            CandidateRecord(
+                platform="bluesky",
+                handle="soft-pass.bsky.social",
+                display_name="Soft Pass",
+                profile_url="https://bsky.app/profile/soft-pass.bsky.social",
+                contact_channel="email",
+                contact_value="softpass@example.com",
+                audience_size=80,
+                engagement_rate=None,
+                description="PC strategy creator covering tactics and roguelites.",
+                raw_data={
+                    "did": "did:plc:softpass",
+                    "handle": "soft-pass.bsky.social",
+                    "followers_count": 80,
+                },
+                last_active_days=1,
+                text_signals=[
+                    "Weekly PC tactics breakdown and roguelite strategy recommendations."
+                ],
+                prospect_type="creator",
+            ),
+            CandidateRecord(
+                platform="bluesky",
+                handle="great-fit.bsky.social",
+                display_name="Great Fit",
+                profile_url="https://bsky.app/profile/great-fit.bsky.social",
+                contact_channel="email",
+                contact_value="creator@example.com",
+                audience_size=4_200,
+                engagement_rate=None,
+                description="PC strategy creator covering tactics and roguelites.",
+                raw_data={
+                    "did": "did:plc:great",
+                    "handle": "great-fit.bsky.social",
+                },
+                last_active_days=2,
+                text_signals=[
+                    "Weekly PC tactics breakdown and roguelite strategy recommendations."
+                ],
+                prospect_type="creator",
+            ),
+        ]
+
+    llm_calls: list[list[str]] = []
+
+    async def fake_llm_score_batch(game, prospects, api_key):
+        del game, api_key
+        llm_calls.append([prospect.handle for prospect in prospects])
+        return {
+            prospect.prospect_id: LLMFitScores(
+                genre_fit=0.9,
+                vibe_fit=0.8,
+                format_fit=0.7,
+                platform_fit=0.9,
+                fit_summary="Strong fit",
+                why_selected="Covers PC tactics games actively.",
+            )
+            for prospect in prospects
+        }
+
+    monkeypatch.setattr(
+        BlueskySource, "discover_batches", fake_discover_batches
+    )
+    monkeypatch.setattr(
+        "app.ingestion.pipeline.llm_score_batch", fake_llm_score_batch
+    )
+
+    summary = asyncio.run(
+        run_ingestion(
+            game,
+            db_path,
+            limit_per_source=10,
+            anthropic_api_key="test-anthropic-key",
+        )
+    )
+
+    assert summary["imported"] == 2
+    assert {handle for batch in llm_calls for handle in batch} == {
+        "soft-pass.bsky.social",
+        "great-fit.bsky.social",
+    }
+
+    with get_connection(db_path) as conn:
+        queued_handles = conn.execute(
+            """
+            SELECT p.handle
+            FROM draft_items d
+            JOIN prospects p ON d.prospect_id = p.prospect_id
+            WHERE d.game_id = ?
+            """,
+            (game.game_id,),
+        ).fetchall()
+
+    assert {row["handle"] for row in queued_handles} == {
+        "soft-pass.bsky.social",
+        "great-fit.bsky.social",
+    }
+
+
 def test_bluesky_feed_enrichment_keeps_existing_audience_when_profile_missing():
     candidate = _parse_actor(
         {
@@ -548,7 +1017,7 @@ def test_run_ingestion_imports_twitch_candidates_into_queue(
     )
     game = replace(game, discovery_sources=[Source.TWITCH])
 
-    async def fake_discover(
+    async def fake_discover_batches(
         self,
         game,
         limit,
@@ -558,7 +1027,7 @@ def test_run_ingestion_imports_twitch_candidates_into_queue(
         page_cursors=None,
     ):
         del self, game, limit, run_index, excluded_handles, page_cursors
-        return [
+        yield [
             CandidateRecord(
                 platform="twitch",
                 handle="indiestrategist",
@@ -591,7 +1060,9 @@ def test_run_ingestion_imports_twitch_candidates_into_queue(
             )
         ]
 
-    monkeypatch.setattr(TwitchSource, "discover", fake_discover)
+    monkeypatch.setattr(
+        TwitchSource, "discover_batches", fake_discover_batches
+    )
 
     summary = asyncio.run(
         run_ingestion(

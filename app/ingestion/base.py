@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Collection
+from collections.abc import AsyncIterator, Collection
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -70,6 +70,28 @@ class CandidateSource(ABC):
     def effective_limit(cls, requested_limit: int) -> int:
         """Return the source-specific limit to use for a discovery run."""
         return requested_limit
+
+    async def discover_batches(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> AsyncIterator[list[CandidateRecord]]:
+        """Yield candidate batches as they become available.
+
+        Sources can override this to stream per-query batches. The default
+        implementation preserves legacy behavior by yielding a single batch.
+        """
+        yield await self.discover(
+            game,
+            limit,
+            run_index=run_index,
+            excluded_handles=excluded_handles,
+            page_cursors=page_cursors,
+        )
 
     @abstractmethod
     async def discover(

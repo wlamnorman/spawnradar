@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.games.models import Game
+from app.games.tags import build_tag_profile
 from app.prospects.models import Prospect
 from app.scoring.engine import ScoreBreakdown, score_prospect
 
@@ -12,6 +13,10 @@ def _make_game(
     genre_tags=None,
     platform_tags=None,
     name="TestGame",
+    genre_primary_raw="",
+    mechanics_primary_raw="",
+    vibe_primary_raw="",
+    kindred_primary_raw="",
 ):
     now = datetime.now(UTC).isoformat()
     return Game(
@@ -27,6 +32,10 @@ def _make_game(
         status="active",
         created_at=now,
         updated_at=now,
+        genre_tag_profile=build_tag_profile("genre", primary_raw=genre_primary_raw),
+        mechanics_tag_profile=build_tag_profile("mechanics", primary_raw=mechanics_primary_raw),
+        vibe_tag_profile=build_tag_profile("vibe", primary_raw=vibe_primary_raw),
+        kindred_tag_profile=build_tag_profile("kindred", primary_raw=kindred_primary_raw),
     )
 
 
@@ -277,3 +286,64 @@ def test_developer_prospects_still_surface_when_they_match_well():
     result = score_prospect(game, developer)
 
     assert 0.2 < result.final_score < 0.7
+
+
+# ---------------------------------------------------------------------------
+# Graph-based scoring
+# ---------------------------------------------------------------------------
+
+
+def test_graph_neighbour_mention_gives_partial_genre_credit():
+    # "hades" is a graph neighbour of "roguelike" — mentioning it should
+    # give partial genre credit even without the word "roguelike" appearing.
+    game = _make_game(genre_primary_raw="roguelike")
+    prospect = _make_prospect(description="I love playing hades and covering hades content")
+
+    result = score_prospect(game, prospect)
+
+    assert result.genre_fit > 0.0
+
+
+def test_graph_credit_is_less_than_direct_text_match():
+    # Direct text match ("roguelike" in description) should outscore a
+    # graph-only match ("hades" in description, no "roguelike").
+    game = _make_game(genre_primary_raw="roguelike")
+
+    direct = _make_prospect(description="roguelike games are my passion")
+    graph_only = _make_prospect(description="I love playing hades and covering hades content")
+
+    direct_result = score_prospect(game, direct)
+    graph_result = score_prospect(game, graph_only)
+
+    assert direct_result.genre_fit > graph_result.genre_fit
+
+
+def test_graph_match_appears_in_reasons():
+    game = _make_game(genre_primary_raw="roguelike")
+    prospect = _make_prospect(description="hades gameplay videos every week")
+
+    result = score_prospect(game, prospect)
+
+    assert any("(graph)" in r for r in result.reasons)
+
+
+def test_graph_kindred_neighbour_gives_vibe_credit():
+    # "stardew valley" is a graph neighbour of "farming sim" —
+    # a prospect mentioning it should score above zero on vibe_fit.
+    game = _make_game(kindred_primary_raw="stardew valley, animal crossing")
+    prospect = _make_prospect(description="stardew valley cozy farming content")
+
+    result = score_prospect(game, prospect)
+
+    assert result.vibe_fit > 0.0
+
+
+def test_graph_no_credit_for_unrelated_neighbour():
+    # A prospect mentioning only "call of duty" should not get genre credit
+    # for a farming sim game — no meaningful graph edge connects them.
+    game = _make_game(genre_primary_raw="farming sim")
+    prospect = _make_prospect(description="call of duty warzone fps military shooter")
+
+    result = score_prospect(game, prospect)
+
+    assert result.genre_fit == 0.0

@@ -22,7 +22,7 @@ import dataclasses
 import json
 import logging
 import re
-from collections.abc import Collection
+from collections.abc import AsyncIterator, Collection
 from dataclasses import replace
 from pathlib import Path
 
@@ -104,6 +104,27 @@ class YouTubeAPISource(CandidateSource):
         after a live fetch and loaded from there on subsequent calls.
         Delete the file to force a fresh API call.
         """
+        results: list[CandidateRecord] = []
+        async for batch in self.discover_batches(
+            game,
+            limit,
+            run_index=run_index,
+            excluded_handles=excluded_handles,
+            page_cursors=page_cursors,
+        ):
+            results.extend(batch)
+        return results[:limit]
+
+    async def discover_batches(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> AsyncIterator[list[CandidateRecord]]:
+        """Yield YouTube API batches query-by-query after video enrichment."""
         excluded = {handle.lower() for handle in (excluded_handles or ())}
 
         if self._cache_dir is not None:
@@ -119,13 +140,16 @@ class YouTubeAPISource(CandidateSource):
                     len(filtered),
                     _cache_path(self._cache_dir, game.game_id, run_index),
                 )
-                return filtered[:limit]
+                if filtered:
+                    yield filtered[:limit]
+                return
 
         queries = _build_queries(game, run_index)
         seen_handles: set[str] = set(excluded)
-        candidates: list[CandidateRecord] = []
         collect_target = min(limit * (4 if run_index else 2), 120)
+        yielded_count = 0
         cursors = page_cursors if page_cursors is not None else {}
+        all_candidates: list[CandidateRecord] = []
 
         log.info(
             "YouTubeAPISource: run %d with %d queries (target %d channels, %d excluded)",
@@ -136,7 +160,7 @@ class YouTubeAPISource(CandidateSource):
         )
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             for tagged_query in queries:
-                if len(candidates) >= collect_target:
+                if yielded_count >= collect_target:
                     break
 
                 log.debug("  Query: %r", tagged_query.text)
@@ -155,31 +179,35 @@ class YouTubeAPISource(CandidateSource):
                     for record in batch
                     if record.handle.lower() not in seen_handles
                 ]
-                for record in new:
+                remaining = collect_target - yielded_count
+                new_batch = new[:remaining]
+                for record in new_batch:
                     seen_handles.add(record.handle.lower())
-                    candidates.append(record)
-                    if len(candidates) >= collect_target:
-                        break
                 log.debug(
                     "  → %d results (%d new, %d total so far)",
                     len(batch),
-                    len(new),
-                    len(candidates),
+                    len(new_batch),
+                    yielded_count + len(new_batch),
                 )
 
-            # Enrich all candidates with recent video titles for scoring
-            log.info("Fetching recent videos for %d channels", len(candidates))
-            candidates = await self._enrich_with_videos(client, candidates)
+                if new_batch:
+                    enriched_batch = await self._enrich_with_videos(
+                        client, new_batch
+                    )
+                    if enriched_batch:
+                        yielded_count += len(enriched_batch)
+                        all_candidates.extend(enriched_batch)
+                        yield enriched_batch
 
         if self._cache_dir is not None:
-            _save_cache(self._cache_dir, game.game_id, run_index, candidates)
+            _save_cache(
+                self._cache_dir, game.game_id, run_index, all_candidates
+            )
             log.info(
                 "YouTubeAPISource: saved %d candidates to cache (%s)",
-                len(candidates),
+                len(all_candidates),
                 _cache_path(self._cache_dir, game.game_id, run_index),
             )
-
-        return candidates[:limit]
 
     async def _search_and_fetch(
         self,
@@ -425,7 +453,16 @@ def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     """Build search queries for YouTube discovery."""
     return build_tagged_queries(
         game,
-        suffixes=("games", "game", "gameplay", "game review", "gaming channel", "streamer", "youtuber", "lets play"),
+        suffixes=(
+            "games",
+            "game",
+            "gameplay",
+            "game review",
+            "gaming channel",
+            "streamer",
+            "youtuber",
+            "lets play",
+        ),
         game_name_suffixes=("gameplay", "review", "lets play"),
         run_index=run_index,
     )
@@ -455,7 +492,10 @@ def _load_cache(
 
 
 def _save_cache(
-    cache_dir: Path, game_id: str, run_index: int, candidates: list[CandidateRecord]
+    cache_dir: Path,
+    game_id: str,
+    run_index: int,
+    candidates: list[CandidateRecord],
 ) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     path = _cache_path(cache_dir, game_id, run_index)

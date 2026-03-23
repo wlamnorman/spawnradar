@@ -38,7 +38,7 @@ EXPIRED_LIMITS: dict[str, int] = {
 }
 
 TIER_PRICES: dict[Tier, int] = {
-    Tier.INDIE: 20,
+    Tier.INDIE: 29,
 }
 
 PUBLIC_TIERS: list[Tier] = [Tier.INDIE]

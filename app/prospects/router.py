@@ -14,6 +14,7 @@ from app.dependencies import (
     get_billing_service,
     get_game_repo,
     get_game_service,
+    get_metrics_service,
     get_prospect_service,
     get_settings,
     get_templates,
@@ -21,6 +22,7 @@ from app.dependencies import (
 from app.games.repository import GameRepository
 from app.games.service import GameService
 from app.ingestion.constants import RECENT_VIDEO_THUMBNAIL_LIMIT
+from app.metrics.service import MetricsService
 from app.prospects.presenter import ReviewQueuePresenter
 from app.prospects.service import ProspectService
 from app.security import require_csrf_header
@@ -60,7 +62,9 @@ async def review_queue(
 
     source_credentials = {
         "youtube": True,  # scraping fallback always available
-        "twitch": bool(settings.twitch_client_id and settings.twitch_client_secret),
+        "twitch": bool(
+            settings.twitch_client_id and settings.twitch_client_secret
+        ),
         "bluesky": True,
         "reddit": True,
     }
@@ -89,9 +93,11 @@ async def review_queue(
 async def queue_api(
     game_id: str,
     request: Request,
+    run_id: str | None = None,
     user: User = Depends(require_product_access),
     game_repo: GameRepository = Depends(get_game_repo),
     prospect_service: ProspectService = Depends(get_prospect_service),
+    metrics_service: MetricsService = Depends(get_metrics_service),
 ) -> JSONResponse:
     """Return JSON queue data for a game."""
     game = game_repo.get_by_id(game_id)
@@ -99,7 +105,28 @@ async def queue_api(
         raise HTTPException(status_code=404, detail="Game not found.")
 
     payload = _QUEUE_PRESENTER.for_api(prospect_service.get_queue(game_id))
-    return JSONResponse({"items": payload})
+    response_payload: dict[str, object] = {"items": payload}
+    if run_id:
+        run_fact = metrics_service.get_discovery_run_fact(run_id)
+        if run_fact is None:
+            raise HTTPException(
+                status_code=404, detail="Discovery run not found."
+            )
+        if run_fact.user_id != user.user_id or run_fact.game_id != game_id:
+            raise HTTPException(
+                status_code=404, detail="Discovery run not found."
+            )
+        response_payload["discovery_run"] = {
+            "run_id": run_fact.run_id,
+            "status": run_fact.status,
+            "started_at": run_fact.started_at,
+            "completed_at": run_fact.completed_at,
+            "discovered_count": run_fact.discovered_count,
+            "scored_count": run_fact.scored_count,
+            "queued_count": run_fact.queued_count,
+            "error_message": run_fact.error_message,
+        }
+    return JSONResponse(response_payload)
 
 
 @router.post("/api/drafts/{draft_item_id}/action")

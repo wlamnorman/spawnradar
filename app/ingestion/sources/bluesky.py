@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import AsyncIterator, Collection, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Protocol
@@ -71,20 +71,40 @@ class BlueskySource(CandidateSource):
         excluded_handles: Collection[str] | None = None,
         page_cursors: dict[str, str] | None = None,
     ) -> list[CandidateRecord]:
-        """Return up to *limit* Bluesky accounts relevant to *game*."""
+        results: list[CandidateRecord] = []
+        async for batch in self.discover_batches(
+            game,
+            limit,
+            run_index=run_index,
+            excluded_handles=excluded_handles,
+            page_cursors=page_cursors,
+        ):
+            results.extend(batch)
+        return results[:limit]
+
+    async def discover_batches(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> AsyncIterator[list[CandidateRecord]]:
+        """Yield Bluesky account batches as soon as each query is enriched."""
         queries = _build_queries(game, run_index)
         seen_handles: set[str] = {
             handle.lower() for handle in (excluded_handles or ())
         }
-        candidates: list[CandidateRecord] = []
         collect_target = min(limit * (4 if run_index else 2), 120)
+        yielded_count = 0
         cursors = page_cursors if page_cursors is not None else {}
 
         async with httpx.AsyncClient(
             headers=_HEADERS, timeout=self._timeout
         ) as client:
             for i, tagged_query in enumerate(queries):
-                if len(candidates) >= collect_target:
+                if yielded_count >= collect_target:
                     break
                 try:
                     batch, next_cursor = await self._search_actors(
@@ -101,23 +121,27 @@ class BlueskySource(CandidateSource):
                 else:
                     cursors.pop(tagged_query.text, None)
 
+                new_batch: list[CandidateRecord] = []
+                remaining = collect_target - yielded_count
                 for record in batch:
                     normalized_handle = record.handle.lower()
                     if normalized_handle in seen_handles:
                         continue
                     seen_handles.add(normalized_handle)
-                    candidates.append(record)
-                    if len(candidates) >= collect_target:
+                    new_batch.append(record)
+                    if len(new_batch) >= remaining:
                         break
+
+                if new_batch:
+                    enriched = await self._enrich_with_recent_posts(
+                        client, new_batch
+                    )
+                    if enriched:
+                        yielded_count += len(enriched)
+                        yield enriched
 
                 if i < len(queries) - 1:
                     await asyncio.sleep(self._delay)
-
-            candidates = await self._enrich_with_recent_posts(
-                client, candidates
-            )
-
-        return candidates[:limit]
 
     async def _search_actors(
         self,
@@ -175,7 +199,14 @@ def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     """Build Bluesky actor-search queries from the game's tags."""
     return build_tagged_queries(
         game,
-        suffixes=("game", "games", "streamer", "creator", "community", "aesthetic"),
+        suffixes=(
+            "game",
+            "games",
+            "streamer",
+            "creator",
+            "community",
+            "aesthetic",
+        ),
         prefixes=("indie",),
         game_name_suffixes=("game", "devlog"),
         run_index=run_index,
@@ -277,7 +308,9 @@ async def _fetch_recent_posts(
         _days_since_timestamp(timestamps[0]) if timestamps else None
     )
 
-    audience_size = profile_counts["followers_count"] or candidate.audience_size
+    audience_size = (
+        profile_counts["followers_count"] or candidate.audience_size
+    )
     engagement_rate: float | None = candidate.engagement_rate
     if audience_size and audience_size > 0 and feed_items:
         engagement_rate = round(
@@ -295,7 +328,8 @@ async def _fetch_recent_posts(
         raw_data=data.model_copy(
             update={
                 "followers_count": audience_size,
-                "posts_count": profile_counts["posts_count"] or data.posts_count,
+                "posts_count": profile_counts["posts_count"]
+                or data.posts_count,
                 "last_post_days_ago": last_post_days,
                 "recent_post_texts": post_texts,
             }

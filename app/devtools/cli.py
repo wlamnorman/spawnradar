@@ -16,7 +16,7 @@ from app.billing.repository import (
     SubscriptionRepository,
 )
 from app.billing.service import BillingService
-from app.config import Settings, _load_dotenv
+from app.config import Settings
 from app.database import get_connection, initialize_database
 from app.devtools.bootstrap import DEV_EMAIL, ensure_dev_user
 from app.devtools.game_presets import load_game_presets, save_game_presets
@@ -40,7 +40,9 @@ class CommandResult:
     deleted_count: int | None = None
 
 
-def _load_preset(preset_key: str, preset_path: str | Path | None = None) -> dict[str, object]:
+def _load_preset(
+    preset_key: str, preset_path: str | Path | None = None
+) -> dict[str, object]:
     presets = load_game_presets(preset_path)
     try:
         preset = presets[preset_key]
@@ -52,9 +54,7 @@ def _load_preset(preset_key: str, preset_path: str | Path | None = None) -> dict
     return dict(preset)
 
 
-def _find_dev_game(
-    db_path: str, game_ref: str | None, *, fallback_name: str
-):
+def _find_dev_game(db_path: str, game_ref: str | None, *, fallback_name: str):
     user = ensure_dev_user(db_path)
     games = GameRepository(db_path).list_by_user(user.user_id)
     target = (game_ref or fallback_name).strip()
@@ -67,7 +67,9 @@ def _find_dev_game(
 
 
 def _snapshot_payload_for_game(game) -> dict[str, object]:
-    mechanics_tags = game.mechanics_primary_tags or game.ordered_mechanics_tags()
+    mechanics_tags = (
+        game.mechanics_primary_tags or game.ordered_mechanics_tags()
+    )
     vibe_tags = game.vibe_primary_tags or game.ordered_vibe_tags()
     kindred_tags = game.kindred_primary_tags or game.ordered_kindred_tags()
     return {
@@ -96,10 +98,16 @@ def _seed_preset_game(
         description=str(preset["description"]),
         genre_tags_raw=str(preset.get("genre_tags_raw", "")),
         genre_primary_tags_raw=str(preset.get("genre_primary_tags_raw", "")),
-        genre_secondary_tags_raw=str(preset.get("genre_secondary_tags_raw", "")),
-        mechanics_primary_tags_raw=str(preset.get("mechanics_primary_tags_raw", "")),
+        genre_secondary_tags_raw=str(
+            preset.get("genre_secondary_tags_raw", "")
+        ),
+        mechanics_primary_tags_raw=str(
+            preset.get("mechanics_primary_tags_raw", "")
+        ),
         vibe_primary_tags_raw=str(preset.get("vibe_primary_tags_raw", "")),
-        kindred_primary_tags_raw=str(preset.get("kindred_primary_tags_raw", "")),
+        kindred_primary_tags_raw=str(
+            preset.get("kindred_primary_tags_raw", "")
+        ),
         platform_tags=list(cast(list[str], preset.get("platform_tags", []))),
         website_url=cast(str | None, preset.get("website_url")),
     )
@@ -195,15 +203,6 @@ def build_parser() -> argparse.ArgumentParser:
             "Email address whose recorded discovery runs should be deleted. "
             f"Defaults to {DEV_EMAIL}."
         ),
-    )
-    gen_tag_graph = subparsers.add_parser(
-        "gen-tag-graph",
-        help="Generate app/games/tag_graph.json via a one-time Sonnet call.",
-    )
-    gen_tag_graph.add_argument(
-        "--output",
-        default="app/games/tag_graph.json",
-        help="Output path for the JSON graph. Default: app/games/tag_graph.json",
     )
     viz_tag_graph = subparsers.add_parser(
         "viz-tag-graph",
@@ -784,105 +783,6 @@ window.addEventListener("resize", () => {
 """
 
 
-_TAG_GRAPH_SYSTEM = (
-    "You are an expert on indie game communities and content creators. "
-    "Output ONLY a JSON array — no prose, no markdown fences. Each element: "
-    '{"from":"<tag>","to":"<tag>","weight":<0.55-1.0>,"from_dim":"<genre|mechanics|vibe|kindred>","to_dim":"<genre|mechanics|vibe|kindred>"}. '
-    "Include an edge when two tags share a meaningfully overlapping creator/viewer audience. "
-    "Cross-dimension edges (genre↔kindred especially) are encouraged. "
-    "Omit edges below 0.55. Be selective — only strong, real overlaps."
-)
-
-
-def run_gen_tag_graph(output: str = "app/games/tag_graph.json") -> CommandResult:
-    """Generate a tag similarity graph via a one-time Claude Sonnet call."""
-    import os
-
-    import anthropic
-
-    from app.games.tags import (
-        GENRE_TAG_CATALOG,
-        KINDRED_TAG_CATALOG,
-        MECHANICS_TAG_CATALOG,
-        VIBE_TAG_CATALOG,
-    )
-
-    _load_dotenv()
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY is not set (checked env and .env)")
-
-    catalog_lines = [
-        "GENRE tags:", *[f"  {t}" for t in GENRE_TAG_CATALOG], "",
-        "MECHANICS tags:", *[f"  {t}" for t in MECHANICS_TAG_CATALOG], "",
-        "VIBE tags:", *[f"  {t}" for t in VIBE_TAG_CATALOG], "",
-        "KINDRED tags:", *[f"  {t}" for t in KINDRED_TAG_CATALOG],
-    ]
-    catalog_block = "\n".join(catalog_lines)
-    total_tags = (
-        len(GENRE_TAG_CATALOG) + len(MECHANICS_TAG_CATALOG)
-        + len(VIBE_TAG_CATALOG) + len(KINDRED_TAG_CATALOG)
-    )
-
-    print(f"Catalog: {total_tags} tags across 4 dimensions")
-    print("Model:   claude-sonnet-4-6")
-    print(f"Output:  {output}")
-    print("Calling API...", flush=True)
-
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=32000,
-        system=_TAG_GRAPH_SYSTEM,
-        messages=[{
-            "role": "user",
-            "content": f"Tag catalog:\n\n{catalog_block}\n\nReturn the JSON array.",
-        }],
-    )
-
-    first_block = message.content[0]
-    if not isinstance(first_block, anthropic.types.TextBlock):
-        raise ValueError(f"Unexpected response block type: {type(first_block)}")
-    raw = first_block.text.strip()
-    if raw.startswith("```"):
-        raw = "\n".join(
-            line for line in raw.splitlines() if not line.startswith("```")
-        ).strip()
-
-    try:
-        edges = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raw_path = Path(output).with_name("tag_graph_raw.txt")
-        raw_path.write_text(raw)
-        raise ValueError(
-            f"Failed to parse JSON response: {e}. Raw output saved to {raw_path}"
-        ) from e
-
-    edges.sort(key=lambda e: (-e["weight"], e["from"], e["to"]))
-    Path(output).write_text(json.dumps(edges, indent=2) + "\n")
-
-    input_tokens = message.usage.input_tokens
-    output_tokens = message.usage.output_tokens
-    cost = (input_tokens / 1_000_000 * 3.0) + (output_tokens / 1_000_000 * 15.0)
-
-    by_dim: dict[str, int] = {}
-    for e in edges:
-        key = f"{e['from_dim']} → {e['to_dim']}"
-        by_dim[key] = by_dim.get(key, 0) + 1
-
-    print(f"\nTokens: {input_tokens} in / {output_tokens} out  (est. ${cost:.3f})")
-    print("\nEdges by dimension pair:")
-    for k, v in sorted(by_dim.items(), key=lambda x: -x[1]):
-        print(f"  {k:<30} {v}")
-    print("\nTop 20 edges by weight:")
-    for e in edges[:20]:
-        print(f"  {e['weight']:.2f}  {e['from']:<30} → {e['to']} ({e['from_dim']} → {e['to_dim']})")
-
-    return CommandResult(
-        message=f"Wrote {len(edges)} edges to {output}  (est. ${cost:.3f})"
-    )
-
-
 def run_viz_tag_graph(
     input: str = "app/games/tag_graph.json",
     output: str | None = None,
@@ -907,6 +807,7 @@ def run_viz_tag_graph(
     else:
         fd, tmp = tempfile.mkstemp(suffix=".html", prefix="sr_tag_graph_")
         import os as _os
+
         _os.close(fd)
         Path(tmp).write_text(html)
         html_path = Path(tmp)
@@ -960,8 +861,6 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "reset-discovery-runs":
         result = run_reset_discovery_runs(args.db_path, args.email)
-    elif args.command == "gen-tag-graph":
-        result = run_gen_tag_graph(args.output)
     elif args.command == "viz-tag-graph":
         result = run_viz_tag_graph(args.input, args.output)
     else:

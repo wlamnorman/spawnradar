@@ -14,6 +14,7 @@ from app.games.repository import (
     MessageTemplateRepository,
 )
 from app.games.service import GameService
+from app.ingestion.service import DiscoveryRunService
 from app.metrics.repository import MetricsRepository
 from app.metrics.service import MetricsService
 from app.prospects.repository import (
@@ -76,6 +77,15 @@ def template_repo(db_path):
 @pytest.fixture
 def game_service(game_repo, asset_repo, template_repo, metrics_service):
     return GameService(game_repo, asset_repo, template_repo, metrics_service)
+
+
+@pytest.fixture
+def discovery_run_service(db_path, template_repo, metrics_service):
+    return DiscoveryRunService(
+        template_repo,
+        db_path=db_path,
+        metrics_service=metrics_service,
+    )
 
 
 @pytest.fixture

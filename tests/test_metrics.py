@@ -86,7 +86,7 @@ def test_metrics_record_discovery_distributions_and_scores(
     )
     game = replace(game, discovery_sources=[Source.BLUESKY])
 
-    async def fake_discover(
+    async def fake_discover_batches(
         self,
         game,
         limit,
@@ -96,7 +96,7 @@ def test_metrics_record_discovery_distributions_and_scores(
         page_cursors=None,
     ):
         del self, game, limit, run_index, excluded_handles, page_cursors
-        return [
+        yield [
             CandidateRecord(
                 platform="bluesky",
                 handle="strong-fit",
@@ -146,7 +146,9 @@ def test_metrics_record_discovery_distributions_and_scores(
             reasons=[],
         )
 
-    monkeypatch.setattr(BlueskySource, "discover", fake_discover)
+    monkeypatch.setattr(
+        BlueskySource, "discover_batches", fake_discover_batches
+    )
     monkeypatch.setattr(
         "app.ingestion.pipeline.score_prospect", fake_score_prospect
     )

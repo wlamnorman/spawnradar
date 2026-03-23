@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_user
 from app.auth.models import User
+from app.billing.models import TIER_PRICES, Tier
 from app.billing.service import BillingService
 from app.dependencies import get_billing_service, get_templates
 
@@ -33,6 +34,7 @@ async def billing_page(
             "user": user,
             "subscription": sub,
             "portal_enabled": billing.portal_enabled,
+            "indie_price": TIER_PRICES[Tier.INDIE],
         },
     )
 
@@ -146,6 +148,7 @@ async def customer_portal(
                 "subscription": sub,
                 "portal_enabled": billing.portal_enabled,
                 "error": error,
+                "indie_price": TIER_PRICES[Tier.INDIE],
             },
             status_code=502,
         )

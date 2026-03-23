@@ -7,7 +7,7 @@ publicly accessible subreddits and posts.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Collection
+from collections.abc import AsyncIterator, Collection
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -52,35 +52,59 @@ class RedditSource(CandidateSource):
         excluded_handles: Collection[str] | None = None,
         page_cursors: dict[str, str] | None = None,
     ) -> list[CandidateRecord]:
-        """Return up to *limit* Reddit prospects (subreddits + threads)."""
+        results: list[CandidateRecord] = []
+        async for batch in self.discover_batches(
+            game,
+            limit,
+            run_index=run_index,
+            excluded_handles=excluded_handles,
+            page_cursors=page_cursors,
+        ):
+            results.extend(batch)
+        return results[:limit]
+
+    async def discover_batches(
+        self,
+        game: Game,
+        limit: int,
+        *,
+        run_index: int = 0,
+        excluded_handles: Collection[str] | None = None,
+        page_cursors: dict[str, str] | None = None,
+    ) -> AsyncIterator[list[CandidateRecord]]:
+        """Yield Reddit prospects per query as they are discovered."""
         queries = _build_queries(game, run_index)
         seen_handles: set[str] = {
             handle.lower() for handle in (excluded_handles or ())
         }
-        results: list[CandidateRecord] = []
         collect_target = min(limit * (4 if run_index else 2), 120)
+        yielded_count = 0
         cursors = page_cursors if page_cursors is not None else {}
 
         async with httpx.AsyncClient(
             headers=_HEADERS, timeout=self._timeout
         ) as client:
             for i, tagged_query in enumerate(queries):
-                if len(results) >= collect_target:
+                if yielded_count >= collect_target:
                     break
                 sub_key = f"sub:{tagged_query.text}"
                 thr_key = f"thr:{tagged_query.text}"
                 try:
-                    subreddits, next_sub = await self._search_subreddits(
-                        client, tagged_query.text, cursors.get(sub_key)
-                    )
-                    threads, next_thr = await self._search_threads(
-                        client, tagged_query.text, cursors.get(thr_key)
+                    (
+                        (subreddits, next_sub),
+                        (threads, next_thr),
+                    ) = await asyncio.gather(
+                        self._search_subreddits(
+                            client, tagged_query.text, cursors.get(sub_key)
+                        ),
+                        self._search_threads(
+                            client, tagged_query.text, cursors.get(thr_key)
+                        ),
                     )
                     batch = subreddits + threads
                 except Exception:
                     continue
 
-                # Update cursors in-place; delete exhausted ones to reset next run
                 if next_sub:
                     cursors[sub_key] = next_sub
                 else:
@@ -90,19 +114,22 @@ class RedditSource(CandidateSource):
                 else:
                     cursors.pop(thr_key, None)
 
+                new_batch: list[CandidateRecord] = []
                 for record in batch:
                     normalized_handle = record.handle.lower()
                     if normalized_handle in seen_handles:
                         continue
                     seen_handles.add(normalized_handle)
-                    results.append(record)
-                    if len(results) >= collect_target:
+                    new_batch.append(record)
+                    if yielded_count + len(new_batch) >= collect_target:
                         break
+
+                if new_batch:
+                    yielded_count += len(new_batch)
+                    yield new_batch
 
                 if i < len(queries) - 1:
                     await asyncio.sleep(self._delay)
-
-        return results[:limit]
 
     async def _search_subreddits(
         self, client: httpx.AsyncClient, query: str, after: str | None = None
@@ -152,12 +179,17 @@ class RedditSource(CandidateSource):
         return records, next_cursor
 
 
-
 def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     """Build Reddit search queries tuned for communities and active threads."""
     return build_tagged_queries(
         game,
-        suffixes=("games", "gaming", "community", "recommendations", "indie games"),
+        suffixes=(
+            "games",
+            "gaming",
+            "community",
+            "recommendations",
+            "indie games",
+        ),
         prefixes=("best", "top"),
         game_name_suffixes=("game", "review", "discussion"),
         run_index=run_index,

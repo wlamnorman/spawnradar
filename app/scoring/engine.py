@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from app.games.tags import TagWeight, WeightedTag
+from app.games.tags._graph import tag_graph as _tag_graph
 
 if TYPE_CHECKING:
     from app.games.models import Game
@@ -355,6 +356,18 @@ def _tag_match_score(
             reasons.append(
                 f"{dimension.capitalize()} (search context): '{tag.name}'"
             )
+        else:
+            best = max(
+                (
+                    edge_w
+                    for neighbour, edge_w in _tag_graph.related_tags(tag_lower)
+                    if all(w in search_text for w in neighbour.lower().split())
+                ),
+                default=0.0,
+            )
+            if best > 0.0:
+                matched_weight += 0.6 * best * tag.weight
+                reasons.append(f"{dimension.capitalize()} (graph): '{tag.name}'")
 
     return min(matched_weight / total_weight, 1.0)
 

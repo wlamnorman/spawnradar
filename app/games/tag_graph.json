@@ -1,8 +1,1583 @@
 [
   {
+    "from": "factory automation",
+    "to": "factorio",
+    "weight": 0.99,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deck construction",
+    "to": "slay the spire",
+    "weight": 0.97,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "soulslike",
+    "to": "stamina system",
+    "weight": 0.96,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "stamina system",
+    "to": "elden ring",
+    "weight": 0.96,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "stamina system",
+    "to": "dark souls",
+    "weight": 0.96,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "moba",
+    "to": "league of legends",
+    "weight": 0.96,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "moba",
+    "to": "dota",
+    "weight": 0.96,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "soulslike",
+    "to": "elden ring",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "soulslike",
+    "to": "dark souls",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "metroidvania",
+    "to": "hollow knight",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "metroidvania",
+    "to": "metroid",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "metroidvania",
+    "to": "castlevania",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "precision platformer",
+    "to": "celeste",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "city builder",
+    "to": "cities skylines",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colony sim",
+    "to": "rimworld",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colony sim",
+    "to": "oxygen not included",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "4x",
+    "to": "civilization",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crpg",
+    "to": "baldurs gate",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crpg",
+    "to": "divinity original sin",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crpg",
+    "to": "pillars of eternity",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grand strategy",
+    "to": "crusader kings",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "starcraft",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "xcom",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hero shooter",
+    "to": "overwatch",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "battle royale",
+    "to": "fortnite",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "battle royale",
+    "to": "apex legends",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "farming sim",
+    "to": "stardew valley",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "looter shooter",
+    "to": "destiny 2",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "social deduction",
+    "to": "among us",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hand-drawn",
+    "to": "cuphead",
+    "weight": 0.95,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "word game",
+    "to": "wordle",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "fire emblem",
+    "weight": 0.94,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "turn-based tactics",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "tactical rpg",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "idle",
+    "to": "incremental",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "incremental",
+    "to": "idle",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "slay the spire",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "monster train",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "jrpg",
+    "to": "final fantasy",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "jrpg",
+    "to": "persona",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "jrpg",
+    "to": "octopath traveler",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "puzzle",
+    "to": "the witness",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "puzzle",
+    "to": "baba is you",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "sandbox",
+    "to": "minecraft",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "factory automation",
+    "to": "satisfactory",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "stamina system",
+    "to": "sekiro",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "stamina system",
+    "to": "bloodborne",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "combo system",
+    "to": "mortal kombat",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "combo system",
+    "to": "street fighter",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "combo system",
+    "to": "tekken",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "loot systems",
+    "to": "diablo",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "loot systems",
+    "to": "path of exile",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "loot systems",
+    "to": "destiny 2",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "branching narrative",
+    "to": "disco elysium",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "emergent gameplay",
+    "to": "dwarf fortress",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "emergent gameplay",
+    "to": "rimworld",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "one more run",
+    "to": "hades",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "one more run",
+    "to": "binding of isaac",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "push-your-luck",
+    "to": "balatro",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "turn-based",
+    "to": "xcom",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hidden information",
+    "to": "among us",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "dark souls",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "bloodborne",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cinematic",
+    "to": "the last of us",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "mythology",
+    "to": "god of war",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "anime aesthetic",
+    "to": "persona",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cute",
+    "to": "animal crossing",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cute",
+    "to": "pokemon",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "pixel art",
+    "to": "celeste",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "pixel art",
+    "to": "shovel knight",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hand-drawn",
+    "to": "hollow knight",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "western",
+    "to": "red dead redemption",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dystopian",
+    "to": "papers please",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "relaxing",
+    "to": "stardew valley",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "relaxing",
+    "to": "animal crossing",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colorful",
+    "to": "splatoon",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "brutal difficulty",
+    "to": "dark souls",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "brutal difficulty",
+    "to": "elden ring",
+    "weight": 0.92,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
     "from": "roguelite",
     "to": "roguelike",
+    "weight": 0.91,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelike",
+    "to": "roguelite",
+    "weight": 0.91,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelite",
+    "to": "one more run",
     "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "run-based",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "hades",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelite",
+    "to": "dead cells",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelite",
+    "to": "vampire survivors",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "strategy",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "grand strategy",
+    "to": "strategy",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "4x",
+    "to": "strategy",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "strategy",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action rpg",
+    "to": "rpg",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "survival",
+    "to": "resource management",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "survival",
+    "to": "crafting",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "management",
+    "to": "resource management",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "resource management",
+    "to": "factorio",
+    "weight": 0.9,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "resource management",
+    "to": "rimworld",
+    "weight": 0.9,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "resource management",
+    "to": "oxygen not included",
+    "weight": 0.9,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "run-based",
+    "to": "one more run",
+    "weight": 0.9,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "one more run",
+    "to": "run-based",
+    "weight": 0.9,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "speedrun-viable",
+    "to": "celeste",
+    "weight": 0.9,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "atmospheric",
+    "to": "outer wilds",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "atmospheric",
+    "to": "journey",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "atmospheric",
+    "to": "hollow knight",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "relaxing",
+    "to": "journey",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "relaxing",
+    "to": "unpacking",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "relaxing",
+    "to": "a short hike",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "noir",
+    "to": "disco elysium",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "post-apocalyptic",
+    "to": "fallout",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "neon",
+    "to": "cyberpunk 2077",
+    "weight": 0.9,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelike",
+    "to": "binding of isaac",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelike",
+    "to": "spelunky",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelike",
+    "to": "noita",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelike",
+    "to": "run-based",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelike",
+    "to": "permadeath",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "meta-progression",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "permadeath",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "binding of isaac",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelite",
+    "to": "risk of rain",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelite",
+    "to": "enter the gungeon",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelite",
+    "to": "slay the spire",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action roguelike",
+    "to": "roguelite",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action roguelike",
+    "to": "roguelike",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action roguelike",
+    "to": "enter the gungeon",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action roguelike",
+    "to": "dead cells",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action roguelike",
+    "to": "hades",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action roguelike",
+    "to": "run-based",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "action roguelike",
+    "to": "permadeath",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "balatro",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "inscryption",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "deck construction",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "roguelite",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "survival",
+    "to": "valheim",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "survival",
+    "to": "subnautica",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "survival",
+    "to": "dont starve",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "survival",
+    "to": "project zomboid",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "factory automation",
+    "to": "dyson sphere program",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grand strategy",
+    "to": "victoria 3",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grand strategy",
+    "to": "stellaris",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grand strategy",
+    "to": "civilization",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "xcom",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "fighting",
+    "to": "mortal kombat",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "fighting",
+    "to": "street fighter",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "fighting",
+    "to": "tekken",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "fighting",
+    "to": "guilty gear",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "fighting",
+    "to": "combo system",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "horror",
+    "to": "five nights at freddys",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "horror",
+    "to": "phasmophobia",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "horror",
+    "to": "resident evil",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "horror",
+    "to": "little nightmares",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "survival horror",
+    "to": "resident evil",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "puzzle",
+    "to": "portal 2",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "physics puzzle",
+    "to": "portal 2",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "mystery",
+    "to": "return of the obra dinn",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "mystery",
+    "to": "the witness",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "detective",
+    "to": "ace attorney",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "detective",
+    "to": "return of the obra dinn",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "walking simulator",
+    "to": "firewatch",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "walking simulator",
+    "to": "what remains of edith finch",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "walking simulator",
+    "to": "journey",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "walking simulator",
+    "to": "a short hike",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "visual novel",
+    "to": "danganronpa",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "visual novel",
+    "to": "ace attorney",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "visual novel",
+    "to": "persona",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "visual novel",
+    "to": "branching narrative",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "branching narrative",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "outer wilds",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "disco elysium",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "oxenfree",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "firewatch",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "what remains of edith finch",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "immersive sim",
+    "to": "dishonored",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "immersive sim",
+    "to": "bioshock",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "immersive sim",
+    "to": "stealth",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "stealth",
+    "to": "immersive sim",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "stealth",
+    "to": "dishonored",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "stealth",
+    "to": "metal gear solid",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "emergent gameplay",
+    "to": "minecraft",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "emergent gameplay",
+    "to": "kenshi",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "branching narrative",
+    "to": "baldurs gate",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "branching narrative",
+    "to": "mass effect",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deck construction",
+    "to": "balatro",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deck construction",
+    "to": "monster train",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "procedural generation",
+    "to": "binding of isaac",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "procedural generation",
+    "to": "spelunky",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "procedural generation",
+    "to": "noita",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "procedural generation",
+    "to": "rimworld",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "permadeath",
+    "to": "binding of isaac",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "permadeath",
+    "to": "hades",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "run-based",
+    "to": "permadeath",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "permadeath",
+    "to": "run-based",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "dark",
+    "to": "elden ring",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "darkest dungeon",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cinematic",
+    "to": "god of war",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cinematic",
+    "to": "death stranding",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cinematic",
+    "to": "ghost of tsushima",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cinematic",
+    "to": "red dead redemption",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "mythology",
+    "to": "hades",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "anime aesthetic",
+    "to": "fire emblem",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "anime aesthetic",
+    "to": "nier automata",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "anime aesthetic",
+    "to": "danganronpa",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "pixel art",
+    "to": "stardew valley",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "pixel art",
+    "to": "terraria",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "pixel art",
+    "to": "dead cells",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hand-drawn",
+    "to": "gris",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hand-drawn",
+    "to": "ori and the blind forest",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "brutal difficulty",
+    "to": "celeste",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "brutal difficulty",
+    "to": "binding of isaac",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "brutal difficulty",
+    "to": "hades",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dystopian",
+    "to": "cyberpunk 2077",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colorful",
+    "to": "animal crossing",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colorful",
+    "to": "pokemon",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "post-apocalyptic",
+    "to": "death stranding",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "psychological",
+    "to": "disco elysium",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "psychological",
+    "to": "outer wilds",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "surreal",
+    "to": "outer wilds",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "surreal",
+    "to": "baba is you",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "dark souls",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "darkest dungeon",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "bloodborne",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "elden ring",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "high fantasy",
+    "to": "baldurs gate",
+    "weight": 0.88,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "high fantasy",
+    "to": "elden ring",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "high fantasy",
+    "to": "dragon age",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "hearthstone",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "card drafting",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "meta-progression",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelike",
+    "to": "action roguelike",
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
   },
@@ -16,793 +1591,380 @@
   {
     "from": "roguelite",
     "to": "deckbuilder",
-    "weight": 0.8,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "roguelite",
-    "to": "bullet heaven",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "roguelite",
-    "to": "dungeon crawler",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "roguelite",
-    "to": "run-based",
-    "weight": 0.9,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "roguelite",
-    "to": "permadeath",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "roguelite",
-    "to": "meta-progression",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "roguelite",
-    "to": "one more run",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "roguelite",
-    "to": "procedural generation",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "roguelite",
-    "to": "quick sessions",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "roguelike",
-    "to": "roguelite",
-    "weight": 0.9,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "roguelike",
-    "to": "action roguelike",
     "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "roguelike",
-    "to": "permadeath",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "roguelike",
-    "to": "run-based",
+    "from": "soulslike",
+    "to": "bloodborne",
     "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "mechanics"
+    "to_dim": "kindred"
   },
   {
-    "from": "roguelike",
-    "to": "procedural generation",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "action roguelike",
-    "to": "roguelite",
+    "from": "soulslike",
+    "to": "sekiro",
     "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
   },
   {
-    "from": "action roguelike",
-    "to": "bullet heaven",
-    "weight": 0.72,
+    "from": "soulslike",
+    "to": "hollow knight",
+    "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "action roguelike",
-    "to": "permadeath",
-    "weight": 0.8,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "action roguelike",
-    "to": "run-based",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "bullet heaven",
-    "to": "roguelite",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "bullet heaven",
-    "to": "twin-stick shooter",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "bullet heaven",
-    "to": "top-down shooter",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "bullet heaven",
-    "to": "run-based",
-    "weight": 0.8,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "bullet heaven",
-    "to": "quick sessions",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "deckbuilder",
-    "to": "card game",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "deckbuilder",
-    "to": "card battler",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "deckbuilder",
-    "to": "deck construction",
-    "weight": 0.95,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "deckbuilder",
-    "to": "card drafting",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
+    "to_dim": "kindred"
   },
   {
     "from": "soulslike",
     "to": "action rpg",
-    "weight": 0.7,
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
-  },
-  {
-    "from": "soulslike",
-    "to": "dark fantasy",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "soulslike",
-    "to": "brutal difficulty",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "soulslike",
-    "to": "atmospheric",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "soulslike",
-    "to": "loot systems",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "soulslike",
-    "to": "skill trees",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
   },
   {
     "from": "action rpg",
     "to": "soulslike",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "action rpg",
-    "to": "hack and slash",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "action rpg",
-    "to": "looter shooter",
-    "weight": 0.58,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "action rpg",
-    "to": "loot systems",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "action rpg",
-    "to": "skill trees",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "action rpg",
-    "to": "upgrade systems",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "crpg",
-    "to": "rpg",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "crpg",
-    "to": "tactical rpg",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "crpg",
-    "to": "isometric",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "crpg",
-    "to": "branching narrative",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "rpg",
-    "to": "jrpg",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "rpg",
-    "to": "action rpg",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "rpg",
-    "to": "tactical rpg",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "rpg",
-    "to": "crpg",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "rpg",
-    "to": "skill trees",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "rpg",
-    "to": "branching narrative",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "jrpg",
-    "to": "rpg",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "jrpg",
-    "to": "tactical rpg",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "jrpg",
-    "to": "anime aesthetic",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "jrpg",
-    "to": "turn-based combat",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "tactical rpg",
-    "to": "turn-based tactics",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "tactical rpg",
-    "to": "tactics",
     "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "tactical rpg",
-    "to": "turn-based strategy",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "tactical rpg",
-    "to": "grid-based",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "tactical rpg",
-    "to": "unit management",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "turn-based tactics",
-    "to": "tactical rpg",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "turn-based tactics",
-    "to": "tactics",
-    "weight": 0.9,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "turn-based tactics",
-    "to": "turn-based strategy",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "turn-based tactics",
-    "to": "grid-based",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "turn-based tactics",
-    "to": "fog of war",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "turn-based strategy",
-    "to": "4x",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "turn-based strategy",
-    "to": "grand strategy",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "turn-based strategy",
-    "to": "wargame",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "turn-based strategy",
-    "to": "fog of war",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "turn-based strategy",
-    "to": "resource management",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "turn-based strategy",
-    "to": "unit management",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "4x",
-    "to": "grand strategy",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "4x",
-    "to": "turn-based strategy",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "4x",
-    "to": "resource management",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "grand strategy",
-    "to": "4x",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "grand strategy",
-    "to": "wargame",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "grand strategy",
-    "to": "real-time strategy",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "real-time strategy",
-    "to": "grand strategy",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "real-time strategy",
-    "to": "tower defense",
-    "weight": 0.58,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "real-time strategy",
-    "to": "resource management",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "real-time strategy",
-    "to": "unit management",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "real-time strategy",
-    "to": "fog of war",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "factory automation",
-    "to": "colony sim",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "factory automation",
-    "to": "base building",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "factory automation",
-    "to": "management",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "factory automation",
-    "to": "resource management",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "factory automation",
-    "to": "emergent gameplay",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "colony sim",
-    "to": "base building",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "colony sim",
-    "to": "survival",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "colony sim",
-    "to": "resource management",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "colony sim",
-    "to": "emergent gameplay",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "city builder",
-    "to": "colony sim",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "city builder",
-    "to": "management",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "city builder",
-    "to": "base building",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "city builder",
-    "to": "resource management",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "cozy",
-    "to": "wholesome",
+    "from": "metroidvania",
+    "to": "ori and the blind forest",
     "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
   },
   {
-    "from": "cozy",
-    "to": "farming sim",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "cozy",
-    "to": "life sim",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "cozy",
-    "to": "lo-fi",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "wholesome",
-    "to": "cozy",
+    "from": "metroidvania",
+    "to": "dead cells",
     "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "wholesome",
-    "to": "lo-fi",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "farming sim",
-    "to": "cozy",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "farming sim",
-    "to": "life sim",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
   },
   {
     "from": "metroidvania",
     "to": "platformer",
-    "weight": 0.65,
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
     "from": "metroidvania",
-    "to": "precision platformer",
-    "weight": 0.6,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "metroidvania",
-    "to": "soulslike",
-    "weight": 0.58,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "metroidvania",
-    "to": "skill trees",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "metroidvania",
-    "to": "loot systems",
-    "weight": 0.62,
+    "to": "upgrade systems",
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "mechanics"
   },
   {
     "from": "platformer",
-    "to": "precision platformer",
-    "weight": 0.8,
+    "to": "celeste",
+    "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
+  },
+  {
+    "from": "platformer",
+    "to": "shovel knight",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "platformer",
+    "to": "super mario odyssey",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "platformer",
+    "to": "ori and the blind forest",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "platformer",
+    "to": "mega man",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
   },
   {
     "from": "platformer",
     "to": "metroidvania",
-    "weight": 0.65,
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "platformer",
-    "to": "puzzle platformer",
-    "weight": 0.78,
+    "from": "action rpg",
+    "to": "elden ring",
+    "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
   },
   {
-    "from": "platformer",
-    "to": "speedrun-viable",
-    "weight": 0.72,
+    "from": "action rpg",
+    "to": "diablo",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action rpg",
+    "to": "path of exile",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action rpg",
+    "to": "monster hunter",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action rpg",
+    "to": "loot systems",
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "mechanics"
   },
   {
-    "from": "precision platformer",
-    "to": "platformer",
-    "weight": 0.8,
+    "from": "rpg",
+    "to": "skyrim",
+    "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
   },
   {
-    "from": "precision platformer",
-    "to": "speedrun-viable",
-    "weight": 0.82,
+    "from": "rpg",
+    "to": "fallout",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "rpg",
+    "to": "mass effect",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "rpg",
+    "to": "dragon age",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "rpg",
+    "to": "skill trees",
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "mechanics"
   },
   {
-    "from": "precision platformer",
-    "to": "brutal difficulty",
-    "weight": 0.75,
+    "from": "turn-based tactics",
+    "to": "into the breach",
+    "weight": 0.85,
     "from_dim": "genre",
-    "to_dim": "vibe"
+    "to_dim": "kindred"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "fire emblem",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "turn-based strategy",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "grid-based",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "turn-based",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "turn-based tactics",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "turn-based",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "baldurs gate",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "grid-based",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "crpg",
+    "to": "disco elysium",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "city builder",
+    "to": "frostpunk",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "city builder",
+    "to": "management",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "city builder",
+    "to": "resource management",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "colony sim",
+    "to": "dwarf fortress",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "jrpg",
+    "to": "dragon quest",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "sandbox",
+    "to": "terraria",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "sandbox",
+    "to": "open world",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "open world",
+    "to": "sandbox",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "open world",
+    "to": "skyrim",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "open world",
+    "to": "zelda breath of the wild",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "open world",
+    "to": "elden ring",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "looter shooter",
+    "to": "warframe",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "looter shooter",
+    "to": "loot systems",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "hero shooter",
+    "to": "apex legends",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "doom",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "half-life",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "counter-strike",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "survival horror",
+    "to": "horror",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
   },
   {
     "from": "horror",
@@ -812,53 +1974,25 @@
     "to_dim": "genre"
   },
   {
-    "from": "horror",
-    "to": "psychological horror",
+    "from": "mystery",
+    "to": "detective",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "detective",
+    "to": "mystery",
     "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
     "from": "horror",
-    "to": "dark",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "horror",
-    "to": "atmospheric",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "horror",
-    "to": "psychological",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "survival horror",
-    "to": "horror",
+    "to": "psychological horror",
     "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "genre"
-  },
-  {
-    "from": "survival horror",
-    "to": "psychological horror",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "survival horror",
-    "to": "atmospheric",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "vibe"
   },
   {
     "from": "psychological horror",
@@ -868,130 +2002,1320 @@
     "to_dim": "genre"
   },
   {
-    "from": "psychological horror",
-    "to": "psychological",
-    "weight": 0.88,
+    "from": "cozy",
+    "to": "animal crossing",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cozy",
+    "to": "stardew valley",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cozy",
+    "to": "relaxing",
+    "weight": 0.85,
     "from_dim": "genre",
     "to_dim": "vibe"
   },
   {
-    "from": "psychological horror",
-    "to": "atmospheric",
-    "weight": 0.72,
+    "from": "trading card game",
+    "to": "hearthstone",
+    "weight": 0.85,
     "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "trading card game",
+    "to": "deck construction",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "hack and slash",
+    "to": "action rpg",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action rpg",
+    "to": "hack and slash",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "4x",
+    "to": "grand strategy",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "grand strategy",
+    "to": "4x",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "daily challenge",
+    "to": "wordle",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "daily challenge",
+    "to": "quick sessions",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "rhythm",
+    "to": "crypt of the necrodancer",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "rhythm",
+    "to": "geometry dash",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "auto runner",
+    "to": "geometry dash",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "vampire survivors",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "roguelite",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "bullet hell",
+    "to": "returnal",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "bullet hell",
+    "to": "shmup",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "shmup",
+    "to": "bullet hell",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "escape room",
+    "to": "puzzle",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "nonogram",
+    "to": "puzzle",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "match-3",
+    "to": "puzzle",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "physics puzzle",
+    "to": "puzzle",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "wargame",
+    "to": "strategy",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "wargame",
+    "to": "fog of war",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "fishing",
+    "to": "dredge",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "skill trees",
+    "to": "skyrim",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "skill trees",
+    "to": "path of exile",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "unit management",
+    "to": "starcraft",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "unit management",
+    "to": "total war warhammer",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "unit management",
+    "to": "xcom",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "unit management",
+    "to": "fire emblem",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grid-based",
+    "to": "xcom",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grid-based",
+    "to": "fire emblem",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grid-based",
+    "to": "into the breach",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "fog of war",
+    "to": "starcraft",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "fog of war",
+    "to": "xcom",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "card drafting",
+    "to": "hearthstone",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "card drafting",
+    "to": "balatro",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "meta-progression",
+    "to": "dead cells",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "meta-progression",
+    "to": "hades",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "physics-based",
+    "to": "portal 2",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "quick sessions",
+    "to": "vampire survivors",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "quick sessions",
+    "to": "wordle",
+    "weight": 0.85,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "sekiro",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "hollow knight",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "disco elysium",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "atmospheric",
+    "to": "subnautica",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "atmospheric",
+    "to": "gris",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "atmospheric",
+    "to": "shadow of the colossus",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "retro aesthetic",
+    "to": "shovel knight",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "retro aesthetic",
+    "to": "mega man",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "retro aesthetic",
+    "to": "pixel art",
+    "weight": 0.85,
+    "from_dim": "vibe",
     "to_dim": "vibe"
   },
   {
-    "from": "psychological horror",
-    "to": "dark",
-    "weight": 0.72,
-    "from_dim": "genre",
+    "from": "pixel art",
+    "to": "retro aesthetic",
+    "weight": 0.85,
+    "from_dim": "vibe",
     "to_dim": "vibe"
   },
   {
-    "from": "survival",
-    "to": "base building",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
+    "from": "anime aesthetic",
+    "to": "final fantasy",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
   },
   {
-    "from": "survival",
-    "to": "crafting",
+    "from": "dark fantasy",
+    "to": "dragon age",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cute",
+    "to": "spiritfarer",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "surreal",
+    "to": "disco elysium",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "psychological",
+    "to": "control",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "psychological",
+    "to": "papers please",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "medieval",
+    "to": "dark souls",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "medieval",
+    "to": "valheim",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dystopian",
+    "to": "fallout",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colorful",
+    "to": "fall guys",
+    "weight": 0.85,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "noir",
+    "to": "batman arkham",
     "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
+    "from_dim": "vibe",
+    "to_dim": "kindred"
   },
   {
-    "from": "survival",
-    "to": "colony sim",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
+    "from": "noir",
+    "to": "ace attorney",
+    "weight": 0.7,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
   },
   {
-    "from": "survival",
-    "to": "crafting",
+    "from": "roguelite",
+    "to": "procedural generation",
     "weight": 0.82,
     "from_dim": "genre",
     "to_dim": "mechanics"
   },
   {
-    "from": "survival",
-    "to": "resource management",
-    "weight": 0.75,
+    "from": "roguelite",
+    "to": "dungeon crawler",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelite",
+    "to": "cult of the lamb",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelike",
+    "to": "ftl",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelike",
+    "to": "hades",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelike",
+    "to": "procedural generation",
+    "weight": 0.82,
     "from_dim": "genre",
     "to_dim": "mechanics"
   },
   {
-    "from": "puzzle",
-    "to": "puzzle platformer",
+    "from": "bullet heaven",
+    "to": "binding of isaac",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "shmup",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "action roguelike",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "quick sessions",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "upgrade systems",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "bullet hell",
+    "to": "enter the gungeon",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "bullet hell",
+    "to": "bullet heaven",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "bullet hell",
+    "to": "time pressure",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "bullet hell",
+    "to": "quick sessions",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "shmup",
+    "to": "bullet heaven",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "shmup",
+    "to": "time pressure",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "turn-based",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "unit management",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "strategy",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "strategy",
+    "to": "turn-based strategy",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "wargame",
+    "to": "unit management",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "wargame",
+    "to": "grand strategy",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "wargame",
+    "to": "total war warhammer",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "wargame",
+    "to": "tactics",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tactics",
+    "to": "turn-based tactics",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tactics",
+    "to": "wargame",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "grand strategy",
+    "to": "fog of war",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "factory automation",
+    "to": "resource management",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "colony sim",
+    "to": "city builder",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "city builder",
+    "to": "colony sim",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "night in the woods",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "a short hike",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "survival horror",
+    "to": "dark",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological horror",
+    "to": "dark",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological horror",
+    "to": "psychological",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological horror",
+    "to": "little nightmares",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "horror",
+    "to": "dark",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "soulslike",
+    "to": "metroidvania",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "metroidvania",
+    "to": "soulslike",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "soulslike",
+    "to": "dark",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "soulslike",
+    "to": "brutal difficulty",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "soulslike",
+    "to": "atmospheric",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "soulslike",
+    "to": "dead cells",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "looter shooter",
+    "to": "first-person shooter",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "third-person shooter",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "third-person shooter",
+    "to": "first-person shooter",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hero shooter",
+    "to": "first-person shooter",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "hero shooter",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "beat em up",
+    "to": "fighting",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "fighting",
+    "to": "beat em up",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "beat em up",
+    "to": "combo system",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "hack and slash",
+    "to": "nier automata",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hack and slash",
+    "to": "diablo",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "run-based",
+    "to": "meta-progression",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "meta-progression",
+    "to": "run-based",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "meta-progression",
+    "to": "upgrade systems",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "meta-progression",
+    "to": "vampire survivors",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "one more run",
+    "to": "permadeath",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "permadeath",
+    "to": "one more run",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "card drafting",
+    "to": "deck construction",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "deck construction",
+    "to": "card drafting",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "dark",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "dark",
+    "to": "dark fantasy",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "atmospheric",
+    "to": "cinematic",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cinematic",
+    "to": "atmospheric",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "post-apocalyptic",
+    "to": "dystopian",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "dystopian",
+    "to": "post-apocalyptic",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "high fantasy",
+    "to": "mythology",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "mythology",
+    "to": "high fantasy",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "medieval",
+    "to": "high fantasy",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "high fantasy",
+    "to": "medieval",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cute",
+    "to": "anime aesthetic",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "anime aesthetic",
+    "to": "cute",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "surreal",
+    "to": "atmospheric",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological",
+    "to": "atmospheric",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "dystopian",
+    "to": "disco elysium",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "4x",
+    "to": "stellaris",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "space",
+    "to": "ftl",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "space",
+    "to": "no mans sky",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "space",
+    "to": "stellaris",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "space sim",
+    "to": "no mans sky",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "space sim",
+    "to": "outer wilds",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cozy",
+    "to": "spiritfarer",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cozy",
+    "to": "unpacking",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cozy",
+    "to": "a short hike",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cozy",
+    "to": "cute",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "life sim",
+    "to": "animal crossing",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "life sim",
+    "to": "stardew valley",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cooperative",
+    "to": "deep rock galactic",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cooperative",
+    "to": "it takes two",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "co-op",
+    "to": "deep rock galactic",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "co-op",
+    "to": "it takes two",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "co-op",
+    "to": "portal 2",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crafting",
+    "to": "minecraft",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crafting",
+    "to": "terraria",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crafting",
+    "to": "valheim",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "racing",
+    "to": "rocket league",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "interactive fiction",
+    "to": "text adventure",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "text adventure",
+    "to": "interactive fiction",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "mystery",
+    "to": "narrative adventure",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "push-your-luck",
+    "to": "slay the spire",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "push-your-luck",
+    "to": "binding of isaac",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "push-your-luck",
+    "to": "one more run",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "push-your-luck",
+    "to": "permadeath",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "one more run",
+    "to": "dead cells",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "one more run",
+    "to": "vampire survivors",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "procedural generation",
+    "to": "minecraft",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "emergent gameplay",
+    "to": "procedural generation",
+    "weight": 0.82,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "medieval",
+    "to": "baldurs gate",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "medieval",
+    "to": "castlevania",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "steampunk",
+    "to": "bioshock",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "surreal",
+    "to": "control",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colorful",
+    "to": "stardew valley",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cute",
+    "to": "unpacking",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cute",
+    "to": "a short hike",
+    "weight": 0.82,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "retro aesthetic",
+    "to": "celeste",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "retro aesthetic",
+    "to": "cuphead",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "metroidvania",
+    "to": "tunic",
     "weight": 0.8,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
   },
   {
-    "from": "puzzle",
-    "to": "physics puzzle",
-    "weight": 0.78,
+    "from": "jrpg",
+    "to": "anime aesthetic",
+    "weight": 0.8,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "vibe"
   },
   {
-    "from": "puzzle",
-    "to": "nonogram",
-    "weight": 0.62,
+    "from": "jrpg",
+    "to": "fire emblem",
+    "weight": 0.8,
     "from_dim": "genre",
-    "to_dim": "genre"
+    "to_dim": "kindred"
   },
   {
-    "from": "puzzle",
-    "to": "escape room",
-    "weight": 0.7,
+    "from": "visual novel",
+    "to": "anime aesthetic",
+    "weight": 0.8,
     "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "narrative adventure",
-    "to": "visual novel",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "narrative adventure",
-    "to": "interactive fiction",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "narrative adventure",
-    "to": "point and click",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "narrative adventure",
-    "to": "detective",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "narrative adventure",
-    "to": "walking simulator",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "narrative adventure",
-    "to": "branching narrative",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
+    "to_dim": "vibe"
   },
   {
     "from": "visual novel",
@@ -1003,273 +3327,1533 @@
   {
     "from": "visual novel",
     "to": "dating sim",
-    "weight": 0.72,
+    "weight": 0.8,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "visual novel",
-    "to": "branching narrative",
-    "weight": 0.82,
+    "from": "dating sim",
+    "to": "visual novel",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dating sim",
+    "to": "persona",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crpg",
+    "to": "tactical rpg",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "crpg",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "city builder",
+    "to": "simulation",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "management",
+    "to": "city builder",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "management",
+    "to": "simulation",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "simulation",
+    "to": "management",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "management",
+    "to": "planet coaster",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "management",
+    "to": "cities skylines",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "horror",
+    "to": "darkest dungeon",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "action roguelike",
+    "to": "bullet heaven",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action roguelike",
+    "to": "hack and slash",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hack and slash",
+    "to": "action roguelike",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "social deduction",
+    "to": "lethal company",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "social deduction",
+    "to": "phasmophobia",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "asymmetric multiplayer",
+    "to": "among us",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "asymmetric multiplayer",
+    "to": "phasmophobia",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "asymmetric multiplayer",
+    "to": "deep rock galactic",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "asymmetric multiplayer",
+    "to": "party game",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "party game",
+    "to": "social deduction",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "party game",
+    "to": "fall guys",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "party game",
+    "to": "among us",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "mystery",
+    "to": "outer wilds",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "detective",
+    "to": "disco elysium",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "open world",
+    "to": "red dead redemption",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "rpg",
+    "to": "jrpg",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "jrpg",
+    "to": "rpg",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "rpg",
+    "to": "crpg",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "crpg",
+    "to": "rpg",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "sandbox",
+    "to": "crafting",
+    "weight": 0.8,
     "from_dim": "genre",
     "to_dim": "mechanics"
   },
   {
-    "from": "visual novel",
-    "to": "anime aesthetic",
-    "weight": 0.72,
+    "from": "sandbox",
+    "to": "emergent gameplay",
+    "weight": 0.8,
     "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "sandbox",
+    "to": "no mans sky",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "farming sim",
+    "to": "animal crossing",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "crafting",
+    "to": "stardew valley",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "loot systems",
+    "to": "upgrade systems",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "upgrade systems",
+    "to": "loot systems",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "upgrade systems",
+    "to": "hollow knight",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "upgrade systems",
+    "to": "skill trees",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "skill trees",
+    "to": "upgrade systems",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "speedrun-viable",
+    "to": "hollow knight",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "speedrun-viable",
+    "to": "super mario odyssey",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "speedrun-viable",
+    "to": "portal 2",
+    "weight": 0.8,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "high fantasy",
+    "weight": 0.8,
+    "from_dim": "vibe",
     "to_dim": "vibe"
   },
   {
-    "from": "interactive fiction",
-    "to": "text adventure",
-    "weight": 0.85,
+    "from": "high fantasy",
+    "to": "dark fantasy",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "atmospheric",
+    "to": "dark",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "noir",
+    "to": "dark",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "dark",
+    "to": "atmospheric",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cartoon",
+    "to": "cute",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cute",
+    "to": "cartoon",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "hand-drawn",
+    "to": "cartoon",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cartoon",
+    "to": "hand-drawn",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "surreal",
+    "to": "noita",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "minimalist",
+    "to": "journey",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "minimalist",
+    "to": "into the breach",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "minimalist",
+    "to": "unpacking",
+    "weight": 0.8,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "mystery",
+    "to": "escape room",
+    "weight": 0.78,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "interactive fiction",
+    "from": "escape room",
+    "to": "mystery",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tower defense",
+    "to": "strategy",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tower defense",
+    "to": "resource management",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "tower defense",
+    "to": "into the breach",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grand strategy",
+    "to": "turn-based strategy",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dungeon crawler",
+    "to": "roguelike",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dungeon crawler",
+    "to": "darkest dungeon",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dungeon crawler",
+    "to": "diablo",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "monster taming",
+    "to": "pokemon",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "monster taming",
+    "to": "rpg",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "musou",
+    "to": "hack and slash",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "musou",
+    "to": "nier automata",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "base building",
+    "to": "rimworld",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "base building",
+    "to": "factorio",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "base building",
+    "to": "valheim",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "auto battler",
+    "to": "strategy",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "auto battler",
+    "to": "loop hero",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "auto battler",
+    "to": "hearthstone",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "idle",
+    "to": "loop hero",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "idle",
+    "to": "meta-progression",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "incremental",
+    "to": "meta-progression",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "incremental",
+    "to": "dyson sphere program",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "escape room",
+    "to": "return of the obra dinn",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "puzzle platformer",
+    "to": "platformer",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "platformer",
+    "to": "puzzle platformer",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "puzzle platformer",
+    "to": "puzzle",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "puzzle platformer",
+    "to": "celeste",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "precision platformer",
+    "to": "platformer",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "platformer",
+    "to": "precision platformer",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "precision platformer",
+    "to": "geometry dash",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "auto runner",
+    "to": "arcade",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "auto runner",
+    "to": "quick sessions",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "auto runner",
+    "to": "time pressure",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "rhythm",
+    "to": "quick sessions",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "rhythm",
+    "to": "time pressure",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "hidden object",
+    "to": "puzzle",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hidden object",
+    "to": "mystery",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "social deduction",
+    "to": "mystery",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "fishing",
+    "to": "cozy",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "fishing",
+    "to": "relaxing",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cozy",
+    "to": "farming sim",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "farming sim",
+    "to": "cozy",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "walking simulator",
     "to": "narrative adventure",
     "weight": 0.78,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "interactive fiction",
-    "to": "branching narrative",
-    "weight": 0.92,
+    "from": "narrative adventure",
+    "to": "walking simulator",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "walking simulator",
+    "to": "atmospheric",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "walking simulator",
+    "to": "gris",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hidden information",
+    "to": "slay the spire",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "hidden information",
+    "to": "return of the obra dinn",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "turn-based",
+    "to": "civilization",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "turn-based",
+    "to": "into the breach",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "grid-based",
+    "to": "turn-based",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based",
+    "to": "grid-based",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "time pressure",
+    "to": "vampire survivors",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "time pressure",
+    "to": "geometry dash",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "combo system",
+    "to": "guilty gear",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "combo system",
+    "to": "nier automata",
+    "weight": 0.78,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "psychological",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological",
+    "to": "dark",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "noir",
+    "to": "atmospheric",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "minimalist",
+    "to": "baba is you",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "neon",
+    "to": "valorant",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "neon",
+    "to": "dystopian",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "dystopian",
+    "to": "neon",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "mythology",
+    "to": "elden ring",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "mythology",
+    "to": "medieval",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "medieval",
+    "to": "mythology",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "colorful",
+    "to": "cute",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cute",
+    "to": "colorful",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "colorful",
+    "to": "cartoon",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cartoon",
+    "to": "colorful",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "post-apocalyptic",
+    "to": "dont starve",
+    "weight": 0.75,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "neon",
+    "to": "nier automata",
+    "weight": 0.75,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "anime aesthetic",
+    "to": "final fantasy xiv",
+    "weight": 0.75,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "pixel art",
+    "to": "lo-fi",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "lo-fi",
+    "to": "pixel art",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "lo-fi",
+    "to": "relaxing",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "relaxing",
+    "to": "lo-fi",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "lo-fi",
+    "to": "stardew valley",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "lo-fi",
+    "to": "animal crossing",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "roguelite",
+    "to": "quick sessions",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "mechanics"
   },
   {
-    "from": "first-person shooter",
-    "to": "extraction shooter",
+    "from": "survival",
+    "to": "permadeath",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "survival",
+    "to": "minecraft",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colony sim",
+    "to": "survival",
     "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "first-person shooter",
-    "to": "hero shooter",
-    "weight": 0.65,
+    "from": "horror",
+    "to": "mystery",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "first-person shooter",
-    "to": "looter shooter",
-    "weight": 0.65,
+    "from": "mystery",
+    "to": "horror",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "first-person shooter",
-    "to": "third-person shooter",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "battle royale",
-    "to": "first-person shooter",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "battle royale",
-    "to": "hero shooter",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "hero shooter",
-    "to": "moba",
-    "weight": 0.62,
+    "from": "real-time strategy",
+    "to": "tower defense",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
     "from": "moba",
-    "to": "hero shooter",
-    "weight": 0.62,
+    "to": "real-time strategy",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "looter shooter",
-    "to": "action rpg",
-    "weight": 0.65,
+    "from": "real-time strategy",
+    "to": "unit management",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "grand strategy",
+    "to": "resource management",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "sports",
+    "to": "rocket league",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "sports",
+    "to": "splatoon",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "racing",
+    "to": "arcade",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "looter shooter",
+    "from": "vehicle combat",
+    "to": "racing",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "vehicle combat",
+    "to": "rocket league",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "god game",
+    "to": "simulation",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "god game",
+    "to": "strategy",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "god game",
+    "to": "civilization",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "extraction shooter",
+    "to": "first-person shooter",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "first-person shooter",
     "to": "extraction shooter",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "looter shooter",
-    "to": "loot systems",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "dungeon crawler",
-    "to": "action rpg",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "dungeon crawler",
-    "to": "hack and slash",
     "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "dungeon crawler",
-    "to": "roguelite",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "dungeon crawler",
-    "to": "loot systems",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "hack and slash",
-    "to": "action rpg",
+    "from": "twin-stick shooter",
+    "to": "top-down shooter",
     "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "hack and slash",
-    "to": "beat em up",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "hack and slash",
-    "to": "musou",
+    "from": "top-down shooter",
+    "to": "twin-stick shooter",
     "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "hack and slash",
-    "to": "dungeon crawler",
+    "from": "twin-stick shooter",
+    "to": "bullet heaven",
     "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "beat em up",
-    "to": "hack and slash",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "beat em up",
-    "to": "musou",
+    "from": "twin-stick shooter",
+    "to": "action roguelike",
     "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "card game",
-    "to": "trading card game",
-    "weight": 0.85,
+    "from": "card battler",
+    "to": "card game",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "card game",
-    "to": "card battler",
-    "weight": 0.85,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "card game",
+    "from": "card battler",
     "to": "deckbuilder",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "sandbox",
-    "to": "open world",
     "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "sandbox",
-    "to": "survival",
-    "weight": 0.62,
+    "from": "card game",
+    "to": "hearthstone",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "card game",
+    "to": "balatro",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "tabletop sim",
+    "to": "strategy",
+    "weight": 0.72,
     "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "sandbox",
+    "from": "crafting",
+    "to": "resource management",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "co-op",
+    "to": "dont starve",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "branching narrative",
+    "to": "outer wilds",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "emergent gameplay",
+    "to": "no mans sky",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "physics-based",
     "to": "emergent gameplay",
-    "weight": 0.78,
-    "from_dim": "genre",
+    "weight": 0.72,
+    "from_dim": "mechanics",
     "to_dim": "mechanics"
   },
   {
-    "from": "sandbox",
-    "to": "crafting",
+    "from": "stamina system",
+    "to": "upgrade systems",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "stamina system",
+    "to": "time pressure",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "loot systems",
+    "to": "skill trees",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "hidden information",
+    "to": "push-your-luck",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "push-your-luck",
+    "to": "hidden information",
+    "weight": 0.72,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "dark",
+    "to": "post-apocalyptic",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "brutal difficulty",
+    "to": "dark",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "surreal",
+    "to": "minimalist",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "minimalist",
+    "to": "surreal",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "hand-drawn",
+    "to": "anime aesthetic",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "western",
+    "to": "fallout",
     "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
+    "from_dim": "vibe",
+    "to_dim": "kindred"
   },
   {
-    "from": "base building",
-    "to": "colony sim",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
+    "from": "high fantasy",
+    "to": "final fantasy",
+    "weight": 0.7,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
   },
   {
-    "from": "base building",
-    "to": "survival",
+    "from": "steampunk",
+    "to": "dark",
+    "weight": 0.68,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "fantasy",
+    "to": "high fantasy",
     "weight": 0.68,
     "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "fantasy",
+    "to": "dark fantasy",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "fantasy",
+    "to": "atmospheric",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "sci-fi",
+    "to": "dystopian",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cyberpunk",
+    "to": "neon",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cyberpunk",
+    "to": "dystopian",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "jrpg",
+    "to": "colorful",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "platformer",
+    "to": "colorful",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "platformer",
+    "to": "cartoon",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "platformer",
+    "to": "speedrun-viable",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "idle",
+    "to": "relaxing",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "roguelite",
+    "to": "push-your-luck",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelike",
+    "to": "push-your-luck",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "push-your-luck",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "card game",
+    "to": "push-your-luck",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "horror",
+    "to": "permadeath",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "open world",
+    "to": "emergent gameplay",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "metroidvania",
+    "to": "skill trees",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "action rpg",
+    "to": "upgrade systems",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "puzzle",
+    "to": "quick sessions",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "match-3",
+    "to": "quick sessions",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "puzzle platformer",
+    "to": "baba is you",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "stealth",
+    "to": "emergent gameplay",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "immersive sim",
+    "to": "emergent gameplay",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "space",
+    "to": "outer wilds",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "space sim",
+    "to": "stellaris",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "colony sim",
+    "to": "dont starve",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "life sim",
+    "to": "farming sim",
+    "weight": 0.65,
+    "from_dim": "genre",
     "to_dim": "genre"
   },
   {
-    "from": "social deduction",
-    "to": "party game",
-    "weight": 0.7,
+    "from": "farming sim",
+    "to": "life sim",
+    "weight": 0.65,
     "from_dim": "genre",
     "to_dim": "genre"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "total war warhammer",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "interactive fiction",
+    "to": "papers please",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "city builder",
+    "to": "planet coaster",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "puzzle",
+    "to": "push-your-luck",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "horror",
+    "to": "atmospheric",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
   },
   {
     "from": "word game",
     "to": "trivia",
     "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "word game",
-    "to": "puzzle",
-    "weight": 0.58,
     "from_dim": "genre",
     "to_dim": "genre"
   },
@@ -1281,444 +4865,220 @@
     "to_dim": "genre"
   },
   {
-    "from": "daily challenge",
-    "to": "word game",
-    "weight": 0.6,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "daily challenge",
-    "to": "quick sessions",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "idle",
-    "to": "incremental",
-    "weight": 0.95,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "idle",
-    "to": "upgrade systems",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "idle",
-    "to": "quick sessions",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "incremental",
-    "to": "idle",
-    "weight": 0.95,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "incremental",
-    "to": "upgrade systems",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "detective",
-    "to": "mystery",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "detective",
-    "to": "narrative adventure",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "detective",
-    "to": "noir",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "mystery",
-    "to": "detective",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "mystery",
-    "to": "point and click",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "mystery",
-    "to": "noir",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "tower defense",
-    "to": "resource management",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "immersive sim",
-    "to": "stealth",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "immersive sim",
-    "to": "narrative adventure",
-    "weight": 0.58,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "immersive sim",
-    "to": "emergent gameplay",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "walking simulator",
-    "to": "narrative adventure",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "walking simulator",
+    "from": "narrative adventure",
     "to": "atmospheric",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "cyberpunk",
-    "to": "sci-fi",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "cyberpunk",
-    "to": "noir",
     "weight": 0.65,
     "from_dim": "genre",
     "to_dim": "vibe"
   },
   {
-    "from": "cyberpunk",
-    "to": "post-apocalyptic",
-    "weight": 0.58,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "sci-fi",
-    "to": "space",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "sci-fi",
-    "to": "cyberpunk",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "space",
-    "to": "sci-fi",
-    "weight": 0.75,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "space",
-    "to": "space sim",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "space sim",
-    "to": "space",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "space sim",
-    "to": "grand strategy",
-    "weight": 0.6,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "wargame",
-    "to": "grand strategy",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "wargame",
-    "to": "turn-based strategy",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "dating sim",
-    "to": "visual novel",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "twin-stick shooter",
-    "to": "top-down shooter",
-    "weight": 0.8,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "twin-stick shooter",
-    "to": "bullet heaven",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "twin-stick shooter",
-    "to": "shmup",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "top-down shooter",
-    "to": "twin-stick shooter",
-    "weight": 0.8,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "top-down shooter",
-    "to": "bullet heaven",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "shmup",
-    "to": "bullet heaven",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "shmup",
-    "to": "twin-stick shooter",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "arcade",
-    "to": "retro aesthetic",
-    "weight": 0.68,
-    "from_dim": "genre",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "arcade",
-    "to": "quick sessions",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "party game",
-    "to": "social deduction",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "cooperative",
-    "to": "co-op",
-    "weight": 0.88,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "monster taming",
-    "to": "jrpg",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "management",
-    "to": "city builder",
-    "weight": 0.78,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "management",
-    "to": "simulation",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "management",
-    "to": "resource management",
-    "weight": 0.82,
-    "from_dim": "genre",
-    "to_dim": "mechanics"
-  },
-  {
-    "from": "simulation",
-    "to": "management",
-    "weight": 0.7,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "point and click",
-    "to": "narrative adventure",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "puzzle platformer",
+    "from": "opus magnum",
     "to": "puzzle",
-    "weight": 0.8,
-    "from_dim": "genre",
+    "weight": 0.82,
+    "from_dim": "kindred",
     "to_dim": "genre"
   },
   {
-    "from": "puzzle platformer",
-    "to": "platformer",
+    "from": "opus magnum",
+    "to": "factory automation",
     "weight": 0.78,
-    "from_dim": "genre",
+    "from_dim": "kindred",
     "to_dim": "genre"
-  },
-  {
-    "from": "musou",
-    "to": "hack and slash",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "musou",
-    "to": "beat em up",
-    "weight": 0.72,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "run and gun",
-    "to": "shmup",
-    "weight": 0.65,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "run and gun",
-    "to": "platformer",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "run and gun",
-    "to": "bullet heaven",
-    "weight": 0.6,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "racing",
-    "to": "vehicle combat",
-    "weight": 0.62,
-    "from_dim": "genre",
-    "to_dim": "genre"
-  },
-  {
-    "from": "dark fantasy",
-    "to": "dark",
-    "weight": 0.72,
-    "from_dim": "vibe",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "dark fantasy",
-    "to": "mythology",
-    "weight": 0.6,
-    "from_dim": "vibe",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "pixel art",
-    "to": "retro aesthetic",
-    "weight": 0.78,
-    "from_dim": "vibe",
-    "to_dim": "vibe"
-  },
-  {
-    "from": "retro aesthetic",
-    "to": "pixel art",
-    "weight": 0.78,
-    "from_dim": "vibe",
-    "to_dim": "vibe"
   },
   {
     "from": "run-based",
-    "to": "one more run",
-    "weight": 0.92,
+    "to": "quick sessions",
+    "weight": 0.65,
     "from_dim": "mechanics",
     "to_dim": "mechanics"
   },
   {
-    "from": "meta-progression",
-    "to": "upgrade systems",
-    "weight": 0.68,
+    "from": "combo system",
+    "to": "time pressure",
+    "weight": 0.65,
     "from_dim": "mechanics",
     "to_dim": "mechanics"
   },
   {
-    "from": "card drafting",
-    "to": "deck construction",
-    "weight": 0.88,
+    "from": "upgrade systems",
+    "to": "elden ring",
+    "weight": 0.65,
+    "from_dim": "mechanics",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "procedural generation",
+    "to": "emergent gameplay",
+    "weight": 0.65,
     "from_dim": "mechanics",
     "to_dim": "mechanics"
+  },
+  {
+    "from": "atmospheric",
+    "to": "oxenfree",
+    "weight": 0.65,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "atmospheric",
+    "to": "what remains of edith finch",
+    "weight": 0.65,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "dark",
+    "to": "disco elysium",
+    "weight": 0.65,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "cute",
+    "to": "stardew valley",
+    "weight": 0.65,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "psychological",
+    "to": "papers please",
+    "weight": 0.65,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "surreal",
+    "to": "kentucky route zero",
+    "weight": 0.6,
+    "from_dim": "vibe",
+    "to_dim": "kindred"
+  },
+  {
+    "from": "daily challenge",
+    "to": "trivia",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "moba",
+    "to": "hero shooter",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hero shooter",
+    "to": "moba",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "auto runner",
+    "to": "rhythm",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "rhythm",
+    "to": "auto runner",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "jrpg",
+    "to": "narrative adventure",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "factory automation",
+    "to": "procedural generation",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "hack and slash",
+    "to": "soulslike",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "soulslike",
+    "to": "hack and slash",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "cozy",
+    "to": "relaxing",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "racing",
+    "to": "sports",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "sports",
+    "to": "racing",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "rpg",
+    "to": "action rpg",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action rpg",
+    "to": "rpg",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "spacechem",
+    "to": "puzzle",
+    "weight": 0.78,
+    "from_dim": "kindred",
+    "to_dim": "genre"
+  },
+  {
+    "from": "spacechem",
+    "to": "factory automation",
+    "weight": 0.72,
+    "from_dim": "kindred",
+    "to_dim": "genre"
+  },
+  {
+    "from": "zachtronics",
+    "to": "puzzle",
+    "weight": 0.82,
+    "from_dim": "kindred",
+    "to_dim": "genre"
+  },
+  {
+    "from": "zachtronics",
+    "to": "factory automation",
+    "weight": 0.75,
+    "from_dim": "kindred",
+    "to_dim": "genre"
   }
 ]

@@ -1,28 +1,29 @@
 {% extends "base.html" %} {% block title %}Verify your email — SpawnRadar{%
 endblock %} {% block content %}
-<div class="form-page" style="text-align: center; padding-top: 60px">
-    <h1>Check your inbox</h1>
-    <p
-        class="subtle"
-        style="
-            margin-top: 12px;
-            max-width: 440px;
-            margin-left: auto;
-            margin-right: auto;
-        "
-    >
-        We sent a verification link to <strong>{{ user.email }}</strong>. Click
-        the link to verify your email and unlock your 3-day free trial. No card
-        required.
-    </p>
-    {% if request.query_params.get('error') == 'invalid' %}
-    <div class="alert alert-error" style="margin-top: 24px">
-        That verification link is invalid or has expired.
+<section class="verify-pending-shell">
+    <div class="verify-pending-card">
+        <span class="marketing-kicker">Verify Email</span>
+        <h1>Check your inbox</h1>
+        <p class="verify-pending-lede">We sent a verification link to</p>
+        <div class="verify-pending-email">{{ user.email }}</div>
+        <p class="verify-pending-copy">
+            Click the link in that email to verify your address and unlock your
+            3-day free trial. No card required.
+        </p>
+        {% if request.query_params.get('error') == 'invalid' %}
+        <div class="alert alert-error verify-pending-alert">
+            That verification link is invalid or has expired.
+        </div>
+        {% endif %}
+        <div class="verify-pending-actions">
+            <a href="/auth/resend-verification" class="button secondary">
+                Resend verification email
+            </a>
+        </div>
+        <p class="verify-pending-meta">
+            Didn't receive it? Check your spam folder, promotions tab, or wait a
+            minute before requesting a fresh link.
+        </p>
     </div>
-    {% endif %}
-    <p class="subtle" style="margin-top: 32px; font-size: 13px">
-        Didn't receive it? Check your spam folder, or
-        <a href="/auth/resend-verification">resend the verification email</a>.
-    </p>
-</div>
+</section>
 {% endblock %}

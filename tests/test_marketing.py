@@ -43,5 +43,5 @@ def test_pricing_renders_single_offer(monkeypatch, tmp_path):
     assert "Studio" not in response.text
     assert "Questions before subscribing?" in response.text
     assert "Manage up to" in response.text
-    assert "20" in response.text
-    assert "$20" in response.text
+    assert "29" in response.text
+    assert "$29" in response.text

@@ -222,6 +222,31 @@ class MetricsRepository:
                 (failed_at, error_message, run_id),
             )
 
+    def get_discovery_run_fact(self, run_id: str) -> DiscoveryRunFact | None:
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM discovery_run_facts
+                WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return DiscoveryRunFact(
+            run_id=row["run_id"],
+            user_id=row["user_id"],
+            game_id=row["game_id"],
+            started_at=row["started_at"],
+            completed_at=row["completed_at"],
+            status=row["status"],
+            discovered_count=int(row["discovered_count"]),
+            scored_count=int(row["scored_count"]),
+            queued_count=int(row["queued_count"]),
+            error_message=row["error_message"],
+        )
+
     def list_discovery_run_facts(self) -> list[DiscoveryRunFact]:
         with get_connection(self._db_path) as conn:
             rows = conn.execute(

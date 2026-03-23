@@ -48,6 +48,8 @@ from app.games.repository import (
 )
 from app.games.router import router as games_router
 from app.games.service import GameService
+from app.ingestion.base import SourceRuntime
+from app.ingestion.service import DiscoveryRunService
 from app.metrics.repository import MetricsRepository
 from app.metrics.router import router as metrics_router
 from app.metrics.service import MetricsService
@@ -132,6 +134,18 @@ async def lifespan(app: FastAPI):
         base_url=settings.base_url,
     )
     prospect_service = ProspectService(draft_repo, outcome_repo)
+    discovery_run_service = DiscoveryRunService(
+        template_repo,
+        db_path=db_path,
+        metrics_service=metrics_service,
+        source_runtime=SourceRuntime(
+            youtube_api_key=settings.youtube_api_key,
+            youtube_cache_dir=settings.youtube_cache_dir,
+            twitch_client_id=settings.twitch_client_id,
+            twitch_client_secret=settings.twitch_client_secret,
+        ),
+        anthropic_api_key=settings.anthropic_api_key,
+    )
 
     def subscription_for(request: Request) -> Subscription | None:
         """Return the current user's subscription for use in base templates."""
@@ -157,6 +171,7 @@ async def lifespan(app: FastAPI):
     app.state.game_service = game_service
     app.state.billing_service = billing_service
     app.state.prospect_service = prospect_service
+    app.state.discovery_run_service = discovery_run_service
     app.state.metrics_service = metrics_service
     app.state.user_repo = user_repo
     app.state.session_repo = session_repo

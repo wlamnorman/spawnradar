@@ -224,7 +224,7 @@
         </section>`
         : "";
 
-    return `<article class="queue-card" id="card-${escHtml(item.draft_item_id)}" data-draft-id="${escHtml(item.draft_item_id)}">
+    return `<article class="queue-card" id="card-${escHtml(item.draft_item_id)}" data-draft-id="${escHtml(item.draft_item_id)}" data-platform="${escHtml(item.platform)}">
       <div class="queue-topline">
         <div class="queue-prospect-info">
           <div class="prospect-name-row">
@@ -277,9 +277,9 @@
    * @param {function} [onStatusUpdate] - optional callback(text, blocked) for status messages
    * @param {function} [onComplete] - optional callback({ newItemsAdded, foundNewItems }) when polling ends
    */
-  function startDiscoveryPolling(gameId, onStatusUpdate, onComplete) {
+  function startDiscoveryPolling(gameId, runId, onStatusUpdate, onComplete) {
     const POLL_INTERVAL_MS = 3000;
-    const MAX_POLL_DURATION_MS = 120000; // 2 minutes hard cap
+    const MAX_POLL_DURATION_MS = 600000; // 10 minutes hard cap
     const STABLE_POLLS_TO_STOP = 8; // stop after 8 consecutive empty polls once results have started
 
     const knownIds = new Set(
@@ -293,16 +293,31 @@
     let newItemsAdded = 0;
     let intervalId = null;
     const startTime = Date.now();
+    let finalStatus = runId ? "started" : null;
+    let finalErrorMessage = "";
 
     function updateStatus(text, blocked) {
       if (onStatusUpdate) onStatusUpdate(text, blocked);
     }
 
     function finalMessage() {
+      if (finalStatus === "failed") {
+        return finalErrorMessage || "Discovery stopped because the run failed.";
+      }
       if (!foundNewItems) {
         return "Discovery complete. No new prospects were found this run.";
       }
       return `Discovery complete. Added ${newItemsAdded} new prospect${newItemsAdded !== 1 ? "s" : ""}.`;
+    }
+
+    function currentFilter() {
+      const active = document.querySelector(".queue-filter-btn.is-active");
+      return active ? active.dataset.filter || "all" : "all";
+    }
+
+    function applyFilterToCard(card) {
+      const filter = currentFilter();
+      card.hidden = filter !== "all" && card.dataset.platform !== filter;
     }
 
     function stop() {
@@ -324,11 +339,23 @@
 
       let data;
       try {
-        const res = await fetch(`/api/games/${gameId}/queue`);
+        const path = runId
+          ? `/api/games/${gameId}/queue?run_id=${encodeURIComponent(runId)}`
+          : `/api/games/${gameId}/queue`;
+        const res = await fetch(path);
         if (!res.ok) return;
         data = await res.json();
       } catch (_) {
         return;
+      }
+
+      const run = data.discovery_run || null;
+      if (run) {
+        finalStatus = run.status || finalStatus;
+        if (run.status === "failed") {
+          finalErrorMessage =
+            run.error_message || "Discovery stopped because the run failed.";
+        }
       }
 
       const items = data.items || [];
@@ -337,7 +364,11 @@
       );
 
       if (newItems.length === 0) {
-        if (foundNewItems) {
+        if (run && (run.status === "completed" || run.status === "failed")) {
+          stop();
+          return;
+        }
+        if (!run && foundNewItems) {
           stablePolls += 1;
           if (stablePolls >= STABLE_POLLS_TO_STOP) {
             stop();
@@ -390,6 +421,7 @@
         if (!inserted) {
           list.appendChild(card);
         }
+        applyFilterToCard(card);
 
         card.style.opacity = "0";
         card.style.transition = "opacity 0.4s ease";
@@ -412,6 +444,10 @@
         `Searching for new prospects… ${newItemsAdded} new prospect${newItemsAdded !== 1 ? "s" : ""} queued so far.`,
         false,
       );
+
+      if (run && (run.status === "completed" || run.status === "failed")) {
+        stop();
+      }
     }
 
     function scorePct(item) {

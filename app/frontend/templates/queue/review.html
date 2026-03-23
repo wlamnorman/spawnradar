@@ -495,11 +495,16 @@ game.name }} — Review Queue — SpawnRadar{% endblock %} {% block content %}
                     "Searching for new prospects… Repeated runs prioritize prospects you have not already seen.",
                     false,
                 );
-                startDiscoveryPolling(gameId, api.setStatus, () => {
-                    api.setBusy(false);
-                    const latestUsage = api.getLatestUsage();
-                    api.setDisabled(!(latestUsage && latestUsage.can_run));
-                });
+                startDiscoveryPolling(
+                    gameId,
+                    data.run_id || null,
+                    api.setStatus,
+                    () => {
+                        api.setBusy(false);
+                        const latestUsage = api.getLatestUsage();
+                        api.setDisabled(!(latestUsage && latestUsage.can_run));
+                    },
+                );
             },
         });
     }

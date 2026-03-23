@@ -111,6 +111,21 @@ def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
     )
 
 
+def _create_game_for_user_and_return_id(
+    client: TestClient, name: str = "Game"
+) -> str:
+    _create_game_for_user(client, name)
+    db_path = os.environ.get("DB_PATH", "")
+    assert db_path
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT game_id FROM games WHERE name = ?",
+            (name,),
+        ).fetchone()
+    assert row is not None
+    return str(row["game_id"])
+
+
 def _verify_user_email(db_path: str, email: str) -> None:
     """Mark a user's email as verified directly in the DB."""
     with get_connection(db_path) as conn:
@@ -1130,6 +1145,31 @@ class TestDiscoveryRoutes:
         assert row is not None
         assert row["count"] == 0
 
+    def test_run_ingestion_response_includes_run_id(
+        self, monkeypatch, tmp_path
+    ):
+        async def fake_run_ingestion(*args, **kwargs):
+            return {"discovered": 0, "scored": 0, "imported": 0}
+
+        with _make_client(monkeypatch, tmp_path) as client:
+            app = cast(Any, client.app)
+            app.state.discovery_run_service.run_ingestion = fake_run_ingestion
+            _register_and_login(client, "runid@example.com", "testpass")
+            game_id = _create_game_for_user_and_return_id(client, "RunId Game")
+
+            response = _post_json(
+                client,
+                get_path="/games",
+                post_path=f"/api/games/{game_id}/run-ingestion",
+                json_body={},
+            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert isinstance(payload["run_id"], str)
+        assert payload["run_id"]
+        assert payload["usage"]["monthly"]["used"] == 1
+
     def test_run_ingestion_limits_each_user_independently_and_blocks_per_day(
         self, monkeypatch, tmp_path
     ):
@@ -1151,9 +1191,6 @@ class TestDiscoveryRoutes:
                 return current.astimezone(tz)
 
         monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 25)
-        monkeypatch.setattr(
-            "app.games.router.run_ingestion", fake_run_ingestion
-        )
         monkeypatch.setattr("app.billing.service.datetime", FrozenDateTime)
 
         db_path = tmp_path / "test.sqlite3"
@@ -1228,6 +1265,18 @@ class TestDiscoveryRoutes:
             _make_client(monkeypatch, tmp_path) as user_two_client,
             _make_client(monkeypatch, tmp_path) as user_three_client,
         ):
+            user_one_app = cast(Any, user_one_client.app)
+            user_two_app = cast(Any, user_two_client.app)
+            user_three_app = cast(Any, user_three_client.app)
+            user_one_app.state.discovery_run_service.run_ingestion = (
+                fake_run_ingestion
+            )
+            user_two_app.state.discovery_run_service.run_ingestion = (
+                fake_run_ingestion
+            )
+            user_three_app.state.discovery_run_service.run_ingestion = (
+                fake_run_ingestion
+            )
             _register_and_login(
                 user_one_client, "user1@example.com", "testpass"
             )
@@ -1779,6 +1828,61 @@ class TestAccessGate:
 
         assert resp.status_code == 402
         assert resp.json()["detail"] == "Active subscription required."
+
+    def test_queue_api_includes_requested_discovery_run_status(
+        self, monkeypatch, tmp_path
+    ):
+        db = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "queuerun@example.com", "testpass")
+            game_id = _create_game_for_user_and_return_id(
+                client, "Queue Run Game"
+            )
+
+            with get_connection(db) as conn:
+                user_row = conn.execute(
+                    "SELECT user_id FROM users WHERE email = ?",
+                    ("queuerun@example.com",),
+                ).fetchone()
+                assert user_row is not None
+                conn.execute(
+                    """
+                    INSERT INTO discovery_run_facts
+                        (run_id, user_id, game_id, started_at, completed_at, status,
+                         discovered_count, scored_count, queued_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "run_queue_status",
+                        str(user_row["user_id"]),
+                        game_id,
+                        "2026-03-23T10:00:00+00:00",
+                        "2026-03-23T10:00:05+00:00",
+                        "completed",
+                        8,
+                        6,
+                        4,
+                    ),
+                )
+
+            response = client.get(
+                f"/api/games/{game_id}/queue?run_id=run_queue_status",
+                headers={"accept": "application/json"},
+            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["items"] == []
+        assert payload["discovery_run"] == {
+            "run_id": "run_queue_status",
+            "status": "completed",
+            "started_at": "2026-03-23T10:00:00+00:00",
+            "completed_at": "2026-03-23T10:00:05+00:00",
+            "discovered_count": 8,
+            "scored_count": 6,
+            "queued_count": 4,
+            "error_message": None,
+        }
 
     def test_expired_trial_blocks_draft_action_api(
         self, monkeypatch, tmp_path
