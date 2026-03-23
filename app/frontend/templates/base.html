@@ -37,7 +37,7 @@
         {% block meta_description %}
         <meta
             name="description"
-            content="SpawnRadar helps indie game developers find and contact the right YouTube creators, streamers, and communities for their game."
+            content="SpawnRadar helps indie game developers find and contact the right YouTube creators, streamers and communities for their game."
         />
         {% endblock %}
 
@@ -52,7 +52,7 @@
         />
         <meta
             property="og:description"
-            content="{% block og_description %}SpawnRadar surfaces the right YouTubers, streamers, and communities for your game, then helps you reach out with scored drafts.{% endblock %}"
+            content="{% block og_description %}SpawnRadar surfaces the right YouTubers, streamers and communities for your game, then helps you reach out with scored drafts.{% endblock %}"
         />
         <meta
             property="og:type"
@@ -98,8 +98,8 @@
                 </div>
                 <div class="navbar-right">
                     <a href="/games" class="nav-link">Dashboard</a>
-                    {% set _sub = subscription_for(request) %}
-                    {% if _sub and _sub.has_subscription %}
+                    {% set _sub = subscription_for(request) %} {% if _sub and
+                    _sub.has_subscription %}
                     <a href="/billing" class="nav-link">Billing</a>
                     {% else %}
                     <a href="/pricing" class="nav-link">Pricing</a>
@@ -114,7 +114,11 @@
                         action="/auth/logout"
                         style="display: inline"
                     >
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token_for(request) }}" />
+                        <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token_for(request) }}"
+                        />
                         <button
                             type="submit"
                             class="button button-sm secondary"

@@ -86,23 +86,39 @@ class Settings:
         if not self.secret_key:
             raise ConfigError("SECRET_KEY must be set.")
         if self.secret_key == _DEV_SECRET_KEY and not self.is_local_base_url:
-            raise ConfigError("SECRET_KEY must be set to a non-default value outside local development.")
+            raise ConfigError(
+                "SECRET_KEY must be set to a non-default value outside local development."
+            )
 
         if not self.base_url:
             raise ConfigError("BASE_URL must be set.")
         parsed_base = urlparse(self.base_url)
-        if parsed_base.scheme not in {"http", "https"} or not parsed_base.netloc:
+        if (
+            parsed_base.scheme not in {"http", "https"}
+            or not parsed_base.netloc
+        ):
             raise ConfigError("BASE_URL must be a valid absolute http(s) URL.")
 
         if not self.log_level:
             raise ConfigError("LOG_LEVEL must be set.")
-        if self.log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        if self.log_level not in {
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL",
+        }:
             raise ConfigError(
                 "LOG_LEVEL must be one of DEBUG, INFO, WARNING, ERROR, or CRITICAL."
             )
 
-        if self.paddle_environment and self.paddle_environment not in {"sandbox", "production"}:
-            raise ConfigError("PADDLE_ENVIRONMENT must be either 'sandbox' or 'production'.")
+        if self.paddle_environment and self.paddle_environment not in {
+            "sandbox",
+            "production",
+        }:
+            raise ConfigError(
+                "PADDLE_ENVIRONMENT must be either 'sandbox' or 'production'."
+            )
 
         paddle_values = [
             self.paddle_api_key,
@@ -114,7 +130,7 @@ class Settings:
         if any(paddle_values) and not all(paddle_values):
             raise ConfigError(
                 "Paddle configuration is partial. Set PADDLE_API_KEY, PADDLE_CLIENT_SIDE_TOKEN, "
-                "PADDLE_WEBHOOK_SECRET, PADDLE_INDIE_PRICE_ID, and PADDLE_ENVIRONMENT together."
+                "PADDLE_WEBHOOK_SECRET, PADDLE_INDIE_PRICE_ID and PADDLE_ENVIRONMENT together."
             )
 
         if bool(self.google_client_id) != bool(self.google_client_secret):

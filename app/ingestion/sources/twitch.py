@@ -334,30 +334,9 @@ class TwitchSource(CandidateSource):
 def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     return build_tagged_queries(
         game,
-        genre_templates=(
-            "{tag}",
-            "{tag} games",
-            "{tag} streamer",
-            "{tag} indie",
-        ),
-        audience_templates=(
-            "{tag}",
-            "{tag} streamer",
-            "{tag} games",
-        ),
-        mechanics_templates=(
-            "{tag}",
-            "{tag} games",
-        ),
-        tone_templates=(
-            "{tag}",
-            "{tag} games",
-        ),
-        game_name_templates=(
-            "{game_name}",
-            "{game_name} demo",
-            "{game_name} playtest",
-        ),
+        suffixes=("games", "streamer", "indie"),
+        prefixes=("indie",),
+        game_name_suffixes=("demo", "playtest"),
         run_index=run_index,
     )
 
@@ -446,9 +425,8 @@ def _candidate_from_search_result(
         if preview_thumbnail
         else [],
         source_genre_tag=tags_context.genre,
-        source_audience_tag=tags_context.audience,
         source_mechanics_tag=tags_context.mechanics,
-        source_tone_tag=tags_context.tone,
+        source_vibe_tag=tags_context.vibe,
     ).model_dump()
 
     text_signals = _text_signals(title, description, game_name, tags)

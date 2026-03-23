@@ -8,7 +8,7 @@ excerpt: >
   that tell you to move on.
 ---
 
-Most developers find a channel, see a subscriber count, and send an email.
+Most developers find a channel, see a subscriber count and send an email.
 
 This is the wrong order of operations. Subscriber count is close to the least useful signal when evaluating whether a creator is worth contacting. A channel with 80,000 subscribers that covers your genre every week is far more valuable than a 400,000-subscriber channel that covered one similar game two years ago.
 
@@ -38,7 +38,7 @@ A 300K channel averaging 8,000 views per video has an audience that is not activ
 
 ### Upload frequency
 
-An active creator posts at least every two to three weeks. Look at the gap between the last five videos. Frequency matters because active creators are more likely to be checking email, and because their audience expects new content regularly — a video from an active creator gets seen within days of posting.
+An active creator posts at least every two to three weeks. Look at the gap between the last five videos. Frequency matters because active creators are more likely to be checking email and because their audience expects new content regularly — a video from an active creator gets seen within days of posting.
 
 ### Comment quality and engagement
 
@@ -94,4 +94,4 @@ Before adding any creator to your outreach list, verify:
 
 ---
 
-Doing this evaluation manually for twenty or thirty creators is a significant time investment. SpawnRadar runs this analysis automatically — scoring channels against your game's genre, audience profile, and activity signals so you can focus on the creators who are already a strong fit. [Start a free trial](/auth/register) and run your first creator discovery in a few minutes.
+Doing this evaluation manually for twenty or thirty creators is a significant time investment. SpawnRadar runs this analysis automatically — scoring channels against your game's genre, audience profile and activity signals so you can focus on the creators who are already a strong fit. [Start a free trial](/auth/register) and run your first creator discovery in a few minutes.

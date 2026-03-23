@@ -10,7 +10,7 @@ excerpt: >
 
 A press kit is not about impressing journalists. It is about making a creator's job easier.
 
-When a YouTuber or streamer decides to cover your game, they immediately need a thumbnail image, a logo, footage or screenshots, and enough information to write a description and title. If any of those are hard to find or the wrong format, they improvise — and the result is a thumbnail that undersells your game, a title that doesn't match your genre, and coverage that drives fewer clicks than it could have.
+When a YouTuber or streamer decides to cover your game, they immediately need a thumbnail image, a logo, footage or screenshots and enough information to write a description and title. If any of those are hard to find or the wrong format, they improvise — and the result is a thumbnail that undersells your game, a title that doesn't match your genre and coverage that drives fewer clicks than it could have.
 
 ---
 
@@ -74,7 +74,7 @@ A factsheet is a single short document or section with structured information. T
 
 ### Google Drive or Dropbox
 
-The simplest option. Create a folder, add all assets, and set the folder to **Anyone with the link can view**.
+The simplest option. Create a folder, add all assets and set the folder to **Anyone with the link can view**.
 
 The single most common mistake: creators click the link and hit an access request screen because the developer forgot to change the sharing settings. Test this yourself in a private browser window before sending.
 
@@ -105,7 +105,7 @@ If you have a website, a dedicated `/presskit` page is more professional. The op
 - At least 5 gameplay screenshots at 1920×1080 or higher
 - Trailer is publicly accessible without login
 - Trailer music is confirmed royalty-free or YouTube-licensed
-- Factsheet includes genre, platform, release date, and contact email
+- Factsheet includes genre, platform, release date and contact email
 - Google Drive folder is set to anyone-with-link
 - Link tested in a private browser to confirm access works
 

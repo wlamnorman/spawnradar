@@ -10,7 +10,7 @@ excerpt: >
 
 You finished your game. Now you need people to actually see it.
 
-Content creators — YouTubers, Twitch streamers, short-form video makers — are one of the few channels that can move the needle for an indie game in a meaningful way. A single well-placed video from the right creator can generate more wishlists than a month of social posting. But most developers approach outreach without a system, send generic emails, and wonder why nobody responds.
+Content creators — YouTubers, Twitch streamers, short-form video makers — are one of the few channels that can move the needle for an indie game in a meaningful way. A single well-placed video from the right creator can generate more wishlists than a month of social posting. But most developers approach outreach without a system, send generic emails and wonder why nobody responds.
 
 This guide gives you the checklist we use at SpawnRadar to evaluate outreach readiness before a single message gets sent.
 
@@ -75,7 +75,7 @@ Search YouTube for your closest genre comparisons. Look at who has covered those
 | Large | 150K – 500K | Much lower response rate, but worth trying if the fit is perfect |
 | Major | 500K+ | PR agencies or strong personal connections only |
 
-Do not dismiss micro creators. They are often the most thorough, the most responsive, and the most likely to build a long-term relationship with a game they love.
+Do not dismiss micro creators. They are often the most thorough, the most responsive and the most likely to build a long-term relationship with a game they love.
 
 ### Verify before you send
 
@@ -115,7 +115,7 @@ Scammers exist. Before sending a key to anyone unfamiliar, check:
 
 **After sending**
 
-- I logged who I contacted, when, and what I sent
+- I logged who I contacted, when and what I sent
 - I have a reminder set to follow up once if I don't hear back within 10–14 days
 - I am not sending more than one follow-up
 
@@ -125,7 +125,7 @@ Scammers exist. Before sending a key to anyone unfamiliar, check:
 
 **Reaching out publicly.** Posting on Twitter "hey @CreatorName check out my game!" is almost always a mistake unless you have a prior relationship.
 
-**Contacting during bad timing windows.** Avoid launching or reaching out during major Steam sales, Nintendo Directs, major game releases in your genre, and summer or holiday content droughts.
+**Contacting during bad timing windows.** Avoid launching or reaching out during major Steam sales, Nintendo Directs, major game releases in your genre and summer or holiday content droughts.
 
 **Sending the same email to twenty people at once.** Creators talk to each other. Generic blasts get noticed and remembered for the wrong reasons.
 
@@ -137,6 +137,6 @@ Scammers exist. Before sending a key to anyone unfamiliar, check:
 
 Doing this well takes time. Researching creators, personalising messages, tracking responses — it adds up fast when you are also trying to ship a game.
 
-This is the problem SpawnRadar is built to solve. We surface creators who are a strong genre and audience fit for your specific game, score them against your profile, and draft outreach messages you can review and send. The research step gets compressed from hours to minutes.
+This is the problem SpawnRadar is built to solve. We surface creators who are a strong genre and audience fit for your specific game, score them against your profile and draft outreach messages you can review and send. The research step gets compressed from hours to minutes.
 
 If you want to try it, [start a free trial here](/auth/register).

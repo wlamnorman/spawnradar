@@ -135,7 +135,6 @@ def sample_game(game_service, registered_user):
         summary="A daily browser word puzzle challenge for fast-thinking trivia fans.",
         description="A daily browser-based puzzle game for word puzzle fans",
         genre_tags_raw="puzzle, word game, daily",
-        audience_tags_raw="wordle fans, puzzle lovers",
         platform_tags=["browser"],
         website_url=None,
     )

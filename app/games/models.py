@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.games.tags import TagProfile, WeightedTag
+from app.games.tags import TagProfile, TagWeight, WeightedTag
 from app.ingestion.registry import DEFAULT_DISCOVERY_SOURCES, Source
 
 
 @dataclass(frozen=True)
 class Game:
-    """A registered indie game with audience metadata."""
+    """A registered indie game with tag profiles and metadata."""
 
     game_id: str
     user_id: str
@@ -18,7 +18,6 @@ class Game:
     summary: str | None
     description: str
     genre_tags: list[str]  # deserialized from JSON column
-    audience_tags: list[str]  # deserialized from JSON column
     platform_tags: list[str]  # deserialized from JSON column
     website_url: str | None
     status: str
@@ -26,9 +25,9 @@ class Game:
     created_at: str
     updated_at: str
     genre_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
-    audience_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
     mechanics_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
-    tone_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
+    vibe_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
+    kindred_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
     discovery_schedule: str = "manual"
     discovery_sources: list[Source] = field(
         default_factory=lambda: list(DEFAULT_DISCOVERY_SOURCES)
@@ -43,74 +42,47 @@ class Game:
         return list(self.genre_tag_profile.secondary)
 
     @property
-    def genre_custom_tags(self) -> list[str]:
-        return list(self.genre_tag_profile.custom)
-
-    @property
-    def audience_primary_tags(self) -> list[str]:
-        return list(self.audience_tag_profile.primary)
-
-    @property
-    def audience_secondary_tags(self) -> list[str]:
-        return list(self.audience_tag_profile.secondary)
-
-    @property
-    def audience_custom_tags(self) -> list[str]:
-        return list(self.audience_tag_profile.custom)
-
-    @property
     def mechanics_primary_tags(self) -> list[str]:
         return list(self.mechanics_tag_profile.primary)
 
     @property
-    def mechanics_secondary_tags(self) -> list[str]:
-        return list(self.mechanics_tag_profile.secondary)
+    def vibe_primary_tags(self) -> list[str]:
+        return list(self.vibe_tag_profile.primary)
 
     @property
-    def tone_primary_tags(self) -> list[str]:
-        return list(self.tone_tag_profile.primary)
-
-    @property
-    def tone_secondary_tags(self) -> list[str]:
-        return list(self.tone_tag_profile.secondary)
+    def kindred_primary_tags(self) -> list[str]:
+        return list(self.kindred_tag_profile.primary)
 
     def ordered_genre_tags(self) -> list[str]:
         if self.genre_tag_profile.all_tags:
             return self.genre_tag_profile.ordered_tags()
         return list(self.genre_tags)
 
-    def ordered_audience_tags(self) -> list[str]:
-        if self.audience_tag_profile.all_tags:
-            return self.audience_tag_profile.ordered_tags()
-        return list(self.audience_tags)
-
     def weighted_genre_tags(self) -> list[WeightedTag]:
         if self.genre_tag_profile.all_tags:
             return self.genre_tag_profile.weighted_tags()
         return [
-            WeightedTag(name=tag, weight=1.0, label="primary")
+            WeightedTag(name=tag, weight=1.0, label=TagWeight.PRIMARY)
             for tag in self.genre_tags
-        ]
-
-    def weighted_audience_tags(self) -> list[WeightedTag]:
-        if self.audience_tag_profile.all_tags:
-            return self.audience_tag_profile.weighted_tags()
-        return [
-            WeightedTag(name=tag, weight=1.0, label="primary")
-            for tag in self.audience_tags
         ]
 
     def ordered_mechanics_tags(self) -> list[str]:
         return self.mechanics_tag_profile.ordered_tags()
 
-    def ordered_tone_tags(self) -> list[str]:
-        return self.tone_tag_profile.ordered_tags()
+    def ordered_vibe_tags(self) -> list[str]:
+        return self.vibe_tag_profile.ordered_tags()
+
+    def ordered_kindred_tags(self) -> list[str]:
+        return self.kindred_tag_profile.ordered_tags()
 
     def weighted_mechanics_tags(self) -> list[WeightedTag]:
         return self.mechanics_tag_profile.weighted_tags()
 
-    def weighted_tone_tags(self) -> list[WeightedTag]:
-        return self.tone_tag_profile.weighted_tags()
+    def weighted_vibe_tags(self) -> list[WeightedTag]:
+        return self.vibe_tag_profile.weighted_tags()
+
+    def weighted_kindred_tags(self) -> list[WeightedTag]:
+        return self.kindred_tag_profile.weighted_tags()
 
 
 def _human_join(parts: tuple[str, ...]) -> str:
@@ -120,7 +92,7 @@ def _human_join(parts: tuple[str, ...]) -> str:
         return parts[0]
     if len(parts) == 2:
         return f"{parts[0]} and {parts[1]}"
-    return f"{', '.join(parts[:-1])}, and {parts[-1]}"
+    return f"{', '.join(parts[:-1])} and {parts[-1]}"
 
 
 @dataclass(frozen=True)

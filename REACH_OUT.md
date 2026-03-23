@@ -4,13 +4,13 @@ We Playtest Games — indie playtesting service; strong pre-launch complement to
  )
 PressKitHub — hosted press kits, synced Steam assets, creator verification; good “after discovery, before outreach” fit. (presskithub.io
  )
-KeyRedeem — promo key distribution/tracking for journalists, YouTubers, and Twitch streamers; strong post-discovery complement. (keyredeem.net
+KeyRedeem — promo key distribution/tracking for journalists, YouTubers and Twitch streamers; strong post-discovery complement. (keyredeem.net
  )
 presskit() / doPressKit — classic indie press-kit tool; good for cross-promo / “recommended launch stack” content. (dopresskit.com
  )
 presskit.gg — press kits + creator pitch / press email / launch checklist tools; strong adjacent workflow fit. (presskit.gg
  )
-METAREADY — playtesting service for Roblox, Fortnite, and other games; good pre-launch complement to SpawnRadar because it helps teams validate gameplay and find issues before they move into creator/community outreach. Their positioning is fast feedback from real players, with packages from $250 for 1 playtest up to $2,250 for 10 playtests.
+METAREADY — playtesting service for Roblox, Fortnite and other games; good pre-launch complement to SpawnRadar because it helps teams validate gameplay and find issues before they move into creator/community outreach. Their positioning is fast feedback from real players, with packages from $250 for 1 playtest up to $2,250 for 10 playtests.
 
 Potential distribution channels
 

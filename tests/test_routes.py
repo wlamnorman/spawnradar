@@ -1,7 +1,7 @@
 """HTTP-level integration tests using FastAPI TestClient.
 
 These tests exercise the full request/response cycle including middleware,
-routing, template rendering, and cookie handling.
+routing, template rendering and cookie handling.
 """
 
 from __future__ import annotations
@@ -100,11 +100,8 @@ def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
             "summary": "Short summary",
             "description": "Desc",
             "genre_tags": "tag",
-            "audience_tags": "aud",
             "genre_primary_tags": "tag",
             "genre_secondary_tags": "",
-            "audience_primary_tags": "",
-            "audience_secondary_tags": "",
             "mechanics_primary_tags": "",
             "mechanics_secondary_tags": "",
             "tone_primary_tags": "",
@@ -123,7 +120,7 @@ def _verify_user_email(db_path: str, email: str) -> None:
 
 
 def _register_and_login(client: TestClient, email: str, password: str) -> str:
-    """Register a user, verify their email, and return the session cookie value."""
+    """Register a user, verify their email and return the session cookie value."""
     _post_form(
         client,
         get_path="/auth/register",
@@ -153,11 +150,10 @@ def _create_incomplete_game_for_user(
         summary=None,
         description="Legacy game description",
         genre_tags=[],
-        audience_tags=[],
         genre_tag_profile=TagProfile.empty(),
-        audience_tag_profile=TagProfile.empty(),
         mechanics_tag_profile=TagProfile.empty(),
-        tone_tag_profile=TagProfile.empty(),
+        vibe_tag_profile=TagProfile.empty(),
+        kindred_tag_profile=TagProfile.empty(),
         platform_tags=["browser"],
         website_url=None,
     )
@@ -441,7 +437,7 @@ class TestLegalRoutes:
         assert "Refund Policy" in refunds.text
         normalized_refunds = " ".join(refunds.text.split())
         assert (
-            "handled in line with Paddle's Buyer Terms and Refund Policy"
+            "SpawnRadar offers a free in-app trial and sells paid subscriptions through Paddle, our merchant of record."
             in normalized_refunds
         )
         assert (
@@ -723,7 +719,6 @@ class TestAuthRoutes:
                     "name": "CSRF Test",
                     "description": "A test game",
                     "genre_tags": "strategy",
-                    "audience_tags": "strategy fans",
                     "platform_tags": "browser",
                     "website_url": "",
                 },
@@ -747,7 +742,6 @@ class TestAuthRoutes:
                     "description": "A test game",
                     "genre_tags": "strategy",
                     "genre_primary_tags": "strategy",
-                    "audience_tags": "strategy fans",
                     "platform_tags": "browser",
                     "website_url": "",
                 },
@@ -774,7 +768,6 @@ class TestAuthRoutes:
                     "description": "A test game",
                     "genre_tags": "",
                     "genre_primary_tags": "",
-                    "audience_tags": "strategy fans",
                     "platform_tags": "browser",
                     "website_url": "",
                 },
@@ -932,7 +925,6 @@ class TestDiscoveryRoutes:
                     "description": "Queue Game description",
                     "genre_tags": "strategy",
                     "genre_primary_tags": "strategy",
-                    "audience_tags": "strategy fans",
                     "platform_tags": "browser",
                     "website_url": "",
                 },
@@ -1176,7 +1168,6 @@ class TestDiscoveryRoutes:
                     "summary": f"{game_name} summary",
                     "description": f"{game_name} description",
                     "genre_tags": "strategy",
-                    "audience_tags": "strategy fans",
                     "platform_tags": "browser",
                     "website_url": "",
                 },
@@ -1469,7 +1460,7 @@ class TestBillingRoutes:
             before = client.get("/games")
             assert before.status_code == 200
             assert "<strong>Trial:</strong>" in before.text
-            assert "Activate subscription" in before.text
+            assert "Subscribe now" in before.text
 
             with get_connection(str(db_path)) as conn:
                 user_row = conn.execute(
@@ -1512,7 +1503,7 @@ class TestBillingRoutes:
 
         assert after.status_code == 200
         assert "<strong>Trial:</strong>" not in after.text
-        assert "Activate subscription" not in after.text
+        assert "Subscribe now" not in after.text
 
         with get_connection(str(db_path)) as conn:
             sub_row = conn.execute(
@@ -1666,11 +1657,8 @@ class TestAccessGate:
                     "summary": "Short summary",
                     "description": "Desc",
                     "genre_tags": "tag",
-                    "audience_tags": "aud",
                     "genre_primary_tags": "tag",
                     "genre_secondary_tags": "",
-                    "audience_primary_tags": "",
-                    "audience_secondary_tags": "",
                     "mechanics_primary_tags": "",
                     "mechanics_secondary_tags": "",
                     "tone_primary_tags": "",
@@ -1698,11 +1686,8 @@ class TestAccessGate:
                     "summary": "Short summary",
                     "description": "Desc",
                     "genre_tags": "tag",
-                    "audience_tags": "aud",
                     "genre_primary_tags": "tag",
                     "genre_secondary_tags": "",
-                    "audience_primary_tags": "",
-                    "audience_secondary_tags": "",
                     "mechanics_primary_tags": "",
                     "mechanics_secondary_tags": "",
                     "tone_primary_tags": "",

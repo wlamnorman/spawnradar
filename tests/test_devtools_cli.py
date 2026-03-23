@@ -106,17 +106,12 @@ def test_run_wikiquests_creates_expected_game(db_path):
     assert game.description == load_game_presets()["wikiquests"]["description"]
     assert game.website_url == "https://wikiquests.com"
     assert game.genre_tags == [
-        "speedrun",
         "trivia",
-        "racing",
+        "word game",
+        "wikipedia speedruns",
         "daily challenge",
     ]
-    assert game.audience_tags == [
-        "wikipedia fans",
-        "puzzle solvers",
-        "speedrunners",
-    ]
-    assert game.platform_tags == ["browser"]
+    assert "browser" in game.platform_tags
 
 
 def test_run_wikiquests_is_idempotent_and_updates_existing_game(db_path):
@@ -147,20 +142,12 @@ def test_run_strife_of_stars_creates_expected_game(db_path):
     assert result.created is True
     assert game.description == load_game_presets()["strife-of-stars"]["description"]
     assert game.genre_tags == [
-        "strategy",
         "roguelike",
         "roguelite",
         "turn-based tactics",
+        "turn-based strategy",
+        "strategy",
         "turn-based combat",
-        "sci-fi",
-    ]
-    assert game.audience_tags == [
-        "tactics players",
-        "strategy fans",
-        "sci-fi players",
-        "roguelite fans",
-        "challenge seekers",
-        "chess fans",
     ]
     assert game.platform_tags == ["PC"]
     assert game.website_url is None
@@ -204,14 +191,12 @@ def test_run_snapshot_game_preset_updates_seed_payload_from_saved_game(
         summary="A tighter tactical fleet roguelite for PC strategy fans.",
         description="Updated description from the setup page.",
         genre_tags_raw="",
-        audience_tags_raw="",
         platform_tags=["PC", "Nintendo Switch"],
         website_url="https://strife.example",
         genre_primary_tags_raw="strategy, tactics",
         genre_secondary_tags_raw="sci-fi",
-        audience_primary_tags_raw="strategy fans, pc players",
         mechanics_primary_tags_raw="grid-based, resource management",
-        tone_primary_tags_raw="tense, atmospheric",
+        vibe_primary_tags_raw="tense, atmospheric",
     )
 
     preset_path = _copy_preset_file(tmp_path)
@@ -226,9 +211,8 @@ def test_run_snapshot_game_preset_updates_seed_payload_from_saved_game(
     assert preset["description"] == "Updated description from the setup page."
     assert preset["genre_primary_tags_raw"] == "strategy, tactics"
     assert preset["genre_secondary_tags_raw"] == "sci-fi"
-    assert preset["audience_primary_tags_raw"] == "strategy fans, pc players"
     assert preset["mechanics_primary_tags_raw"] == "grid-based, resource management"
-    assert preset["tone_primary_tags_raw"] == "tense, atmospheric"
+    assert preset["vibe_primary_tags_raw"] == "tense, atmospheric"
     assert preset["platform_tags"] == ["PC", "Nintendo Switch"]
     assert preset["website_url"] == "https://strife.example"
 

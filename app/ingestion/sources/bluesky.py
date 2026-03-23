@@ -50,7 +50,7 @@ class _ClientLike(Protocol):
 
 @register(Source.BLUESKY)
 class BlueskySource(CandidateSource):
-    """Discover Bluesky accounts relevant to a game's genre and audience."""
+    """Discover Bluesky accounts relevant to a game's genre and vibe."""
 
     platform = "bluesky"
 
@@ -175,34 +175,9 @@ def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     """Build Bluesky actor-search queries from the game's tags."""
     return build_tagged_queries(
         game,
-        genre_templates=(
-            "{tag} game",
-            "{tag}",
-            "{tag} streamer",
-            "{tag} creator",
-            "{tag} community",
-        ),
-        audience_templates=(
-            "{tag}",
-            "{tag} creator",
-            "{tag} player",
-            "{tag} community",
-        ),
-        mechanics_templates=(
-            "{tag} games",
-            "{tag} game design",
-            "games with {tag}",
-        ),
-        tone_templates=(
-            "{tag} games",
-            "{tag} aesthetic",
-            "{tag} indie",
-        ),
-        game_name_templates=(
-            "{game_name}",
-            "{game_name} game",
-            "{game_name} devlog",
-        ),
+        suffixes=("game", "games", "streamer", "creator", "community", "aesthetic"),
+        prefixes=("indie",),
+        game_name_suffixes=("game", "devlog"),
         run_index=run_index,
     )
 
@@ -240,9 +215,8 @@ def _parse_actor(
         posts_count=posts_count,
         avatar_url=avatar_url,
         source_genre_tag=tags.genre,
-        source_audience_tag=tags.audience,
         source_mechanics_tag=tags.mechanics,
-        source_tone_tag=tags.tone,
+        source_vibe_tag=tags.vibe,
     ).model_dump()
 
     return CandidateRecord(

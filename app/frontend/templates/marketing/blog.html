@@ -1,7 +1,8 @@
-{% extends "base.html" %}
-{% block title %}Blog — SpawnRadar{% endblock %}
-{% block meta_description %}<meta name="description" content="Practical guides on creator outreach, game marketing, and finding your audience as an indie developer." />{% endblock %}
-{% block content %}
+{% extends "base.html" %} {% block title %}Blog — SpawnRadar{% endblock %} {%
+block meta_description %}<meta
+    name="description"
+    content="Practical guides on creator outreach, game marketing and finding your audience as an indie developer."
+/>{% endblock %} {% block content %}
 <div class="blog-index-shell">
     <header class="blog-index-header">
         <h1>SpawnRadar Blog</h1>
@@ -19,7 +20,9 @@
                 <a href="/blog/{{ post.slug }}">{{ post.title }}</a>
             </h2>
             <p class="blog-card-excerpt">{{ post.excerpt }}</p>
-            <a href="/blog/{{ post.slug }}" class="blog-card-link">Read more →</a>
+            <a href="/blog/{{ post.slug }}" class="blog-card-link"
+                >Read more →</a
+            >
         </article>
         {% endfor %}
     </div>

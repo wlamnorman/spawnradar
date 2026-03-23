@@ -52,11 +52,10 @@ CREATE TABLE IF NOT EXISTS games (
     description        TEXT NOT NULL,
     slug               TEXT UNIQUE,
     genre_tags         TEXT NOT NULL DEFAULT '[]',   -- JSON array
-    audience_tags      TEXT NOT NULL DEFAULT '[]',   -- JSON array
-    genre_tag_profile    TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[],"custom":[]}', -- JSON object
-    audience_tag_profile TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[],"custom":[]}', -- JSON object
-    mechanics_tag_profile TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[],"custom":[]}', -- JSON object
-    tone_tag_profile     TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[],"custom":[]}', -- JSON object
+    genre_tag_profile    TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[]}', -- JSON object
+    mechanics_tag_profile TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[]}', -- JSON object
+    vibe_tag_profile     TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[]}', -- JSON object
+    kindred_tag_profile  TEXT NOT NULL DEFAULT '{"primary":[],"secondary":[]}', -- JSON object
     platform_tags        TEXT NOT NULL DEFAULT '[]',   -- JSON array
     website_url        TEXT,
     discovery_schedule TEXT NOT NULL DEFAULT 'manual',           -- manual | daily | weekly

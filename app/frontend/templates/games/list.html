@@ -4,7 +4,7 @@
     <strong>Trial:</strong> {{ subscription.trial_days_remaining }} day{% if
     subscription.trial_days_remaining != 1 %}s{% endif %} left –
     <strong>limited use.</strong>
-    <a href="/pricing">Activate subscription</a>
+    <a href="/pricing">Subscribe now</a>
 </div>
 {% endif %}
 <div class="dashboard-header">
@@ -89,12 +89,12 @@
             <span class="tag-pill tag-genre">{{ tag }}</span>
             {% endfor %} {% for tag in game.genre_secondary_tags %}
             <span class="tag-pill tag-genre-secondary">{{ tag }}</span>
-            {% endfor %} {% for tag in game.audience_primary_tags %}
-            <span class="tag-pill tag-audience">{{ tag }}</span>
             {% endfor %} {% for tag in game.ordered_mechanics_tags() %}
             <span class="tag-pill tag-mechanics">{{ tag }}</span>
-            {% endfor %} {% for tag in game.ordered_tone_tags() %}
+            {% endfor %} {% for tag in game.ordered_vibe_tags() %}
             <span class="tag-pill tag-vibe">{{ tag }}</span>
+            {% endfor %} {% for tag in game.kindred_primary_tags %}
+            <span class="tag-pill tag-kindred">{{ tag }}</span>
             {% endfor %}
         </div>
 

@@ -1,0 +1,1724 @@
+[
+  {
+    "from": "roguelite",
+    "to": "roguelike",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelite",
+    "to": "action roguelike",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelite",
+    "to": "deckbuilder",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelite",
+    "to": "bullet heaven",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelite",
+    "to": "dungeon crawler",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelite",
+    "to": "run-based",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "permadeath",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "meta-progression",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "one more run",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "procedural generation",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelite",
+    "to": "quick sessions",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelike",
+    "to": "roguelite",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelike",
+    "to": "action roguelike",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "roguelike",
+    "to": "permadeath",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelike",
+    "to": "run-based",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "roguelike",
+    "to": "procedural generation",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "action roguelike",
+    "to": "roguelite",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action roguelike",
+    "to": "bullet heaven",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action roguelike",
+    "to": "permadeath",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "action roguelike",
+    "to": "run-based",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "roguelite",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "twin-stick shooter",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "top-down shooter",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "run-based",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "bullet heaven",
+    "to": "quick sessions",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "card game",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "card battler",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "deck construction",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "deckbuilder",
+    "to": "card drafting",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "soulslike",
+    "to": "action rpg",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "soulslike",
+    "to": "dark fantasy",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "soulslike",
+    "to": "brutal difficulty",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "soulslike",
+    "to": "atmospheric",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "soulslike",
+    "to": "loot systems",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "soulslike",
+    "to": "skill trees",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "action rpg",
+    "to": "soulslike",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action rpg",
+    "to": "hack and slash",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action rpg",
+    "to": "looter shooter",
+    "weight": 0.58,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "action rpg",
+    "to": "loot systems",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "action rpg",
+    "to": "skill trees",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "action rpg",
+    "to": "upgrade systems",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "crpg",
+    "to": "rpg",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "crpg",
+    "to": "tactical rpg",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "crpg",
+    "to": "isometric",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "crpg",
+    "to": "branching narrative",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "rpg",
+    "to": "jrpg",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "rpg",
+    "to": "action rpg",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "rpg",
+    "to": "tactical rpg",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "rpg",
+    "to": "crpg",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "rpg",
+    "to": "skill trees",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "rpg",
+    "to": "branching narrative",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "jrpg",
+    "to": "rpg",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "jrpg",
+    "to": "tactical rpg",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "jrpg",
+    "to": "anime aesthetic",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "jrpg",
+    "to": "turn-based combat",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "turn-based tactics",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "tactics",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "turn-based strategy",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "grid-based",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "tactical rpg",
+    "to": "unit management",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "tactical rpg",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "tactics",
+    "weight": 0.9,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "turn-based strategy",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "grid-based",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based tactics",
+    "to": "fog of war",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "4x",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "grand strategy",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "wargame",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "fog of war",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "resource management",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "turn-based strategy",
+    "to": "unit management",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "4x",
+    "to": "grand strategy",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "4x",
+    "to": "turn-based strategy",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "4x",
+    "to": "resource management",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "grand strategy",
+    "to": "4x",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "grand strategy",
+    "to": "wargame",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "grand strategy",
+    "to": "real-time strategy",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "grand strategy",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "tower defense",
+    "weight": 0.58,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "resource management",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "unit management",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "real-time strategy",
+    "to": "fog of war",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "factory automation",
+    "to": "colony sim",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "factory automation",
+    "to": "base building",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "factory automation",
+    "to": "management",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "factory automation",
+    "to": "resource management",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "factory automation",
+    "to": "emergent gameplay",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "colony sim",
+    "to": "base building",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "colony sim",
+    "to": "survival",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "colony sim",
+    "to": "resource management",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "colony sim",
+    "to": "emergent gameplay",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "city builder",
+    "to": "colony sim",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "city builder",
+    "to": "management",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "city builder",
+    "to": "base building",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "city builder",
+    "to": "resource management",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "cozy",
+    "to": "wholesome",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "cozy",
+    "to": "farming sim",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "cozy",
+    "to": "life sim",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "cozy",
+    "to": "lo-fi",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "wholesome",
+    "to": "cozy",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "wholesome",
+    "to": "lo-fi",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "farming sim",
+    "to": "cozy",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "farming sim",
+    "to": "life sim",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "metroidvania",
+    "to": "platformer",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "metroidvania",
+    "to": "precision platformer",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "metroidvania",
+    "to": "soulslike",
+    "weight": 0.58,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "metroidvania",
+    "to": "skill trees",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "metroidvania",
+    "to": "loot systems",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "platformer",
+    "to": "precision platformer",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "platformer",
+    "to": "metroidvania",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "platformer",
+    "to": "puzzle platformer",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "platformer",
+    "to": "speedrun-viable",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "precision platformer",
+    "to": "platformer",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "precision platformer",
+    "to": "speedrun-viable",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "precision platformer",
+    "to": "brutal difficulty",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "horror",
+    "to": "survival horror",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "horror",
+    "to": "psychological horror",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "horror",
+    "to": "dark",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "horror",
+    "to": "atmospheric",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "horror",
+    "to": "psychological",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "survival horror",
+    "to": "horror",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "survival horror",
+    "to": "psychological horror",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "survival horror",
+    "to": "atmospheric",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological horror",
+    "to": "horror",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "psychological horror",
+    "to": "psychological",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological horror",
+    "to": "atmospheric",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "psychological horror",
+    "to": "dark",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "survival",
+    "to": "base building",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "survival",
+    "to": "crafting",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "survival",
+    "to": "colony sim",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "survival",
+    "to": "crafting",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "survival",
+    "to": "resource management",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "puzzle",
+    "to": "puzzle platformer",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "puzzle",
+    "to": "physics puzzle",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "puzzle",
+    "to": "nonogram",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "puzzle",
+    "to": "escape room",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "visual novel",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "interactive fiction",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "point and click",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "detective",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "walking simulator",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "narrative adventure",
+    "to": "branching narrative",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "visual novel",
+    "to": "interactive fiction",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "visual novel",
+    "to": "dating sim",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "visual novel",
+    "to": "branching narrative",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "visual novel",
+    "to": "anime aesthetic",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "interactive fiction",
+    "to": "text adventure",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "interactive fiction",
+    "to": "narrative adventure",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "interactive fiction",
+    "to": "branching narrative",
+    "weight": 0.92,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "extraction shooter",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "hero shooter",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "looter shooter",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "first-person shooter",
+    "to": "third-person shooter",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "battle royale",
+    "to": "first-person shooter",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "battle royale",
+    "to": "hero shooter",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hero shooter",
+    "to": "moba",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "moba",
+    "to": "hero shooter",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "looter shooter",
+    "to": "action rpg",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "looter shooter",
+    "to": "extraction shooter",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "looter shooter",
+    "to": "loot systems",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "dungeon crawler",
+    "to": "action rpg",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dungeon crawler",
+    "to": "hack and slash",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dungeon crawler",
+    "to": "roguelite",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dungeon crawler",
+    "to": "loot systems",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "hack and slash",
+    "to": "action rpg",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hack and slash",
+    "to": "beat em up",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hack and slash",
+    "to": "musou",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "hack and slash",
+    "to": "dungeon crawler",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "beat em up",
+    "to": "hack and slash",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "beat em up",
+    "to": "musou",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "card game",
+    "to": "trading card game",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "card game",
+    "to": "card battler",
+    "weight": 0.85,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "card game",
+    "to": "deckbuilder",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "sandbox",
+    "to": "open world",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "sandbox",
+    "to": "survival",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "sandbox",
+    "to": "emergent gameplay",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "sandbox",
+    "to": "crafting",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "base building",
+    "to": "colony sim",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "base building",
+    "to": "survival",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "social deduction",
+    "to": "party game",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "word game",
+    "to": "trivia",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "word game",
+    "to": "puzzle",
+    "weight": 0.58,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "trivia",
+    "to": "word game",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "daily challenge",
+    "to": "word game",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "daily challenge",
+    "to": "quick sessions",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "idle",
+    "to": "incremental",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "idle",
+    "to": "upgrade systems",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "idle",
+    "to": "quick sessions",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "incremental",
+    "to": "idle",
+    "weight": 0.95,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "incremental",
+    "to": "upgrade systems",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "detective",
+    "to": "mystery",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "detective",
+    "to": "narrative adventure",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "detective",
+    "to": "noir",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "mystery",
+    "to": "detective",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "mystery",
+    "to": "point and click",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "mystery",
+    "to": "noir",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "tower defense",
+    "to": "resource management",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "immersive sim",
+    "to": "stealth",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "immersive sim",
+    "to": "narrative adventure",
+    "weight": 0.58,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "immersive sim",
+    "to": "emergent gameplay",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "walking simulator",
+    "to": "narrative adventure",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "walking simulator",
+    "to": "atmospheric",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cyberpunk",
+    "to": "sci-fi",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "cyberpunk",
+    "to": "noir",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "cyberpunk",
+    "to": "post-apocalyptic",
+    "weight": 0.58,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "sci-fi",
+    "to": "space",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "sci-fi",
+    "to": "cyberpunk",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "space",
+    "to": "sci-fi",
+    "weight": 0.75,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "space",
+    "to": "space sim",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "space sim",
+    "to": "space",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "space sim",
+    "to": "grand strategy",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "wargame",
+    "to": "grand strategy",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "wargame",
+    "to": "turn-based strategy",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dating sim",
+    "to": "visual novel",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "twin-stick shooter",
+    "to": "top-down shooter",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "twin-stick shooter",
+    "to": "bullet heaven",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "twin-stick shooter",
+    "to": "shmup",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "top-down shooter",
+    "to": "twin-stick shooter",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "top-down shooter",
+    "to": "bullet heaven",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "shmup",
+    "to": "bullet heaven",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "shmup",
+    "to": "twin-stick shooter",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "arcade",
+    "to": "retro aesthetic",
+    "weight": 0.68,
+    "from_dim": "genre",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "arcade",
+    "to": "quick sessions",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "party game",
+    "to": "social deduction",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "cooperative",
+    "to": "co-op",
+    "weight": 0.88,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "monster taming",
+    "to": "jrpg",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "management",
+    "to": "city builder",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "management",
+    "to": "simulation",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "management",
+    "to": "resource management",
+    "weight": 0.82,
+    "from_dim": "genre",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "simulation",
+    "to": "management",
+    "weight": 0.7,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "point and click",
+    "to": "narrative adventure",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "puzzle platformer",
+    "to": "puzzle",
+    "weight": 0.8,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "puzzle platformer",
+    "to": "platformer",
+    "weight": 0.78,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "musou",
+    "to": "hack and slash",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "musou",
+    "to": "beat em up",
+    "weight": 0.72,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "run and gun",
+    "to": "shmup",
+    "weight": 0.65,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "run and gun",
+    "to": "platformer",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "run and gun",
+    "to": "bullet heaven",
+    "weight": 0.6,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "racing",
+    "to": "vehicle combat",
+    "weight": 0.62,
+    "from_dim": "genre",
+    "to_dim": "genre"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "dark",
+    "weight": 0.72,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "dark fantasy",
+    "to": "mythology",
+    "weight": 0.6,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "pixel art",
+    "to": "retro aesthetic",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "retro aesthetic",
+    "to": "pixel art",
+    "weight": 0.78,
+    "from_dim": "vibe",
+    "to_dim": "vibe"
+  },
+  {
+    "from": "run-based",
+    "to": "one more run",
+    "weight": 0.92,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "meta-progression",
+    "to": "upgrade systems",
+    "weight": 0.68,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  },
+  {
+    "from": "card drafting",
+    "to": "deck construction",
+    "weight": 0.88,
+    "from_dim": "mechanics",
+    "to_dim": "mechanics"
+  }
+]

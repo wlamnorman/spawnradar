@@ -9,9 +9,9 @@ excerpt: >
 
 Most outreach emails for indie games get deleted in under five seconds.
 
-Not because creators are dismissive. Because most emails look identical: a long paragraph about how much work went into the game, a vague description of the genre, and a request for coverage that offers nothing specific to that creator.
+Not because creators are dismissive. Because most emails look identical: a long paragraph about how much work went into the game, a vague description of the genre and a request for coverage that offers nothing specific to that creator.
 
-This guide breaks down the structure of a message that actually gets read, with templates for YouTube, streaming, and community outreach.
+This guide breaks down the structure of a message that actually gets read, with templates for YouTube, streaming and community outreach.
 
 ---
 
@@ -63,7 +63,7 @@ Happy to answer any questions.
 
 </div>
 
-The subject line includes the channel name — this signals immediately that the email is not a blast, and makes it easy to find later. The reference to a specific video is the most important sentence. It needs to be real. Creators can tell when someone watched something versus when someone read the title.
+The subject line includes the channel name — this signals immediately that the email is not a blast and makes it easy to find later. The reference to a specific video is the most important sentence. It needs to be real. Creators can tell when someone watched something versus when someone read the title.
 
 "No coverage obligation" lowers friction significantly. It reframes the email from a transaction to a genuine offer.
 
@@ -154,8 +154,8 @@ That is all. Do not send a third message. Move on.
 
 ## How SpawnRadar Helps
 
-The hardest part of outreach is not the templates — it is knowing who to contact in the first place, and then keeping track of it all.
+The hardest part of outreach is not the templates — it is knowing who to contact in the first place and then keeping track of it all.
 
-SpawnRadar surfaces creators who match your game's genre and audience profile, scores them so you know where to spend your time, and generates personalised draft messages you can review and edit before sending.
+SpawnRadar surfaces creators who match your game's genre and audience profile, scores them so you know where to spend your time and generates personalised draft messages you can review and edit before sending.
 
 [Start a free trial](/auth/register) and run your first discovery in a few minutes.

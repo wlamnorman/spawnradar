@@ -1,11 +1,17 @@
-{% extends "base.html" %}
-{% block title %}Billing — SpawnRadar{% endblock %}
-{% block head %}
+{% extends "base.html" %} {% block title %}Billing — SpawnRadar{% endblock %} {%
+block head %}
 <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
-{% endblock %}
-{% block content %}
+{% endblock %} {% block content %}
 <section class="billing-page">
-    <div class="card billing-launch-card">
+    <div
+        class="card billing-launch-card"
+        data-paddle-environment="{{ paddle_environment }}"
+        data-paddle-token="{{ paddle_client_side_token }}"
+        data-price-id="{{ price_id }}"
+        data-success-url="{{ success_url }}"
+        data-customer-email="{{ customer_email or '' }}"
+        data-custom-data="{{ custom_data | tojson | forceescape }}"
+    >
         <span class="marketing-kicker">Billing</span>
         <h1>Opening checkout...</h1>
         <p class="subtle">
@@ -15,49 +21,56 @@
             Open checkout
         </button>
         <p class="subtle billing-help-text">
-            You will complete payment in Paddle Checkout and return to SpawnRadar afterwards.
+            Only paid subscriptions are processed in Paddle Checkout. Your free
+            trial is managed in SpawnRadar.
         </p>
     </div>
 </section>
-{% endblock %}
-{% block scripts %}
+{% endblock %} {% block scripts %}
 <script>
-(function () {
-    const checkoutButton = document.getElementById("paddle-checkout-button");
-    const paddleEnvironment = {{ paddle_environment | tojson }};
-    const paddleToken = {{ paddle_client_side_token | tojson }};
-    const priceId = {{ price_id | tojson }};
-    const successUrl = {{ success_url | tojson }};
-    const customerEmail = {{ customer_email | tojson }};
-    const customData = {{ custom_data | tojson }};
-
-    function openCheckout() {
-        if (!window.Paddle) {
+    (function () {
+        const launchCard = document.querySelector(".billing-launch-card");
+        const checkoutButton = document.getElementById(
+            "paddle-checkout-button",
+        );
+        if (!(launchCard instanceof HTMLElement)) {
             return;
         }
 
-        window.Paddle.Checkout.open({
-            settings: {
-                displayMode: "overlay",
-                variant: "one-page",
-                theme: "light",
-                successUrl: successUrl,
-            },
-            items: [{ priceId: priceId, quantity: 1 }],
-            customer: customerEmail ? { email: customerEmail } : undefined,
-            customData: customData,
-        });
-    }
+        const paddleEnvironment = launchCard.dataset.paddleEnvironment || "";
+        const paddleToken = launchCard.dataset.paddleToken || "";
+        const priceId = launchCard.dataset.priceId || "";
+        const successUrl = launchCard.dataset.successUrl || "";
+        const customerEmail = launchCard.dataset.customerEmail || "";
+        const customData = JSON.parse(launchCard.dataset.customData || "{}");
 
-    if (window.Paddle && paddleEnvironment === "sandbox") {
-        window.Paddle.Environment.set("sandbox");
-    }
-    if (window.Paddle) {
-        window.Paddle.Initialize({ token: paddleToken });
-    }
+        function openCheckout() {
+            if (!window.Paddle) {
+                return;
+            }
 
-    checkoutButton?.addEventListener("click", openCheckout);
-    window.setTimeout(openCheckout, 50);
-})();
+            window.Paddle.Checkout.open({
+                settings: {
+                    displayMode: "overlay",
+                    variant: "one-page",
+                    theme: "light",
+                    successUrl: successUrl,
+                },
+                items: [{ priceId: priceId, quantity: 1 }],
+                customer: customerEmail ? { email: customerEmail } : undefined,
+                customData: customData,
+            });
+        }
+
+        if (window.Paddle && paddleEnvironment === "sandbox") {
+            window.Paddle.Environment.set("sandbox");
+        }
+        if (window.Paddle) {
+            window.Paddle.Initialize({ token: paddleToken });
+        }
+
+        checkoutButton?.addEventListener("click", openCheckout);
+        window.setTimeout(openCheckout, 50);
+    })();
 </script>
 {% endblock %}

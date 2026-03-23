@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from app.metrics.service import MetricsService
 
 MAX_SUMMARY_LENGTH = 150
-MAX_DESCRIPTION_LENGTH = 1500
+MAX_DESCRIPTION_LENGTH = 1000
 
 
 def _normalize_url(url: str | None) -> str | None:
@@ -62,7 +62,7 @@ def _validate_game_text_fields(
 
 
 class GameService:
-    """Handles game creation, updates, and tag management."""
+    """Handles game creation, updates and tag management."""
 
     def __init__(
         self,
@@ -104,20 +104,14 @@ class GameService:
         name: str,
         description: str,
         genre_tags_raw: str,
-        audience_tags_raw: str,
         platform_tags: list[str],
         website_url: str | None,
         summary: str = "",
         genre_primary_tags_raw: str = "",
         genre_secondary_tags_raw: str = "",
-        genre_custom_tags_raw: str = "",
-        audience_primary_tags_raw: str = "",
-        audience_secondary_tags_raw: str = "",
-        audience_custom_tags_raw: str = "",
         mechanics_primary_tags_raw: str = "",
-        mechanics_secondary_tags_raw: str = "",
-        tone_primary_tags_raw: str = "",
-        tone_secondary_tags_raw: str = "",
+        vibe_primary_tags_raw: str = "",
+        kindred_primary_tags_raw: str = "",
     ) -> Game:
         """Create and persist a new game."""
         normalized_name, normalized_summary, normalized_description = (
@@ -129,25 +123,19 @@ class GameService:
             "genre",
             primary_raw=genre_primary_tags_raw,
             secondary_raw=genre_secondary_tags_raw,
-            custom_raw=genre_custom_tags_raw,
             legacy_raw=genre_tags_raw,
-        )
-        audience_profile = build_tag_profile(
-            "audience",
-            primary_raw=audience_primary_tags_raw,
-            secondary_raw=audience_secondary_tags_raw,
-            custom_raw=audience_custom_tags_raw,
-            legacy_raw=audience_tags_raw,
         )
         mechanics_profile = build_tag_profile(
             "mechanics",
             primary_raw=mechanics_primary_tags_raw,
-            secondary_raw=mechanics_secondary_tags_raw,
         )
-        tone_profile = build_tag_profile(
-            "tone",
-            primary_raw=tone_primary_tags_raw,
-            secondary_raw=tone_secondary_tags_raw,
+        vibe_profile = build_tag_profile(
+            "vibe",
+            primary_raw=vibe_primary_tags_raw,
+        )
+        kindred_profile = build_tag_profile(
+            "kindred",
+            primary_raw=kindred_primary_tags_raw,
         )
         if not genre_profile.primary:
             raise ValueError("At least one primary genre tag is required.")
@@ -158,11 +146,10 @@ class GameService:
             summary=normalized_summary,
             description=normalized_description,
             genre_tags=genre_profile.all_tags,
-            audience_tags=audience_profile.all_tags,
             genre_tag_profile=genre_profile,
-            audience_tag_profile=audience_profile,
             mechanics_tag_profile=mechanics_profile,
-            tone_tag_profile=tone_profile,
+            vibe_tag_profile=vibe_profile,
+            kindred_tag_profile=kindred_profile,
             platform_tags=platform_tags,
             website_url=_normalize_url(website_url),
         )
@@ -181,20 +168,14 @@ class GameService:
         name: str,
         description: str,
         genre_tags_raw: str,
-        audience_tags_raw: str,
         platform_tags: list[str],
         website_url: str | None,
         summary: str = "",
         genre_primary_tags_raw: str = "",
         genre_secondary_tags_raw: str = "",
-        genre_custom_tags_raw: str = "",
-        audience_primary_tags_raw: str = "",
-        audience_secondary_tags_raw: str = "",
-        audience_custom_tags_raw: str = "",
         mechanics_primary_tags_raw: str = "",
-        mechanics_secondary_tags_raw: str = "",
-        tone_primary_tags_raw: str = "",
-        tone_secondary_tags_raw: str = "",
+        vibe_primary_tags_raw: str = "",
+        kindred_primary_tags_raw: str = "",
     ) -> Game:
         """Update game fields, verifying ownership."""
         game = self._games.get_by_id(game_id)
@@ -209,25 +190,19 @@ class GameService:
             "genre",
             primary_raw=genre_primary_tags_raw,
             secondary_raw=genre_secondary_tags_raw,
-            custom_raw=genre_custom_tags_raw,
             legacy_raw=genre_tags_raw,
-        )
-        audience_profile = build_tag_profile(
-            "audience",
-            primary_raw=audience_primary_tags_raw,
-            secondary_raw=audience_secondary_tags_raw,
-            custom_raw=audience_custom_tags_raw,
-            legacy_raw=audience_tags_raw,
         )
         mechanics_profile = build_tag_profile(
             "mechanics",
             primary_raw=mechanics_primary_tags_raw,
-            secondary_raw=mechanics_secondary_tags_raw,
         )
-        tone_profile = build_tag_profile(
-            "tone",
-            primary_raw=tone_primary_tags_raw,
-            secondary_raw=tone_secondary_tags_raw,
+        vibe_profile = build_tag_profile(
+            "vibe",
+            primary_raw=vibe_primary_tags_raw,
+        )
+        kindred_profile = build_tag_profile(
+            "kindred",
+            primary_raw=kindred_primary_tags_raw,
         )
         if not genre_profile.primary:
             raise ValueError("At least one primary genre tag is required.")
@@ -237,11 +212,10 @@ class GameService:
             summary=normalized_summary,
             description=normalized_description,
             genre_tags=genre_profile.all_tags,
-            audience_tags=audience_profile.all_tags,
             genre_tag_profile=genre_profile,
-            audience_tag_profile=audience_profile,
             mechanics_tag_profile=mechanics_profile,
-            tone_tag_profile=tone_profile,
+            vibe_tag_profile=vibe_profile,
+            kindred_tag_profile=kindred_profile,
             platform_tags=platform_tags,
             website_url=_normalize_url(website_url),
         )

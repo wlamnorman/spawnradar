@@ -6,7 +6,7 @@ The main conclusion is simple:
 
 - good outreach messages should come from a small set of structured formats
 - most of the message should be deterministic and reusable
-- LLM help is most valuable in the creator-specific hook, angle selection, and tone adaptation
+- LLM help is most valuable in the creator-specific hook, angle selection and tone adaptation
 - fully freeform AI-written outreach is not the right default
 
 ## Product Goal
@@ -41,7 +41,7 @@ That means every draft should be assembled from:
 3. trusted creator facts
 4. optional personalized language
 
-This is better than one large prompt because it reduces hallucination, keeps messages short, and makes the drafts easier to validate.
+This is better than one large prompt because it reduces hallucination, keeps messages short and makes the drafts easier to validate.
 
 ## Formats We Should Support
 
@@ -231,7 +231,7 @@ These should be assembled from stored game and prospect data:
 - links
 - signoff
 
-These are formulaic, and that is fine. The user does not need AI to rewrite "Trailer: [link]".
+These are formulaic and that is fine. The user does not need AI to rewrite "Trailer: [link]".
 
 ### LLM-Helpful Parts
 
@@ -282,7 +282,7 @@ The likely gains are:
 - better fit between creator style and message tone
 - fewer robotic messages
 - more confidence from the user that the draft is worth sending
-- better adaptation across YouTube, Twitch, Bluesky, forums, and future channels
+- better adaptation across YouTube, Twitch, Bluesky, forums and future channels
 
 The biggest improvement is probably not raw wording quality. It is the ability to convert structured evidence into a sentence that sounds like a human actually watched the creator's content.
 
@@ -423,10 +423,10 @@ This gets most of the value quickly.
 
 If we want strong message quality without overengineering the first version:
 
-1. build a format registry with `creator_email`, `streamer_email`, `short_contact`, and later `community_post`
+1. build a format registry with `creator_email`, `streamer_email`, `short_contact` and later `community_post`
 2. assemble most fields deterministically
 3. use LLMs only for the hook and optional polish
 4. require evidence for any specific creator reference
 5. make AI personalization a Pro feature
 
-That is the best balance of product quality, trust, and cost.
+That is the best balance of product quality, trust and cost.

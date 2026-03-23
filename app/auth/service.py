@@ -32,7 +32,7 @@ def _normalize_email(email: str) -> str:
     """Return a canonical email address.
 
     For Gmail / Googlemail addresses, strips dots and +tags from the local
-    part so that me@gmail.com, m.e@gmail.com, and me+trial@gmail.com all
+    part so that me@gmail.com, m.e@gmail.com and me+trial@gmail.com all
     resolve to the same account.
     """
     email = email.strip().lower()
@@ -44,7 +44,7 @@ def _normalize_email(email: str) -> str:
 
 
 class AuthService:
-    """Handles user registration, login, and session lifecycle."""
+    """Handles user registration, login and session lifecycle."""
 
     def __init__(
         self,
@@ -276,7 +276,7 @@ class AuthService:
         html = f"""
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
       <h2>Verify your SpawnRadar email</h2>
-      <p>Thanks for signing up. Click below to verify your email and start your 3-day free trial.</p>
+      <p>Thanks for signing up. Click below to verify your email and unlock your 3-day free trial. No card required.</p>
       <p style="margin:32px 0">
         <a href="{verify_link}"
            style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
@@ -289,7 +289,7 @@ class AuthService:
     """
         text = (
             f"Verify your SpawnRadar email\n\n"
-            f"Click the link below to verify your email and start your 3-day free trial "
+            f"Click the link below to verify your email and unlock your 3-day free trial. No card required "
             f"(expires in {VERIFICATION_TOKEN_LIFETIME_HOURS} hours):\n\n"
             f"{verify_link}\n\n"
             f"If you did not sign up for SpawnRadar, ignore this email."

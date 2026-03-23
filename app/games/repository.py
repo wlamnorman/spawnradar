@@ -1,4 +1,4 @@
-"""Database operations for games, assets, and message templates."""
+"""Database operations for games, assets and message templates."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import sqlite3
 
 from app.database import get_connection
 from app.games.models import Asset, Game, MessageTemplate
-from app.games.tags import TagProfile
+from app.games.tags import TagProfile, TagWeight
 from app.ingestion.registry import DEFAULT_DISCOVERY_SOURCES, Source
 from app.json_codec import (
     dump_json,
@@ -54,11 +54,10 @@ class GameRepository:
         summary: str | None,
         description: str,
         genre_tags: list[str],
-        audience_tags: list[str],
         genre_tag_profile: TagProfile,
-        audience_tag_profile: TagProfile,
         mechanics_tag_profile: TagProfile,
-        tone_tag_profile: TagProfile,
+        vibe_tag_profile: TagProfile,
+        kindred_tag_profile: TagProfile,
         platform_tags: list[str],
         website_url: str | None,
         discovery_schedule: str = "manual",
@@ -69,11 +68,12 @@ class GameRepository:
             conn.execute(
                 """
                 INSERT INTO games
-                    (game_id, user_id, name, summary, description, slug, genre_tags, audience_tags,
-                     genre_tag_profile, audience_tag_profile, mechanics_tag_profile,
-                     tone_tag_profile, platform_tags, website_url,
+                    (game_id, user_id, name, summary, description, slug, genre_tags,
+                     genre_tag_profile, mechanics_tag_profile,
+                     vibe_tag_profile, kindred_tag_profile,
+                     platform_tags, website_url,
                      discovery_schedule, discovery_sources)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     game_id,
@@ -83,11 +83,10 @@ class GameRepository:
                     description,
                     slug,
                     dump_json(genre_tags),
-                    dump_json(audience_tags),
                     dump_json(genre_tag_profile.to_json_value()),
-                    dump_json(audience_tag_profile.to_json_value()),
                     dump_json(mechanics_tag_profile.to_json_value()),
-                    dump_json(tone_tag_profile.to_json_value()),
+                    dump_json(vibe_tag_profile.to_json_value()),
+                    dump_json(kindred_tag_profile.to_json_value()),
                     dump_json(platform_tags),
                     website_url,
                     discovery_schedule,
@@ -135,11 +134,10 @@ class GameRepository:
         summary: str | None = None,
         description: str | None = None,
         genre_tags: list[str] | None = None,
-        audience_tags: list[str] | None = None,
         genre_tag_profile: TagProfile | None = None,
-        audience_tag_profile: TagProfile | None = None,
         mechanics_tag_profile: TagProfile | None = None,
-        tone_tag_profile: TagProfile | None = None,
+        vibe_tag_profile: TagProfile | None = None,
+        kindred_tag_profile: TagProfile | None = None,
         platform_tags: list[str] | None = None,
         website_url: str | None = None,
         discovery_schedule: str | None = None,
@@ -153,28 +151,25 @@ class GameRepository:
         new_summary = summary if summary is not None else game.summary
         new_desc = description if description is not None else game.description
         new_genre = genre_tags if genre_tags is not None else game.genre_tags
-        new_audience = (
-            audience_tags if audience_tags is not None else game.audience_tags
-        )
         new_genre_profile = (
             genre_tag_profile
             if genre_tag_profile is not None
             else game.genre_tag_profile
-        )
-        new_audience_profile = (
-            audience_tag_profile
-            if audience_tag_profile is not None
-            else game.audience_tag_profile
         )
         new_mechanics_profile = (
             mechanics_tag_profile
             if mechanics_tag_profile is not None
             else game.mechanics_tag_profile
         )
-        new_tone_profile = (
-            tone_tag_profile
-            if tone_tag_profile is not None
-            else game.tone_tag_profile
+        new_vibe_profile = (
+            vibe_tag_profile
+            if vibe_tag_profile is not None
+            else game.vibe_tag_profile
+        )
+        new_kindred_profile = (
+            kindred_tag_profile
+            if kindred_tag_profile is not None
+            else game.kindred_tag_profile
         )
         new_platform = (
             platform_tags if platform_tags is not None else game.platform_tags
@@ -190,9 +185,10 @@ class GameRepository:
             conn.execute(
                 """
                 UPDATE games
-                SET name = ?, summary = ?, description = ?, genre_tags = ?, audience_tags = ?,
-                    genre_tag_profile = ?, audience_tag_profile = ?,
-                    mechanics_tag_profile = ?, tone_tag_profile = ?,
+                SET name = ?, summary = ?, description = ?, genre_tags = ?,
+                    genre_tag_profile = ?,
+                    mechanics_tag_profile = ?, vibe_tag_profile = ?,
+                    kindred_tag_profile = ?,
                     platform_tags = ?, website_url = ?, discovery_schedule = ?,
                     updated_at = datetime('now')
                 WHERE game_id = ?
@@ -202,11 +198,10 @@ class GameRepository:
                     new_summary,
                     new_desc,
                     dump_json(new_genre),
-                    dump_json(new_audience),
                     dump_json(new_genre_profile.to_json_value()),
-                    dump_json(new_audience_profile.to_json_value()),
                     dump_json(new_mechanics_profile.to_json_value()),
-                    dump_json(new_tone_profile.to_json_value()),
+                    dump_json(new_vibe_profile.to_json_value()),
+                    dump_json(new_kindred_profile.to_json_value()),
                     dump_json(new_platform),
                     new_url,
                     new_schedule,
@@ -229,7 +224,9 @@ class GameRepository:
         with get_connection(self._db_path) as conn:
             conn.execute("DELETE FROM games WHERE game_id = ?", (game_id,))
 
-    def duplicate(self, source_game_id: str, new_game_id: str, new_name: str) -> Game:
+    def duplicate(
+        self, source_game_id: str, new_game_id: str, new_name: str
+    ) -> Game:
         """Insert a copy of a game with a new ID and name."""
         source = self.get_by_id(source_game_id)
         if source is None:
@@ -239,11 +236,12 @@ class GameRepository:
             conn.execute(
                 """
                 INSERT INTO games
-                    (game_id, user_id, name, summary, description, slug, genre_tags, audience_tags,
-                     genre_tag_profile, audience_tag_profile, mechanics_tag_profile,
-                     tone_tag_profile, platform_tags, website_url,
+                    (game_id, user_id, name, summary, description, slug, genre_tags,
+                     genre_tag_profile, mechanics_tag_profile,
+                     vibe_tag_profile, kindred_tag_profile,
+                     platform_tags, website_url,
                      discovery_schedule, discovery_sources)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     new_game_id,
@@ -253,11 +251,10 @@ class GameRepository:
                     source.description,
                     new_slug,
                     dump_json(source.genre_tags),
-                    dump_json(source.audience_tags),
                     dump_json(source.genre_tag_profile.to_json_value()),
-                    dump_json(source.audience_tag_profile.to_json_value()),
                     dump_json(source.mechanics_tag_profile.to_json_value()),
-                    dump_json(source.tone_tag_profile.to_json_value()),
+                    dump_json(source.vibe_tag_profile.to_json_value()),
+                    dump_json(source.kindred_tag_profile.to_json_value()),
                     dump_json(source.platform_tags),
                     source.website_url,
                     source.discovery_schedule,
@@ -415,18 +412,10 @@ def _row_to_game(row: sqlite3.Row) -> Game:
     name = row["name"]
     slug = row["slug"] or _make_slug(name, game_id)
     genre_tags = load_json_string_list(row["genre_tags"])
-    audience_tags = load_json_string_list(row["audience_tags"])
     row_keys = set(row.keys())
     genre_profile = (
         TagProfile.from_json_value(load_json_object(row["genre_tag_profile"]))
         if "genre_tag_profile" in row_keys
-        else TagProfile.empty()
-    )
-    audience_profile = (
-        TagProfile.from_json_value(
-            load_json_object(row["audience_tag_profile"])
-        )
-        if "audience_tag_profile" in row_keys
         else TagProfile.empty()
     )
     mechanics_profile = (
@@ -436,18 +425,21 @@ def _row_to_game(row: sqlite3.Row) -> Game:
         if "mechanics_tag_profile" in row_keys
         else TagProfile.empty()
     )
-    tone_profile = (
-        TagProfile.from_json_value(load_json_object(row["tone_tag_profile"]))
-        if "tone_tag_profile" in row_keys
+    vibe_profile = (
+        TagProfile.from_json_value(load_json_object(row["vibe_tag_profile"]))
+        if "vibe_tag_profile" in row_keys
+        else TagProfile.empty()
+    )
+    kindred_profile = (
+        TagProfile.from_json_value(
+            load_json_object(row["kindred_tag_profile"])
+        )
+        if "kindred_tag_profile" in row_keys
         else TagProfile.empty()
     )
     if not genre_profile.all_tags:
         genre_profile = TagProfile.from_flat_tags(
-            genre_tags, default_weight="primary"
-        )
-    if not audience_profile.all_tags:
-        audience_profile = TagProfile.from_flat_tags(
-            audience_tags, default_weight="primary"
+            genre_tags, default_weight=TagWeight.PRIMARY
         )
     return Game(
         game_id=game_id,
@@ -457,7 +449,6 @@ def _row_to_game(row: sqlite3.Row) -> Game:
         description=row["description"],
         slug=slug,
         genre_tags=genre_tags,
-        audience_tags=audience_tags,
         platform_tags=load_json_string_list(row["platform_tags"]),
         website_url=row["website_url"],
         discovery_schedule=row["discovery_schedule"]
@@ -468,9 +459,9 @@ def _row_to_game(row: sqlite3.Row) -> Game:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         genre_tag_profile=genre_profile,
-        audience_tag_profile=audience_profile,
         mechanics_tag_profile=mechanics_profile,
-        tone_tag_profile=tone_profile,
+        vibe_tag_profile=vibe_profile,
+        kindred_tag_profile=kindred_profile,
     )
 
 

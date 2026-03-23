@@ -43,7 +43,6 @@ def test_metrics_record_auth_and_game_lifecycle_counters(
         summary="A browser tactics game for metrics coverage.",
         description="A browser tactics game for metrics coverage.",
         genre_tags_raw="strategy, tactics",
-        audience_tags_raw="strategy fans",
         platform_tags=["browser"],
         website_url=None,
     )
@@ -82,7 +81,6 @@ def test_metrics_record_discovery_distributions_and_scores(
         summary="Test game for discovery metrics.",
         description="Test game for discovery metrics.",
         genre_tags_raw="strategy, tactics",
-        audience_tags_raw="strategy fans",
         platform_tags=["pc"],
         website_url=None,
     )
@@ -137,7 +135,7 @@ def test_metrics_record_discovery_distributions_and_scores(
         return SimpleNamespace(
             final_score=0.86 if is_strong else 0.12,
             genre_fit=0.9 if is_strong else 0.1,
-            audience_fit=0.85 if is_strong else 0.1,
+            vibe_fit=0.85 if is_strong else 0.1,
             format_fit=0.8 if is_strong else 0.2,
             activity_score=0.75 if is_strong else 0.1,
             platform_fit=0.8 if is_strong else 0.1,

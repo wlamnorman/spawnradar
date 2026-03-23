@@ -1,4 +1,4 @@
-"""Billing routes: checkout, portal, and webhook handling."""
+"""Billing routes: checkout, portal and webhook handling."""
 
 from __future__ import annotations
 

@@ -9,7 +9,7 @@ The missing piece is a directory of creators who *want* to be approached.
 This unlocks two things simultaneously:
 
 **1. A better signal for developers**
-A creator who has explicitly opted in, declared their genre interests, and specified how they like to be contacted is worth ten scraped contacts with inferred data. Response rates should be dramatically higher because the intent is declared, not assumed.
+A creator who has explicitly opted in, declared their genre interests and specified how they like to be contacted is worth ten scraped contacts with inferred data. Response rates should be dramatically higher because the intent is declared, not assumed.
 
 **2. Research data that makes the whole product smarter**
 By asking creators survey questions when they sign up, we build a dataset on what actually drives responses to indie dev pitches. This is data no one else has in a structured form. It improves our scoring model and becomes a publishable report that drives SEO and authority ("We asked 500 gaming creators what makes them respond to indie game pitches").
@@ -69,7 +69,7 @@ When we have enough responses (target: 100+), we publish a post: "We asked [N] g
 
 ## What Developers See
 
-Opted-in creators show up in the prospect queue with a "Verified opt-in" badge. This is a filter option: "Show only opted-in creators." Their preferred contact method and genre interests are pre-populated, and the draft message respects their stated preferences.
+Opted-in creators show up in the prospect queue with a "Verified opt-in" badge. This is a filter option: "Show only opted-in creators." Their preferred contact method and genre interests are pre-populated and the draft message respects their stated preferences.
 
 This gives developers a curated shortlist of warm leads alongside the standard scraped-and-scored results.
 

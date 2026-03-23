@@ -1,14 +1,14 @@
 {% extends "base.html" %} {% block title %}Pricing — SpawnRadar{% endblock %} {%
 block meta_description %}<meta
     name="description"
-    content="Simple pricing for creator discovery, queue review, and structured outreach workflows."
+    content="Simple pricing for creator discovery, queue review and structured outreach workflows."
 />{% endblock %} {% block og_title %}Pricing — SpawnRadar{% endblock %} {% block
-og_description %}Simple pricing for creator discovery, queue review, and
+og_description %}Simple pricing for creator discovery, queue review and
 structured outreach workflows.{% endblock %} {% block twitter_title %}Pricing —
 SpawnRadar{% endblock %} {% block twitter_description %}Simple pricing for
-creator discovery, queue review, and structured outreach workflows.{% endblock
-%} {% block content %} {% set tier = tiers[0] %} {% set limits =
-tier_limits[tier] %} {% set price = tier_prices[tier] %}
+creator discovery, queue review and structured outreach workflows.{% endblock %}
+{% block content %} {% set tier = tiers[0] %} {% set limits = tier_limits[tier]
+%} {% set price = tier_prices[tier] %}
 <section class="pricing-header pricing-header-single">
     <h1>One plan for efficient game outreach.</h1>
 </section>
@@ -22,7 +22,7 @@ tier_limits[tier] %} {% set price = tier_prices[tier] %}
                 </div>
             </div>
             <p class="plan-summary">
-                Run discovery, review ranked opportunities, and draft targeted
+                Run discovery, review ranked opportunities and draft targeted
                 outreach in one place.
             </p>
             <ul class="plan-features">
@@ -47,31 +47,27 @@ tier_limits[tier] %} {% set price = tier_prices[tier] %}
             <a href="/auth/register" class="button button-full">
                 Start 3-day trial
             </a>
-            {% elif _sub and _sub.is_trialing %}
-            {% if billing_enabled %}
+            {% elif _sub and _sub.is_trialing %} {% if billing_enabled %}
             <a href="/billing/pay?tier=indie" class="button button-full">
-                Activate subscription →
+                Subscribe now →
             </a>
             {% else %}
             <button type="button" class="button button-full" disabled>
                 Billing unavailable
             </button>
-            {% endif %}
-            {% elif _sub and _sub.has_subscription %}
+            {% endif %} {% elif _sub and _sub.has_subscription %}
             <a href="/billing" class="button button-full">
                 Manage subscription →
             </a>
-            {% else %}
-            {% if billing_enabled %}
+            {% else %} {% if billing_enabled %}
             <a href="/billing/pay?tier=indie" class="button button-full">
-                Start 3-day trial
+                Subscribe now
             </a>
             {% else %}
             <button type="button" class="button button-full" disabled>
                 Billing unavailable
             </button>
-            {% endif %}
-            {% endif %}
+            {% endif %} {% endif %}
             <p class="pricing-note">
                 Taxes handled at checkout based on your location.
             </p>

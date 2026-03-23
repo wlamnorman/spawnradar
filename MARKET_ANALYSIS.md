@@ -52,7 +52,7 @@ Why it is dangerous:
 - already occupies the "cheap indie creator outreach" position
 
 What SpawnRadar can still do differently:
-- go deeper on prospect quality, ranking, and workflow
+- go deeper on prospect quality, ranking and workflow
 - position as a guided decision tool rather than just a creator search tool
 - emphasize communities and posting opportunities, not only streamers
 
@@ -60,7 +60,7 @@ What SpawnRadar can still do differently:
 
 Why it matters:
 - strong gaming-native brand
-- broader platform with CRM, campaigns, creator programs, and paid quests
+- broader platform with CRM, campaigns, creator programs and paid quests
 
 Why it is dangerous:
 - category legitimacy
@@ -197,7 +197,7 @@ The key is not to drift into being:
 
 The current best position is closer to:
 
-> A game-native prospecting, scoring, and outreach-workflow tool for indies and small studios.
+> A game-native prospecting, scoring and outreach-workflow tool for indies and small studios.
 
 That is a clearer and more defensible position than trying to be:
 - a full PR suite
@@ -244,7 +244,7 @@ It needs a stronger story around:
 
 ### 2. Broad suites can absorb the category
 
-Lurkit, IMPRESS, Fenfyre, and similar products can make SpawnRadar look narrow.
+Lurkit, IMPRESS, Fenfyre and similar products can make SpawnRadar look narrow.
 
 That is only a problem if SpawnRadar is marketed as incomplete instead of focused.
 
@@ -298,9 +298,9 @@ It should win by being:
 
 The strongest positioning is:
 
-> SpawnRadar helps indie and small studio teams find the right creators, communities, and posting opportunities, rank them by relevance, and work through targeted outreach in a structured review queue.
+> SpawnRadar helps indie and small studio teams find the right creators, communities and posting opportunities, rank them by relevance and work through targeted outreach in a structured review queue.
 
-That is a real market position, and the provided competitor landscape suggests it is not already cleanly owned by one obvious incumbent.
+That is a real market position and the provided competitor landscape suggests it is not already cleanly owned by one obvious incumbent.
 
 ---
 

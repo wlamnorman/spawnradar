@@ -20,7 +20,7 @@ def test_root_renders_public_landing_page(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert (
-        "Find the best creators, communities, and outreach targets for your game."
+        "Find the best creators, communities and outreach targets for your game."
         in " ".join(response.text.split())
     )
     assert 'href="/pricing"' in response.text

@@ -1,7 +1,7 @@
 """LLM-based channel fit scoring using Claude Haiku.
 
-Replaces the keyword-based genre_fit and audience_fit with a semantic
-evaluation by Claude, and adds format_fit (does their content style suit this
+Replaces the keyword-based genre_fit and vibe_fit with a semantic
+evaluation by Claude and adds format_fit (does their content style suit this
 game type?) and why_selected (a plain-English explanation for the queue UI).
 
 Cost (claude-haiku-4-5):
@@ -31,9 +31,13 @@ log = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class LLMFitScores:
     genre_fit: float  # 0.0–1.0: does this channel cover this genre?
-    audience_fit: float  # 0.0–1.0: does their audience match the game's players?
-    format_fit: float  # 0.0–1.0: does their content format suit this game type?
-    platform_fit: float  # 0.0–1.0: does this channel cover the game's platform(s)?
+    vibe_fit: float  # 0.0–1.0: does their content vibe match the game's feel?
+    format_fit: (
+        float  # 0.0–1.0: does their content format suit this game type?
+    )
+    platform_fit: (
+        float  # 0.0–1.0: does this channel cover the game's platform(s)?
+    )
     fit_summary: str  # one sentence explaining the overall fit
     why_selected: str  # plain-English reason shown in the review queue
 
@@ -66,10 +70,10 @@ async def llm_score_batch(
         if isinstance(result, LLMFitScores):
             scores[prospect.prospect_id] = result
             log.debug(
-                "  %-35s  genre=%.2f  audience=%.2f  format=%.2f",
+                "  %-35s  genre=%.2f  vibe=%.2f  format=%.2f",
                 prospect.display_name[:35],
                 result.genre_fit,
-                result.audience_fit,
+                result.vibe_fit,
                 result.format_fit,
             )
         else:
@@ -87,7 +91,7 @@ async def _score_one(
     game: Game,
     prospect: Prospect,
 ) -> LLMFitScores:
-    """Ask Haiku to rate one channel across genre, audience, and format fit."""
+    """Ask Haiku to rate one channel across genre, vibe and format fit."""
     # text_signals is the normalized field (video titles, recent posts, etc.).
     # Fall back to recent_video_titles for prospects ingested before this field.
     text_signals = prospect.raw_data.get(
@@ -107,7 +111,7 @@ GAME
 Name: {game.name}{summary_line}
 Platforms: {", ".join(game.platform_tags) or "none"}
 Genre tags: {", ".join(game.genre_tags) or "none"}
-Audience tags: {", ".join(game.audience_tags) or "none"}
+Vibe tags: {", ".join(game.ordered_vibe_tags()) or "none"}
 
 PROSPECT
 Platform: {prospect.platform}
@@ -118,7 +122,7 @@ Recent content:
 
 Return a JSON object with exactly these fields:
 - "genre_fit": float 0.0–1.0 — does this channel cover games in this genre or adjacent ones?
-- "audience_fit": float 0.0–1.0 — does this channel's audience match the game's target players?
+- "vibe_fit": float 0.0–1.0 — does this channel's content aesthetic and vibe match the game's tone and feel?
 - "format_fit": float 0.0–1.0 — does their content format suit this type of game? (e.g. "I tried this weird browser game" formats score high for small indie games; deep 45-min critiques of AAA titles score low; for Reddit communities return 0.5)
 - "platform_fit": float 0.0–1.0 — does this creator or community cover the game's target platform(s)? Game platform tags may include: PC, Nintendo Switch, PlayStation, Xbox, VR, mobile, browser. A channel that covers the matching platform(s) scores 1.0; a channel focused on different platforms scores 0.1–0.3; a broad channel with no clear platform focus scores 0.5. If no platform tags are specified, return 0.5.
 - "fit_summary": string — one sentence explaining the overall fit
@@ -137,7 +141,7 @@ Respond with only the JSON object, no markdown or other text."""
 
     return LLMFitScores(
         genre_fit=_clamp(data.get("genre_fit", 0.0)),
-        audience_fit=_clamp(data.get("audience_fit", 0.0)),
+        vibe_fit=_clamp(data.get("vibe_fit", 0.0)),
         format_fit=_clamp(data.get("format_fit", 0.5)),
         platform_fit=_clamp(data.get("platform_fit", 0.5)),
         fit_summary=str(data.get("fit_summary", "")).strip(),

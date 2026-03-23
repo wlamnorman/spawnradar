@@ -1,4 +1,4 @@
-"""Shared security helpers for configuration, CSRF, and rate limiting."""
+"""Shared security helpers for configuration, CSRF and rate limiting."""
 
 from __future__ import annotations
 
@@ -48,7 +48,9 @@ def csrf_token_for(request: Request) -> str:
 def validate_csrf(request: Request, provided_token: str | None) -> None:
     """Reject requests whose CSRF token does not match the session token."""
     expected_token = csrf_token_for(request)
-    if not provided_token or not secrets.compare_digest(provided_token, expected_token):
+    if not provided_token or not secrets.compare_digest(
+        provided_token, expected_token
+    ):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
 
 

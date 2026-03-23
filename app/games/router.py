@@ -63,38 +63,31 @@ def _tag_form_context(game: object | None = None) -> dict[str, object]:
     """Return shared tag picker context for create and setup forms."""
     genre_primary: list[str] = []
     genre_secondary: list[str] = []
-    audience_tags: list[str] = []
     mechanics_tags: list[str] = []
-    tone_tags: list[str] = []
+    vibe_tags: list[str] = []
+    kindred_tags: list[str] = []
 
     if game is not None:
         genre_primary = getattr(game, "genre_primary_tags", [])
         genre_secondary = getattr(game, "genre_secondary_tags", [])
-        # Merge primary + secondary into a single list for the collapsed pickers
-        aud_p = getattr(game, "audience_primary_tags", [])
-        aud_s = getattr(game, "audience_secondary_tags", [])
-        audience_tags = aud_p + [t for t in aud_s if t not in aud_p]
-        mech_p = getattr(game, "mechanics_primary_tags", [])
-        mech_s = getattr(game, "mechanics_secondary_tags", [])
-        mechanics_tags = mech_p + [t for t in mech_s if t not in mech_p]
-        tone_p = getattr(game, "tone_primary_tags", [])
-        tone_s = getattr(game, "tone_secondary_tags", [])
-        tone_tags = tone_p + [t for t in tone_s if t not in tone_p]
+        mechanics_tags = getattr(game, "mechanics_primary_tags", [])
+        vibe_tags = getattr(game, "vibe_primary_tags", [])
+        kindred_tags = getattr(game, "kindred_primary_tags", [])
 
     return {
         "featured_genre_tags": featured_tags_for("genre"),
-        "featured_audience_tags": featured_tags_for("audience"),
         "featured_mechanics_tags": featured_tags_for("mechanics"),
-        "featured_tone_tags": featured_tags_for("tone"),
+        "featured_vibe_tags": featured_tags_for("vibe"),
+        "featured_kindred_tags": featured_tags_for("kindred"),
         "genre_tag_catalog": catalog_for("genre"),
-        "audience_tag_catalog": catalog_for("audience"),
         "mechanics_tag_catalog": catalog_for("mechanics"),
-        "tone_tag_catalog": catalog_for("tone"),
+        "vibe_tag_catalog": catalog_for("vibe"),
+        "kindred_tag_catalog": catalog_for("kindred"),
         "genre_primary_tags_value": ", ".join(genre_primary),
         "genre_secondary_tags_value": ", ".join(genre_secondary),
-        "audience_tags_value": ", ".join(audience_tags),
         "mechanics_tags_value": ", ".join(mechanics_tags),
-        "tone_tags_value": ", ".join(tone_tags),
+        "vibe_tags_value": ", ".join(vibe_tags),
+        "kindred_tags_value": ", ".join(kindred_tags),
     }
 
 
@@ -181,9 +174,9 @@ async def create_game_post(
     description: str = Form(...),
     genre_primary_tags: str = Form(default=""),
     genre_secondary_tags: str = Form(default=""),
-    audience_tags: str = Form(default=""),
     mechanics_tags: str = Form(default=""),
-    tone_tags: str = Form(default=""),
+    vibe_tags: str = Form(default=""),
+    kindred_tags: str = Form(default=""),
     website_url: str = Form(default=""),
     billing_service: BillingService = Depends(get_billing_service),
     game_service: GameService = Depends(get_game_service),
@@ -214,15 +207,14 @@ async def create_game_post(
             name=name,
             description=description,
             genre_tags_raw=genre_tags_raw,
-            audience_tags_raw=audience_tags,
             summary=summary,
             platform_tags=platform_tags,
             website_url=website_url or None,
             genre_primary_tags_raw=genre_primary_tags,
             genre_secondary_tags_raw=genre_secondary_tags,
-            audience_primary_tags_raw=audience_tags,
             mechanics_primary_tags_raw=mechanics_tags,
-            tone_primary_tags_raw=tone_tags,
+            vibe_primary_tags_raw=vibe_tags,
+            kindred_primary_tags_raw=kindred_tags,
         )
     except ValueError as exc:
         return templates.TemplateResponse(
@@ -251,7 +243,7 @@ async def game_setup_page(
     game_service: GameService = Depends(get_game_service),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
-    """Render the game setup page with tags, templates, and assets."""
+    """Render the game setup page with tags, templates and assets."""
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
@@ -285,9 +277,9 @@ async def update_game_post(
     description: str = Form(...),
     genre_primary_tags: str = Form(default=""),
     genre_secondary_tags: str = Form(default=""),
-    audience_tags: str = Form(default=""),
     mechanics_tags: str = Form(default=""),
-    tone_tags: str = Form(default=""),
+    vibe_tags: str = Form(default=""),
+    kindred_tags: str = Form(default=""),
     website_url: str = Form(default=""),
     game_repo: GameRepository = Depends(get_game_repo),
     template_repo: MessageTemplateRepository = Depends(get_template_repo),
@@ -312,15 +304,14 @@ async def update_game_post(
             name=name,
             description=description,
             genre_tags_raw=genre_tags_raw,
-            audience_tags_raw=audience_tags,
             summary=summary,
             platform_tags=platform_tags,
             website_url=website_url or None,
             genre_primary_tags_raw=genre_primary_tags,
             genre_secondary_tags_raw=genre_secondary_tags,
-            audience_primary_tags_raw=audience_tags,
             mechanics_primary_tags_raw=mechanics_tags,
-            tone_primary_tags_raw=tone_tags,
+            vibe_primary_tags_raw=vibe_tags,
+            kindred_primary_tags_raw=kindred_tags,
         )
     except ValueError as exc:
         templates_list = template_repo.list_by_game(game.game_id)

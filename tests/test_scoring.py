@@ -10,7 +10,6 @@ from app.scoring.engine import ScoreBreakdown, score_prospect
 
 def _make_game(
     genre_tags=None,
-    audience_tags=None,
     platform_tags=None,
     name="TestGame",
 ):
@@ -23,7 +22,6 @@ def _make_game(
         summary=None,
         description="A test game",
         genre_tags=genre_tags or [],
-        audience_tags=audience_tags or [],
         platform_tags=platform_tags or [],
         website_url=None,
         status="active",
@@ -63,7 +61,6 @@ def _make_prospect(
 def test_score_prospect_returns_score_breakdown():
     game = _make_game(
         genre_tags=["puzzle"],
-        audience_tags=["fans"],
         platform_tags=["browser"],
     )
     prospect = _make_prospect(description="puzzle fans browser games")
@@ -76,7 +73,7 @@ def test_score_breakdown_has_all_fields():
     prospect = _make_prospect()
     result = score_prospect(game, prospect)
     assert hasattr(result, "genre_fit")
-    assert hasattr(result, "audience_fit")
+    assert hasattr(result, "vibe_fit")
     assert hasattr(result, "platform_fit")
     assert hasattr(result, "contactability")
     assert hasattr(result, "audience_size_score")
@@ -88,7 +85,6 @@ def test_score_breakdown_has_all_fields():
 def test_prospect_matching_all_tags_scores_high():
     game = _make_game(
         genre_tags=["puzzle", "word game", "daily"],
-        audience_tags=["wordle fans", "puzzle lovers"],
         platform_tags=["browser"],
     )
     prospect = _make_prospect(
@@ -105,7 +101,6 @@ def test_prospect_matching_all_tags_scores_high():
 def test_prospect_with_no_matching_tags_scores_low():
     game = _make_game(
         genre_tags=["puzzle", "word game"],
-        audience_tags=["wordle fans"],
         platform_tags=["browser"],
     )
     prospect = _make_prospect(
@@ -185,7 +180,6 @@ def test_audience_size_score_near_one_for_500k_plus():
 def test_final_score_within_zero_to_one():
     game = _make_game(
         genre_tags=["puzzle", "word game"],
-        audience_tags=["wordle fans"],
         platform_tags=["browser"],
     )
     prospect = _make_prospect(
@@ -207,29 +201,28 @@ def test_fit_summary_is_non_empty_string():
 
 
 def test_reasons_non_empty_when_there_are_matches():
-    game = _make_game(genre_tags=["puzzle"], audience_tags=["fans"])
+    game = _make_game(genre_tags=["puzzle"])
     prospect = _make_prospect(description="puzzle fans community")
     result = score_prospect(game, prospect)
     assert len(result.reasons) > 0
 
 
 def test_reasons_empty_when_no_matches():
-    game = _make_game(genre_tags=["puzzle"], audience_tags=["wordle"])
+    game = _make_game(genre_tags=["puzzle"])
     prospect = _make_prospect(description="fps shooter action")
     result = score_prospect(game, prospect)
-    # Only contactability reasons could appear; genre/audience reasons should be absent
-    genre_audience_reasons = [
+    # Only contactability reasons could appear; genre/vibe reasons should be absent
+    genre_vibe_reasons = [
         r
         for r in result.reasons
-        if r.startswith("Genre") or r.startswith("Audience")
+        if r.startswith("Genre") or r.startswith("Vibe")
     ]
-    assert len(genre_audience_reasons) == 0
+    assert len(genre_vibe_reasons) == 0
 
 
 def test_developer_prospects_are_downranked_vs_creators_and_communities():
     game = _make_game(
         genre_tags=["strategy", "roguelite"],
-        audience_tags=["indie tactics fans"],
         platform_tags=["PC"],
     )
     common_description = "strategy roguelite indie tactics fans pc devlog browser steam"
@@ -271,7 +264,6 @@ def test_developer_prospects_are_downranked_vs_creators_and_communities():
 def test_developer_prospects_still_surface_when_they_match_well():
     game = _make_game(
         genre_tags=["strategy"],
-        audience_tags=["indie tactics fans"],
         platform_tags=["PC"],
     )
     developer = _make_prospect(

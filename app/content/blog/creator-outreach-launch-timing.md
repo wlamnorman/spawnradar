@@ -9,7 +9,7 @@ excerpt: >
 
 The most common mistake in creator outreach is not the message — it is the timing.
 
-Developers reach out too late, scramble to send keys the week of launch, and wonder why coverage trickles in after the algorithm has already moved on. Or they reach out too early, creators play the game and lose interest before launch, and the coverage lands at the wrong moment for wishlist conversion.
+Developers reach out too late, scramble to send keys the week of launch and wonder why coverage trickles in after the algorithm has already moved on. Or they reach out too early, creators play the game and lose interest before launch and the coverage lands at the wrong moment for wishlist conversion.
 
 Getting timing right requires thinking through the process in reverse — starting with your launch date and working backwards.
 
@@ -86,7 +86,7 @@ A simple spreadsheet is enough:
 | [name] | [date] | [date +14 days] |
 | [name] | [date] | [date +14 days] |
 
-Track who you contacted, when, whether they responded, and when your follow-up window opens. This prevents the most common failure mode: contacting someone twice because you forgot you already reached out.
+Track who you contacted, when, whether they responded and when your follow-up window opens. This prevents the most common failure mode: contacting someone twice because you forgot you already reached out.
 
 ---
 

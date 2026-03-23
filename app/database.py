@@ -7,12 +7,15 @@ from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 
-_EMPTY_TAG_PROFILE = '{"primary":[],"secondary":[],"custom":[]}'
+_EMPTY_TAG_PROFILE = '{"primary":[],"secondary":[]}'
 
 _MIGRATIONS = [
     # Add mechanics and tone tag profile columns (safe to re-run; ignored if column exists)
     f"ALTER TABLE games ADD COLUMN mechanics_tag_profile TEXT NOT NULL DEFAULT '{_EMPTY_TAG_PROFILE}'",
     f"ALTER TABLE games ADD COLUMN tone_tag_profile TEXT NOT NULL DEFAULT '{_EMPTY_TAG_PROFILE}'",
+    # Add vibe and kindred tag profile columns
+    f"ALTER TABLE games ADD COLUMN vibe_tag_profile TEXT NOT NULL DEFAULT '{_EMPTY_TAG_PROFILE}'",
+    f"ALTER TABLE games ADD COLUMN kindred_tag_profile TEXT NOT NULL DEFAULT '{_EMPTY_TAG_PROFILE}'",
     # Add search cursor table for progressive pagination across discovery runs
     """CREATE TABLE IF NOT EXISTS game_search_cursors (
         game_id    TEXT NOT NULL,

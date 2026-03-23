@@ -214,7 +214,7 @@ def test_twitch_candidate_parsing_uses_live_stream_enrichment():
         },
         TaggedQuery(
             text="game development",
-            source_tags=SourceTags(audience="indie devs"),
+            source_tags=SourceTags(vibe="indie devs"),
         ),
     )
 
@@ -274,7 +274,6 @@ def test_run_ingestion_imports_bluesky_candidates(
         summary="Turn-based space battles for tactics players.",
         description="Turn-based space battles for tactics players.",
         genre_tags_raw="strategy, tactics, roguelite",
-        audience_tags_raw="tactics fans, indie strategy players",
         platform_tags=["pc"],
         website_url=None,
     )
@@ -301,7 +300,7 @@ def test_run_ingestion_imports_bluesky_candidates(
                 audience_size=1400,
                 engagement_rate=None,
                 description=(
-                    "Indie developer sharing strategy, tactics, and roguelite updates."
+                    "Indie developer sharing strategy, tactics and roguelite updates."
                 ),
                 raw_data={
                     "source": "bluesky_search",
@@ -355,7 +354,6 @@ def test_run_ingestion_reruns_pass_run_index_and_exclude_seen_handles(
         summary="Find new creators on each discovery run.",
         description="Find new creators on each discovery run.",
         genre_tags_raw="strategy, tactics",
-        audience_tags_raw="strategy fans",
         platform_tags=["pc"],
         website_url=None,
     )
@@ -545,7 +543,6 @@ def test_run_ingestion_imports_twitch_candidates_into_queue(
         summary="Live strategy streams for genre fans.",
         description="Find live strategy creators on Twitch.",
         genre_tags_raw="strategy, tactics",
-        audience_tags_raw="strategy fans, livestream viewers",
         platform_tags=["pc"],
         website_url=None,
     )

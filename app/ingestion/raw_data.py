@@ -64,17 +64,13 @@ class YouTubeChannelData(BaseModel):
         default=None,
         description="The game genre tag whose search query surfaced this channel",
     )
-    source_audience_tag: str | None = Field(
-        default=None,
-        description="The game audience tag whose search query surfaced this channel",
-    )
     source_mechanics_tag: str | None = Field(
         default=None,
         description="The game mechanics tag whose search query surfaced this channel",
     )
-    source_tone_tag: str | None = Field(
+    source_vibe_tag: str | None = Field(
         default=None,
-        description="The game tone tag whose search query surfaced this channel",
+        description="The game vibe tag whose search query surfaced this channel",
     )
 
     # Images
@@ -153,17 +149,13 @@ class BlueskyActorData(BaseModel):
         default=None,
         description="The game genre tag whose search query surfaced this account",
     )
-    source_audience_tag: str | None = Field(
-        default=None,
-        description="The game audience tag whose search query surfaced this account",
-    )
     source_mechanics_tag: str | None = Field(
         default=None,
         description="The game mechanics tag whose search query surfaced this account",
     )
-    source_tone_tag: str | None = Field(
+    source_vibe_tag: str | None = Field(
         default=None,
-        description="The game tone tag whose search query surfaced this account",
+        description="The game vibe tag whose search query surfaced this account",
     )
     last_post_days_ago: int | None = Field(
         default=None,
@@ -241,15 +233,11 @@ class TwitchChannelData(BaseModel):
         default=None,
         description="The game genre tag whose search query surfaced this stream",
     )
-    source_audience_tag: str | None = Field(
-        default=None,
-        description="The game audience tag whose search query surfaced this stream",
-    )
     source_mechanics_tag: str | None = Field(
         default=None,
         description="The game mechanics tag whose search query surfaced this stream",
     )
-    source_tone_tag: str | None = Field(
+    source_vibe_tag: str | None = Field(
         default=None,
-        description="The game tone tag whose search query surfaced this stream",
+        description="The game vibe tag whose search query surfaced this stream",
     )

@@ -1,4 +1,4 @@
-"""Billing business logic: Paddle checkout, portal, and webhook handling."""
+"""Billing business logic: Paddle checkout, portal and webhook handling."""
 
 from __future__ import annotations
 

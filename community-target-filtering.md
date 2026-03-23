@@ -187,7 +187,7 @@ If the description says things like:
 - `official forum`
 - `discussion for [game name]`
 - `community for players of [game]`
-- `mods, builds, and news for [title]`
+- `mods, builds and news for [title]`
 
 then posting fit is likely low for unrelated games.
 

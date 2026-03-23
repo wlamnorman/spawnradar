@@ -8,9 +8,9 @@ This is a working note for SpawnRadar product and ingestion planning.
 
 Why it matters:
 
-- High intent. People ask for feedback, share demos, look for playtesters, and react to launches in public.
+- High intent. People ask for feedback, share demos, look for playtesters and react to launches in public.
 - Good fit for the "opportunity alerts" idea because relevant threads appear continuously.
-- Strong signal density around genre communities, engine communities, and platform-specific communities.
+- Strong signal density around genre communities, engine communities and platform-specific communities.
 
 Why it is tricky:
 
@@ -35,14 +35,14 @@ Key sources:
 Why it matters:
 
 - Open network, easier to search and monitor than most large social platforms.
-- Good for finding devlogs, launch announcements, demo announcements, festival participation, and "what should I do for marketing?" posts.
+- Good for finding devlogs, launch announcements, demo announcements, festival participation and "what should I do for marketing?" posts.
 - Better long-term source than X/Twitter for productized discovery because the API surface is much more open.
 
 Product fit:
 
 - Real-time alerts
 - Search for devs by profile and post content
-- Trend detection across tags like `indiedev`, `gamedev`, engine names, genre names, festivals, and release milestones
+- Trend detection across tags like `indiedev`, `gamedev`, engine names, genre names, festivals and release milestones
 
 Key sources:
 
@@ -56,7 +56,7 @@ Key sources:
 Why it matters:
 
 - Still one of the best channels for finding creators who can cover indie games.
-- Also useful for finding indie developers themselves through devlogs, postmortems, trailer drops, and "making my first game" channels.
+- Also useful for finding indie developers themselves through devlogs, postmortems, trailer drops and "making my first game" channels.
 - Strong metadata surface: channel descriptions, topics, uploads, publish dates, video titles.
 
 Product fit:
@@ -93,7 +93,7 @@ Key source:
 Why it matters:
 
 - Steam is still the most important public launch surface for many PC indies.
-- Steam Next Fest is especially important because it is effectively a structured source of upcoming indie launches, demos, and developer livestream activity.
+- Steam Next Fest is especially important because it is effectively a structured source of upcoming indie launches, demos and developer livestream activity.
 
 Why it is tricky:
 
@@ -114,7 +114,7 @@ Key source:
 
 Why it matters:
 
-- Great source for very early-stage indie developers, game jams, prototypes, and experimental projects.
+- Great source for very early-stage indie developers, game jams, prototypes and experimental projects.
 - Particularly strong if you want SpawnRadar to find developers before they are "launch-ready" on Steam.
 - Jams and browse feeds are valuable signals even when the authenticated API is account-centric.
 
@@ -165,7 +165,7 @@ Key sources:
 Why it matters:
 
 - Not a primary launch channel, but it is a surprisingly useful signal source for finding technically-oriented indie developers.
-- Especially useful for open-source tools, engine plugins, game jam repos, Godot/Unity/Unreal experiments, and people who publicly identify with gamedev topics.
+- Especially useful for open-source tools, engine plugins, game jam repos, Godot/Unity/Unreal experiments and people who publicly identify with gamedev topics.
 
 Product fit:
 
@@ -268,7 +268,7 @@ A strong internal entity model would be:
 - current launch stage
 - opportunity history
 
-This lets you pivot from a game to the developer, and from the developer to other games or channels.
+This lets you pivot from a game to the developer and from the developer to other games or channels.
 
 ### 4. Use lookalike discovery on developers, not just games
 
@@ -279,7 +279,7 @@ Possible workflows:
 - "Find devs posting frequent progress updates but with low audience reach"
 - "Find developers in genre X who have a demo but weak creator coverage"
 
-That turns SpawnRadar into a prospecting tool for agencies, publishers, service providers, and even your own sales pipeline.
+That turns SpawnRadar into a prospecting tool for agencies, publishers, service providers and even your own sales pipeline.
 
 ### 5. Add developer alerts
 
@@ -370,7 +370,7 @@ If you want the fastest product leverage, I would do this:
 That gives you two strong loops:
 
 - help devs find opportunities
-- help agencies, publishers, and service providers find devs
+- help agencies, publishers and service providers find devs
 
 ## Sources
 

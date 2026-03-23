@@ -1,7 +1,7 @@
 """HTTP integration tests for Paddle billing routes.
 
 Covers the full webhook → subscription activation flow, the polling status
-endpoint, the checkout success page, and the billing management page.
+endpoint, the checkout success page and the billing management page.
 These tests verify behaviour that is critical to the paid subscription flow
 and must not regress silently.
 """
@@ -141,7 +141,7 @@ def _activation_event(
 def _activate_subscription(
     client: TestClient, db_path: str, email: str = "user@example.com"
 ) -> str:
-    """Register, verify, and fire an activation webhook. Returns user_id."""
+    """Register, verify and fire an activation webhook. Returns user_id."""
     _register_and_verify(client, db_path, email)
     user_id = _get_user_id(db_path, email)
     client.get("/games")  # creates the subscription record
@@ -518,7 +518,7 @@ class TestCheckoutSuccessPage:
 
 
 class TestBillingManagementPage:
-    def test_trial_user_sees_trial_state_and_activate_cta(
+    def test_trial_user_sees_trial_state_and_subscribe_cta(
         self, monkeypatch, tmp_path
     ):
         client, db_path = _make_client(monkeypatch, tmp_path)
@@ -527,7 +527,7 @@ class TestBillingManagementPage:
             response = client.get("/billing")
         assert response.status_code == 200
         assert "Trial" in response.text
-        assert "Activate subscription" in response.text
+        assert "Subscribe now" in response.text
 
     def test_expired_trial_with_no_subscription_redirects_to_pricing(
         self, monkeypatch, tmp_path
@@ -557,7 +557,7 @@ class TestBillingManagementPage:
         assert response.status_code == 200
         assert "Active" in response.text
         assert "Manage subscription" in response.text
-        assert "Activate subscription" not in response.text
+        assert "Subscribe now" not in response.text
 
     def test_active_subscriber_sees_next_renewal_date(
         self, monkeypatch, tmp_path

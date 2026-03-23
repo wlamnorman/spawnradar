@@ -1,7 +1,9 @@
 # SpawnRadar: Discovery System Vision
-## Tags, Queries, and the Path to Genuine Diversification
+## Tags, Queries and the Path to Genuine Diversification
 
 *Last updated March 2026. Living document — update as the system evolves.*
+
+> **Status note (March 2026):** Progressive pagination is fully implemented. Audience catalog has grown to 104 tags (was 76). Tag coverage tracking, LLM inference at game creation and tag similarity are the primary remaining work.
 
 ---
 
@@ -48,7 +50,7 @@ The system now has **four searchable tag dimensions** plus platform:
 | Kind | Catalog size | Featured | Purpose |
 |---|---|---|---|
 | Genre | 105 | 29 | What kind of game it is |
-| Audience | 76 | 26 | Who plays it |
+| Audience | 104 | 26 | Who plays it |
 | Mechanics | 22 | 8 | How it plays — specific systems |
 | Tone | 18 | 8 | Aesthetic and emotional register |
 | Platform | 4 | — | Where it runs (checkboxes, not scored) |
@@ -100,11 +102,10 @@ Mechanics and tone tags are folded into `genre_fit` (they describe what the game
 
 ### 1.7 What is still missing
 
-1. **No tag coverage tracking.** We don't know which tag/template/source combinations have been searched, how often, or how productive each was. Every run starts from scratch with no memory.
-2. **No pagination / offset advancement.** YouTube searches return page 1 every time. Pages 2-5 contain the long-tail creators who are often the best prospects for indie outreach.
-3. **No tag effectiveness signal.** Tags that produce only low-scoring prospects continue to be used with equal priority to tags that reliably surface strong prospects.
-4. **No LLM tag suggestion at game creation.** Customers have to know the taxonomy to use it well; many pick overly generic tags.
-5. **No tag similarity expansion.** A game tagged `roguelite` doesn't automatically explore `action roguelike` or `deckbuilder` spaces even though those communities heavily overlap.
+1. **No tag coverage tracking.** We don't know which tag/template/source combinations have been searched, how often, or how productive each was. Every run starts from scratch with no memory of coverage — the `run_index` rotation varies order but doesn't track what has actually been executed.
+2. **No tag effectiveness signal.** Tags that produce only low-scoring prospects continue to be used with equal priority to tags that reliably surface strong prospects.
+3. **No LLM tag suggestion at game creation.** Customers have to know the taxonomy to use it well; many pick overly generic tags.
+4. **No tag similarity expansion.** A game tagged `roguelite` doesn't automatically explore `action roguelike` or `deckbuilder` spaces even though those communities heavily overlap. Scoring is also binary in tag matching — partial credit for adjacent-tag prospects is unimplemented.
 
 ---
 
@@ -125,7 +126,7 @@ deckbuilder gameplay
 
 That's 8 queries. Each query returns the same top results unless YouTube's index changes. After 3-4 runs, the excluded_handles filter removes most of these results because they've already been ingested. The queue drains but stops growing.
 
-When customers say "I'm getting the same people every time I run discovery," they are correct. Diversification requires all three: **richer tag vocabulary**, **smarter query construction**, and **coverage-aware scheduling**.
+When customers say "I'm getting the same people every time I run discovery," they are correct. Diversification requires all three: **richer tag vocabulary**, **smarter query construction** and **coverage-aware scheduling**.
 
 ---
 
@@ -141,7 +142,7 @@ The four dimensions we have (genre, audience, mechanics, tone) cover most of the
 
 ### 3.2 Audience — who plays it (implemented)
 
-76 tags. Describes player identity rather than game mechanics. Audience tags let us search for **people**, not just content. "speedrunners" and "slay the spire fans" are searchable identities on YouTube, Reddit, and Bluesky.
+76 tags. Describes player identity rather than game mechanics. Audience tags let us search for **people**, not just content. "speedrunners" and "slay the spire fans" are searchable identities on YouTube, Reddit and Bluesky.
 
 **Remaining gap:** Flagship community audience tags for more genres. Highly specific tags like "hades fans" or "elden ring fans" reach proven communities. This is low-effort, high-impact:
 
@@ -159,7 +160,7 @@ metroidvania       → hollow knight fans, ori fans
 
 ### 3.3 Mechanics — how it plays (implemented)
 
-22 tags. Describes specific gameplay systems that cut across genres. A "roguelite" can have `permadeath`, `procedural generation`, `meta-progression`, and `run-based` mechanics — each reaching creators who make content about those systems even if they don't identify with the genre label.
+22 tags. Describes specific gameplay systems that cut across genres. A "roguelite" can have `permadeath`, `procedural generation`, `meta-progression` and `run-based` mechanics — each reaching creators who make content about those systems even if they don't identify with the genre label.
 
 Templates (YouTube): `"games with {tag}"`, `"{tag} games"`, `"best games with {tag}"`, `"{tag} game design"`
 
@@ -192,7 +193,7 @@ This is currently handled implicitly through `format_fit` in the scoring engine 
 └──────────────┴────────────────┴─────────────────────────────────┘
 ```
 
-Each dimension generates different search queries, reaches different creator segments, and provides independent scoring signal. A prospect matching on three dimensions independently is almost certainly a strong fit.
+Each dimension generates different search queries, reaches different creator segments and provides independent scoring signal. A prospect matching on three dimensions independently is almost certainly a strong fit.
 
 ---
 
@@ -210,7 +211,7 @@ The `run_index` rotation helps at the template level (different templates run fi
 
 **Type 2: Temporal diversity across runs** — Track which queries have been run recently. If "roguelite games" was searched last week, this week prioritize "roguelite game review" and deprioritize already-covered ground.
 
-**Type 3: Prospect diversity within a queue** — Even genuinely new prospects tend to be the same archetypes: large channels with the exact genre word in their name. Diversity means covering different channel sizes, content formats, sub-communities, and emerging creators.
+**Type 3: Prospect diversity within a queue** — Even genuinely new prospects tend to be the same archetypes: large channels with the exact genre word in their name. Diversity means covering different channel sizes, content formats, sub-communities and emerging creators.
 
 ---
 
@@ -244,11 +245,9 @@ With this, each discovery run can make an intelligent selection decision:
 
 ### 5.2 Pagination as a diversification tool
 
-YouTube returns results in ranked order. Page 1 returns the 10 biggest channels. Pages 3-5 return mid-tier creators who are often better prospects for indie outreach.
+**Status: implemented.** `game_search_cursors` table stores `nextPageToken` / `after` / `cursor` values per `(game_id, source)`. Sources read and write the cursor dict on every run, so each run automatically resumes from where the last one ended across all sources (YouTube API, Bluesky, Reddit, Twitch).
 
-The `search_offset` field enables **progressive pagination**: run 1 searches page 1, run 2 searches pages 2-3, run 3 pages 4-6. Over time, we systematically work through the long tail of each query. This is the single highest-impact change available — no schema changes needed beyond the coverage table, and it immediately shifts discovery toward underexplored creators.
-
-**Expected impact:** Each subsequent run finds 60-80% new prospects vs. the current 10-20%.
+What is not yet implemented is coverage-aware scheduling: deciding *which* tag/template combinations to prioritize on a given run based on how recently and productively they've been searched. The pagination mechanism is there; the intelligence above it is not.
 
 ### 5.3 Query budget allocation
 
@@ -321,33 +320,94 @@ After the first run, a second inference pass: "given these high-scoring prospect
 
 ---
 
-## 8. Tag Similarity and Cluster Expansion (Future)
+## 8. Tag Similarity and Cluster Expansion
 
-### 8.1 Adjacent tags
+### 8.1 The problem
 
-A game tagged `roguelite` should eventually also explore `roguelike`, `action roguelike`, and `deckbuilder` creator spaces — these communities heavily overlap but don't appear unless explicitly tagged.
+A game tagged `roguelite` searches for roguelite content. It does not search for `deckbuilder`, `action roguelike`, or `bullet heaven` — even though all three communities substantially overlap. Post-Slay the Spire, "deckbuilder fans" and "roguelite fans" are often the same people. The current system cannot discover this unless the customer explicitly adds every adjacent tag.
 
-The current alias system handles spelling normalization. It doesn't handle **adjacent expansion**: discovering that related-but-distinct tags also reach valuable prospects.
+The same gap exists at scoring time: a prospect who covers deckbuilder content but doesn't mention "roguelite" gets low `genre_fit` even if they're an ideal fit for a roguelite game. Scoring is binary in tag matching — exact/alias match or provenance credit, nothing in between.
 
-### 8.2 Tag similarity graph
+### 8.2 Approach: LLM-bootstrapped static graph
 
-Build a weighted graph where edges represent co-occurrence:
+**Do not use fuzzy string matching for this.** The alias system already handles spelling normalization ("deck builder" → "deckbuilder"). String similarity won't capture that roguelite → deckbuilder is a cultural overlap, not a textual one.
+
+**Do not rely on semantic embeddings alone.** A gaming-domain embedding would correctly place "cozy" near "wholesome" and "soulslike" near "dark fantasy", but would also hallucinate similarities based on shared words ("action rpg" ≈ "tactical rpg" because they share "rpg") when the communities are meaningfully different.
+
+**The right starting point is a one-time LLM call.** Claude knows gaming culture: which genres share fanbases, which mechanics create community identity, which audience tags are the same people described differently. Generate the graph once, store it as a checked-in static artifact (`app/games/tag_graph.json`) and re-run the generation script quarterly or when the catalog grows significantly.
 
 ```
-roguelite ─0.9─ roguelike
-roguelite ─0.7─ deckbuilder
-roguelite ─0.6─ action roguelike
-soulslike ─0.6─ action rpg
-soulslike ─0.5─ dark fantasy
-tactical rpg ─0.8─ turn-based tactics
-tactical rpg ─0.6─ xcom fans (audience)
+Prompt structure:
+  Given the tag catalog below for an indie game influencer discovery system,
+  generate a similarity graph. Two tags are similar if the creator/community
+  audiences strongly overlap — not just if they're conceptually related.
+  Cross-dimension edges are valuable (genre → audience especially).
+  Return JSON: [{from, to, weight}] where weight is 0.0–1.0.
+  Exclude edges below 0.4. Include both directions only if asymmetric.
+
+  Tags: {ALL_249_TAGS_ACROSS_FOUR_DIMENSIONS}
 ```
 
-Edges can be built from: our own game co-occurrence data, Steam tag data, and Reddit subreddit member overlap.
+Example edges the LLM would correctly produce:
 
-### 8.3 Expansion queries
+```
+roguelite ──0.90── roguelike
+roguelite ──0.75── deckbuilder
+roguelite ──0.70── action roguelike
+roguelite ──0.65── bullet heaven
+roguelite ──0.80── roguelite fans        (genre → audience, direct)
+roguelite ──0.65── deckbuilder fans      (genre → audience, cultural overlap)
+soulslike ──0.70── action rpg
+soulslike ──0.65── dark fantasy          (cross-dimension: genre → tone)
+cozy ──────0.85── wholesome gamers      (genre → audience)
+cozy ──────0.70── wholesome             (cross-dimension: genre → tone)
+tactical rpg ──0.80── turn-based tactics
+tactical rpg ──0.65── xcom fans          (genre → audience)
+bullet heaven ──0.70── vampire survivors fans
+```
 
-When a discovery run has remaining budget after covering primary/secondary tags, expand to one-hop neighbors in the similarity graph. Label these as **expansion queries** with a lower weight. If they produce high-scoring prospects, suggest adding those tags explicitly.
+### 8.3 Expansion queries in discovery
+
+Use the similarity graph in `build_tagged_queries()` to generate **expansion queries**: queries built from one-hop neighbors of the game's explicit tags, weighted lower.
+
+```
+Expansion weight = tag_bucket_weight × similarity_edge_weight × 0.7
+
+Example:
+  roguelite (primary, weight=1.0) → deckbuilder (edge=0.75)
+  Expansion query weight = 1.0 × 0.75 × 0.7 = 0.525
+```
+
+Budget allocation: expansion queries get at most 25% of query slots per run. They should fill slots only after all primary/secondary tags have been covered. Carry provenance as `expansion_of: "roguelite"` so the scoring engine can attribute correctly.
+
+If a prospect discovered via an expansion query scores above 0.60, suggest adding the expansion tag explicitly: "3 strong prospects came from 'deckbuilder' searches — consider adding it as a secondary tag."
+
+### 8.4 Scoring integration
+
+The similarity graph also fixes the binary scoring problem. In `genre_fit` and `audience_fit`:
+
+- **Exact/alias match** → full score (current behavior)
+- **One-hop neighbor match** → `similarity_weight × 0.85` (new)
+- **Provenance credit** → `0.85` of inferred fit (current behavior)
+
+A deckbuilder-focused prospect for a roguelite game currently scores near-zero on `genre_fit` unless the LLM overrides. With similarity scoring, it gets `0.75 × 0.85 ≈ 0.64` before the LLM even runs — meaning the LLM override moves it to full credit rather than having to compensate for a false zero.
+
+### 8.5 Future: empirical graph refinement
+
+Once there's enough game data (game tag co-occurrence, prospect approval rates per tag), supplement the LLM-generated graph with empirical edges:
+
+- **Game co-occurrence:** if 40% of games tagged "roguelite" also tag "deckbuilder", the edge gets stronger
+- **Approval co-occurrence:** if prospects who score well for roguelite games also score well for deckbuilder games, the edge is confirmed behaviorally
+- **Steam tag data:** Steam's public tag co-occurrence is a strong prior for the gaming domain
+
+The LLM graph is the bootstrap; empirical data refines it over time.
+
+### 8.6 Implementation sequence
+
+1. **Write the generation script** — one Claude call with all 249 tags, output `tag_graph.json` (1 day)
+2. **Expansion queries in `build_tagged_queries()`** — add one-hop expansion pass with budget cap (1-2 days)
+3. **Partial credit in scoring** — modify `genre_fit` / `audience_fit` to use similarity weights (1 day)
+4. **Suggestion surface** — when expansion prospects score well, surface tag suggestion in UI (1-2 days)
 
 ---
 
@@ -358,38 +418,41 @@ When a discovery run has remaining budget after covering primary/secondary tags,
 | What | Impact |
 |---|---|
 | Expanded genre catalog (66 → 105 tags) | Finer-grained genre searches |
-| Expanded audience catalog (58 → 76 tags) | More specific audience targeting |
+| Expanded audience catalog (58 → 104 tags) | More specific audience targeting |
 | Added mechanics tag dimension (22 tags) | Reaches creators covering game systems |
 | Added tone tag dimension (18 tags) | Reaches aesthetic-driven communities |
 | `run_index` rotation in `build_tagged_queries()` | Varies query order across runs |
 | `excluded_handles` filter | Prevents re-fetching known prospects |
 | Provenance tracking (4 source tag fields) | Correct scoring attribution |
+| Progressive pagination (`game_search_cursors`) | Sources resume from previous cursor on every run |
 | Selected tag pills are removable | Better UX for tag management |
 | Suggestion chips hide already-selected tags | Cleaner tag picker UX |
 
-### Next — High impact, low complexity
+### Next — High impact, achievable
 
 | Action | Effort | Expected outcome |
 |---|---|---|
-| Progressive pagination (search_offset) | 1-2 days | 60-80% new prospects per run |
-| Tag coverage tracking table | 2-3 days | Coverage-aware query scheduling |
-| Flagship community audience tags | 1 day | Direct access to active fan communities |
+| Tag similarity graph (LLM-generated, static JSON) | 1 day | Foundation for expansion queries and scoring improvements |
+| Expansion queries in `build_tagged_queries()` | 1-2 days | Discovery casts wider net into adjacent tag spaces |
+| Partial credit in `genre_fit`/`audience_fit` from similarity | 1 day | Scoring is no longer binary on tag matching |
+| Tag coverage tracking table | 2-3 days | Coverage-aware query scheduling, prevents repeat searches |
 
 ### Short-term
 
 | Action | Effort | Expected outcome |
 |---|---|---|
 | Tag performance metrics (per tag approval_rate) | 3-4 days | Customer feedback loop on tag quality |
-| Format tags (speedrun-viable, streaming-friendly) | 2-3 days | Format-based creator discovery |
-| Query budget allocator using coverage data | 2-3 days | Each run explores different space |
+| Query budget allocator using coverage data | 2-3 days | Each run systematically explores different space |
+| LLM tag inference at game creation | 3-5 days | Better tags from day one, less customer friction |
+| Tag suggestion when expansion queries score well | 1-2 days | System recommends tags based on discovery results |
 
 ### Medium-term
 
 | Action | Effort | Expected outcome |
 |---|---|---|
-| LLM tag inference at game creation | 5-7 days | Better tags from day one |
-| Cross-game tag intelligence for cold-start | 5-7 days | New games benefit from platform learning |
-| Tag similarity graph + expansion queries | 7-10 days | Automated adjacent-space exploration |
+| Cross-game tag intelligence for cold-start | 5-7 days | New games benefit from platform-wide learning |
+| Format tags (speedrun-viable, streaming-friendly) | 2-3 days | Format-based creator discovery (5th dimension) |
+| Empirical graph refinement from approval data | 3-5 days | Similarity edges reflect actual prospect quality, not just cultural knowledge |
 
 ### The big picture
 
@@ -398,26 +461,26 @@ The ideal discovery system is not a one-time configuration but a **living signal
 ```
 Customer adds tags
        ↓
-LLM inference suggests more
+LLM inference suggests more (future)
+       ↓
+Similarity graph expands into adjacent tag spaces (next)
        ↓
 Pipeline explores the full tag × template × source space
        ↓
-Coverage tracking ensures no query runs twice unnecessarily
+Pagination explores the long tail of productive queries ✓ done
        ↓
-Pagination explores the long tail of productive queries
+Coverage tracking ensures no query runs twice unnecessarily (next)
        ↓
-Outcome data identifies which tags produce approved prospects
+Outcome data identifies which tags produce approved prospects (short-term)
        ↓
-Tag performance surfaces back to the customer
+Tag performance surfaces back to the customer (short-term)
        ↓
-Cross-game learning improves cold-start for new games
-       ↓
-Similarity graph auto-expands into adjacent tag spaces
+Cross-game learning improves cold-start for new games (medium-term)
 ```
 
 At maturity, a customer with a roguelite game who has run discovery 10 times would have:
 - Explored hundreds of unique query combinations across all four dimensions
-- Seen prospects from YouTube, Reddit, and Bluesky across the full audience size spectrum
+- Seen prospects from YouTube, Reddit and Bluesky across the full audience size spectrum
 - Had their tags refined by actual approval signal
 - Had the system automatically explore adjacent spaces like "deckbuilder" and "action roguelike"
 - Received suggestions based on what worked for similar games across the platform

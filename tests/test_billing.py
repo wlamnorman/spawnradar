@@ -80,7 +80,6 @@ def test_check_game_limit_returns_false_when_at_limit(
         summary="Short summary",
         description="desc",
         genre_tags_raw="puzzle",
-        audience_tags_raw="fans",
         platform_tags=["browser"],
         website_url=None,
     )
@@ -418,7 +417,7 @@ def test_is_trialing_false_when_paddle_subscription_id_is_set():
 def test_subscription_lifecycle_trial_to_paid(
     billing_service, registered_user
 ):
-    """Limits, has_subscription, and is_trialing all reflect state correctly
+    """Limits, has_subscription and is_trialing all reflect state correctly
     as a user moves from trial through activation to cancellation."""
     uid = registered_user.user_id
 

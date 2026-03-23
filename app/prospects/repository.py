@@ -1,4 +1,4 @@
-"""Database operations for prospects, draft items, and outcomes."""
+"""Database operations for prospects, draft items and outcomes."""
 
 from __future__ import annotations
 

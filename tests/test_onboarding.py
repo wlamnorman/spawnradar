@@ -1,4 +1,4 @@
-"""Tests for registration, empty-dashboard flow, and dev login."""
+"""Tests for registration, empty-dashboard flow and dev login."""
 
 import json
 import re
@@ -13,7 +13,9 @@ from app.main import create_app
 
 def _verify_user_email(db_path: str, email: str) -> None:
     with get_connection(db_path) as conn:
-        conn.execute("UPDATE users SET email_verified = 1 WHERE email = ?", (email,))
+        conn.execute(
+            "UPDATE users SET email_verified = 1 WHERE email = ?", (email,)
+        )
 
 
 def _make_client(monkeypatch, tmp_path) -> TestClient:
@@ -115,7 +117,6 @@ def test_dashboard_game_cards_include_run_discovery_action(
                 "description": "A longer internal description that should not appear on the dashboard card.",
                 "genre_primary_tags": "racing, arcade",
                 "genre_tags": "racing, arcade",
-                "audience_tags": "speedrunners, arcade fans",
                 "platform_tags": "browser",
                 "website_url": "",
             },
@@ -126,7 +127,10 @@ def test_dashboard_game_cards_include_run_discovery_action(
     assert response.status_code == 200
     assert "Open Queue" in response.text
     assert "Arcade racing across collapsing star lanes." in response.text
-    assert "A longer internal description that should not appear on the dashboard card." not in response.text
+    assert (
+        "A longer internal description that should not appear on the dashboard card."
+        not in response.text
+    )
     assert response.text.count("Locked during trial") == 2
     assert 'href="/games/new"' not in response.text
     assert response.text.count("Add Game") == 2
@@ -154,7 +158,6 @@ def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
                 "description": "Arcade racing across collapsing star lanes.",
                 "genre_primary_tags": "racing, arcade",
                 "genre_tags": "racing, arcade",
-                "audience_tags": "speedrunners, arcade fans",
                 "platform_tags": "browser",
                 "website_url": "orbitdrift.example",
             },
@@ -193,7 +196,9 @@ def test_pricing_page_shows_single_subscription_offer(monkeypatch, tmp_path):
     assert "Studio" not in response.text
 
 
-def test_billing_root_unauthenticated_redirects_to_login(monkeypatch, tmp_path):
+def test_billing_root_unauthenticated_redirects_to_login(
+    monkeypatch, tmp_path
+):
     with _make_client(monkeypatch, tmp_path) as client:
         response = client.get("/billing", follow_redirects=False)
 
@@ -257,7 +262,6 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
                 "description": "Fleet battles in deep space.",
                 "genre_primary_tags": "strategy, tactics",
                 "genre_tags": "strategy, tactics",
-                "audience_tags": "strategy fans",
                 "platform_tags": "pc",
                 "website_url": "startactician.example",
             },
@@ -322,11 +326,11 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
                     json.dumps(
                         {
                             "genre_fit": 0.92,
-                            "audience_fit": 0.88,
+                            "vibe_fit": 0.88,
                             "platform_fit": 1.0,
                             "contactability": 0.75,
                             "audience_size_score": 0.63,
-                            "why_selected": "Audience and format align strongly with the game's target players.",
+                            "why_selected": "Vibe and format align strongly with the game's target players.",
                             "reasons": [
                                 "Contact channel available: reddit_post",
                                 "Contact value present: https://reddit.example/post",

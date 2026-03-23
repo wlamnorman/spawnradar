@@ -1,6 +1,6 @@
 """Tag-driven scoring engine.
 
-Computes how well a prospect matches a game's audience profile across seven
+Computes how well a prospect matches a game's tag profile across seven
 dimensions. LLM-computed overrides replace keyword-based calculations when
 available.
 
@@ -10,7 +10,7 @@ rather than against a model designed for YouTube channels.
 
 creator  (YouTube channels, default)
   genre_fit       0.25  — does this channel cover this genre?
-  audience_fit    0.20  — does their audience match our players?
+  vibe_fit        0.20  — does their content vibe match the game's feel?
   format_fit      0.15  — does their format suit this type of game? (LLM only)
   activity_score  0.15  — how recently/frequently do they upload?
   contactability  0.10  — can we actually reach them?
@@ -19,7 +19,7 @@ creator  (YouTube channels, default)
 
 community  (Reddit subreddits/threads)
   genre_fit       0.35  — is this community about the right topic?
-  audience_fit    0.25  — do members match the game's target players?
+  vibe_fit        0.25  — does the community vibe match the game?
   format_fit      0.00  — N/A: communities have no content format
   activity_score  0.05  — hard to measure; low weight
   contactability  0.05  — always high for Reddit; barely discriminates
@@ -28,7 +28,7 @@ community  (Reddit subreddits/threads)
 
 developer  (Bluesky indie devs)
   genre_fit       0.30  — do they make/discuss similar games?
-  audience_fit    0.15  — their audience is mostly other devs
+  vibe_fit        0.15  — does their aesthetic sensibility align?
   format_fit      0.10  — devlogs are relevant but not primary signal
   activity_score  0.25  — active posters are better cross-promo targets
   contactability  0.15  — can we actually reach them?
@@ -47,7 +47,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from app.games.tags import WeightedTag
+from app.games.tags import TagWeight, WeightedTag
 
 if TYPE_CHECKING:
     from app.games.models import Game
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 _WEIGHTS: dict[str, dict[str, float]] = {
     "creator": {
         "genre": 0.25,
-        "audience": 0.20,
+        "vibe": 0.20,
         "format": 0.15,
         "activity": 0.15,
         "contactability": 0.10,
@@ -69,7 +69,7 @@ _WEIGHTS: dict[str, dict[str, float]] = {
     },
     "community": {
         "genre": 0.35,
-        "audience": 0.25,
+        "vibe": 0.25,
         "format": 0.00,
         "activity": 0.05,
         "contactability": 0.05,
@@ -78,7 +78,7 @@ _WEIGHTS: dict[str, dict[str, float]] = {
     },
     "developer": {
         "genre": 0.30,
-        "audience": 0.15,
+        "vibe": 0.15,
         "format": 0.10,
         "activity": 0.25,
         "contactability": 0.15,
@@ -99,7 +99,7 @@ class ScoreBreakdown:
     """Per-dimension scores and an overall score for a prospect/game pair."""
 
     genre_fit: float  # 0–1: how well prospect matches game's genre_tags
-    audience_fit: float  # 0–1: how well prospect matches game's audience_tags
+    vibe_fit: float  # 0–1: how well prospect's content vibe matches the game
     format_fit: float  # 0–1: does their content format suit this game type?
     activity_score: float  # 0–1: how recently/frequently they upload
     platform_fit: float  # 0–1: platform match
@@ -116,7 +116,7 @@ def score_prospect(
     prospect: Prospect,
     *,
     genre_fit_override: float | None = None,
-    audience_fit_override: float | None = None,
+    vibe_fit_override: float | None = None,
     format_fit_override: float | None = None,
     platform_fit_override: float | None = None,
     fit_summary_override: str | None = None,
@@ -124,7 +124,7 @@ def score_prospect(
 ) -> ScoreBreakdown:
     """Compute a ScoreBreakdown for a prospect against a game's tag profile.
 
-    LLM overrides (genre_fit, audience_fit, format_fit, platform_fit,
+    LLM overrides (genre_fit, vibe_fit, format_fit, platform_fit,
     fit_summary, why_selected) replace the keyword/heuristic calculations
     when provided. All other dimensions are always computed locally.
 
@@ -157,15 +157,14 @@ def score_prospect(
 
     # Tags matched implicitly via the search query that discovered this channel
     source_genre_tag = raw.get("source_genre_tag") or ""
-    source_audience_tag = raw.get("source_audience_tag") or ""
     source_mechanics_tag = raw.get("source_mechanics_tag") or ""
-    source_tone_tag = raw.get("source_tone_tag") or ""
+    source_vibe_tag = raw.get("source_vibe_tag") or raw.get("source_tone_tag") or ""
 
     reasons: list[str] = []
 
     # -----------------------------------------------------------------------
     # Genre fit — LLM override when available, else keyword matching.
-    # Mechanics and tone tags are folded in here: they describe what the game
+    # Mechanics and vibe tags are folded in here: they describe what the game
     # is like and generate their own search queries, so they contribute to the
     # same fit dimension.
     # -----------------------------------------------------------------------
@@ -174,13 +173,13 @@ def score_prospect(
     else:
         genre_context = {
             t
-            for t in [source_genre_tag, source_mechanics_tag, source_tone_tag]
+            for t in [source_genre_tag, source_mechanics_tag, source_vibe_tag]
             if t
         }
         all_genre_like_tags = (
             game.weighted_genre_tags()
             + game.weighted_mechanics_tags()
-            + game.weighted_tone_tags()
+            + game.weighted_vibe_tags()
         )
         genre_fit = _tag_match_score(
             all_genre_like_tags,
@@ -191,17 +190,17 @@ def score_prospect(
         )
 
     # -----------------------------------------------------------------------
-    # Audience fit — LLM override when available, else keyword matching
+    # Vibe fit — LLM override when available, else keyword matching
     # -----------------------------------------------------------------------
-    if audience_fit_override is not None:
-        audience_fit = audience_fit_override
+    if vibe_fit_override is not None:
+        vibe_fit = vibe_fit_override
     else:
-        audience_fit = _tag_match_score(
-            game.weighted_audience_tags(),
+        vibe_fit = _tag_match_score(
+            game.weighted_kindred_tags(),
             search_text,
-            {source_audience_tag} if source_audience_tag else set(),
+            set(),
             reasons,
-            "audience",
+            "vibe",
         )
 
     # -----------------------------------------------------------------------
@@ -260,7 +259,7 @@ def score_prospect(
     # -----------------------------------------------------------------------
     base_score = (
         genre_fit * w["genre"]
-        + audience_fit * w["audience"]
+        + vibe_fit * w["vibe"]
         + format_fit * w["format"]
         + activity_score * w["activity"]
         + contactability * w["contactability"]
@@ -271,13 +270,13 @@ def score_prospect(
     final_score = round(min(base_score * type_multiplier, 1.0), 4)
 
     fit_summary = fit_summary_override or _build_summary(
-        game, prospect, genre_fit, audience_fit, final_score
+        game, prospect, genre_fit, vibe_fit, final_score
     )
     why_selected = why_selected_override or ""
 
     return ScoreBreakdown(
         genre_fit=round(genre_fit, 4),
-        audience_fit=round(audience_fit, 4),
+        vibe_fit=round(vibe_fit, 4),
         format_fit=round(format_fit, 4),
         activity_score=round(activity_score, 4),
         platform_fit=round(platform_fit, 4),
@@ -392,14 +391,14 @@ def _normalize_audience_size(
 
 
 def _weighted_plain_tags(tags: list[str]) -> list[WeightedTag]:
-    return [WeightedTag(name=tag, weight=1.0, label="primary") for tag in tags]
+    return [WeightedTag(name=tag, weight=1.0, label=TagWeight.PRIMARY) for tag in tags]
 
 
 def _build_summary(
     game: Game,
     prospect: Prospect,
     genre_fit: float,
-    audience_fit: float,
+    vibe_fit: float,
     final_score: float,
 ) -> str:
     """Generate a one-sentence human-readable fit summary."""
@@ -417,13 +416,13 @@ def _build_summary(
         if genre_fit > 0
         else "with no genre tag matches"
     )
-    audience_note = (
-        f"and audience fit at {int(audience_fit * 100)}%"
-        if audience_fit > 0
-        else "and no audience tag matches"
+    vibe_note = (
+        f"and vibe fit at {int(vibe_fit * 100)}%"
+        if vibe_fit > 0
+        else "and no vibe tag matches"
     )
 
     return (
         f"{prospect.display_name} is a {quality} match for {game.name} "
-        f"(overall {score_pct}%), {genre_note} {audience_note}."
+        f"(overall {score_pct}%), {genre_note} {vibe_note}."
     )

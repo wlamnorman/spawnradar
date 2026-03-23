@@ -1,4 +1,4 @@
-"""Tests for game creation, updates, templates, assets, and billing limits."""
+"""Tests for game creation, updates, templates, assets and billing limits."""
 
 import pytest
 
@@ -16,7 +16,6 @@ def test_create_game_stores_and_returns_game(game_service, registered_user):
         summary="A puzzle game set in space.",
         description="A puzzle game set in space",
         genre_tags_raw="puzzle, space",
-        audience_tags_raw="space fans",
         platform_tags=["browser"],
         website_url=None,
     )
@@ -32,14 +31,12 @@ def test_create_game_returns_correct_tags(game_service, registered_user):
         summary="Testing tag normalization.",
         description="Testing tags",
         genre_tags_raw="puzzle, word game, daily",
-        audience_tags_raw="wordle fans, puzzle lovers",
         platform_tags=["browser", "mobile"],
         website_url=None,
     )
     assert "puzzle" in game.genre_tags
     assert "word game" in game.genre_tags
     assert "daily" in game.genre_tags
-    assert "wordle fans" in game.audience_tags
     assert "browser" in game.platform_tags
     assert "mobile" in game.platform_tags
 
@@ -53,7 +50,6 @@ def test_new_games_default_to_youtube_reddit_and_bluesky(
         summary="Testing discovery source defaults.",
         description="Testing discovery source defaults",
         genre_tags_raw="strategy",
-        audience_tags_raw="indie players",
         platform_tags=["pc"],
         website_url=None,
     )
@@ -75,14 +71,13 @@ def test_genre_tags_parsed_from_comma_separated_string(
         summary="Testing tag parsing.",
         description="Testing tag parsing",
         genre_tags_raw="  action , rpg , strategy  ",
-        audience_tags_raw="gamers",
         platform_tags=["pc"],
         website_url=None,
     )
     assert game.genre_tags == ["action", "rpg", "strategy"]
 
 
-def test_structured_tags_store_primary_secondary_and_custom_profiles(
+def test_structured_tags_store_primary_and_secondary_profiles(
     game_service, registered_user
 ):
     game = game_service.create_game(
@@ -91,26 +86,21 @@ def test_structured_tags_store_primary_secondary_and_custom_profiles(
         summary="Testing structured tags.",
         description="Testing structured tags",
         genre_tags_raw="",
-        audience_tags_raw="",
         platform_tags=["pc"],
         website_url=None,
         genre_primary_tags_raw="rts, turn based tactics",
-        genre_secondary_tags_raw="tower defence, strategy",
-        genre_custom_tags_raw="xcom-like",
-        audience_primary_tags_raw="strategy players, xcom players",
-        audience_secondary_tags_raw="pc gamers, steam users",
-        audience_custom_tags_raw="tactics forum regulars",
+        genre_secondary_tags_raw="tower defence, strategy, xcom-like",
     )
 
     assert game.genre_primary_tags == [
         "real-time strategy",
         "turn-based tactics",
     ]
-    assert game.genre_secondary_tags == ["tower defense", "strategy"]
-    assert game.genre_custom_tags == ["xcom like"]
-    assert game.audience_primary_tags == ["strategy fans", "xcom fans"]
-    assert game.audience_secondary_tags == ["pc players", "steam players"]
-    assert game.audience_custom_tags == ["tactics forum regulars"]
+    assert game.genre_secondary_tags == [
+        "tower defense",
+        "strategy",
+        "xcom like",
+    ]
     assert game.genre_tags == [
         "real-time strategy",
         "turn-based tactics",
@@ -129,25 +119,20 @@ def test_primary_tags_are_ordered_first_in_query_builder(
         summary="Testing query order.",
         description="Testing query order",
         genre_tags_raw="",
-        audience_tags_raw="",
         platform_tags=["pc"],
         website_url=None,
         genre_primary_tags_raw="turn based tactics",
         genre_secondary_tags_raw="strategy, sci-fi",
-        audience_primary_tags_raw="tactics fans",
-        audience_secondary_tags_raw="pc gamers",
     )
 
     from app.ingestion.query_builder import build_basic_queries
 
     queries = build_basic_queries(game)
 
-    assert queries[:5] == [
+    assert queries[:3] == [
         "turn-based tactics",
         "strategy",
         "sci-fi",
-        "tactics players",
-        "pc players",
     ]
 
 
@@ -169,11 +154,10 @@ def test_discovery_readiness_reports_missing_summary_and_primary_genre_tags(
         summary=None,
         description="A legacy game with sparse metadata.",
         genre_tags=[],
-        audience_tags=[],
         genre_tag_profile=TagProfile.empty(),
-        audience_tag_profile=TagProfile.empty(),
         mechanics_tag_profile=TagProfile.empty(),
-        tone_tag_profile=TagProfile.empty(),
+        vibe_tag_profile=TagProfile.empty(),
+        kindred_tag_profile=TagProfile.empty(),
         platform_tags=["browser"],
         website_url=None,
     )
@@ -198,7 +182,6 @@ def test_update_game_changes_fields(
         summary="An updated summary",
         description="An updated description",
         genre_tags_raw="puzzle, adventure",
-        audience_tags_raw="puzzle fans",
         platform_tags=["mobile"],
         website_url="https://example.com",
     )
@@ -296,7 +279,6 @@ def test_game_limit_returns_false_after_trial_limit(
             summary="First game summary",
             description="First game description",
             genre_tags_raw="puzzle",
-            audience_tags_raw="fans",
             platform_tags=["browser"],
             website_url=None,
         )
@@ -318,7 +300,6 @@ def test_message_templates_can_target_twitch_dm(game_service, registered_user):
         summary="Testing Twitch template support.",
         description="Testing Twitch template support",
         genre_tags_raw="strategy",
-        audience_tags_raw="stream viewers",
         platform_tags=["pc"],
         website_url=None,
     )
@@ -356,24 +337,22 @@ def test_create_game_rejects_summary_longer_than_150_characters(
             summary="x" * 151,
             description="Valid description",
             genre_tags_raw="strategy",
-            audience_tags_raw="players",
             platform_tags=["pc"],
             website_url=None,
         )
 
 
-def test_update_game_rejects_description_longer_than_1500_characters(
+def test_update_game_rejects_description_longer_than_1000_characters(
     game_service, sample_game, registered_user
 ):
-    with pytest.raises(ValueError, match="1500 characters or fewer"):
+    with pytest.raises(ValueError, match="1000 characters or fewer"):
         game_service.update_game(
             game_id=sample_game.game_id,
             user_id=registered_user.user_id,
             name=sample_game.name,
             summary=sample_game.summary or "",
-            description="x" * 1501,
+            description="x" * 1001,
             genre_tags_raw=", ".join(sample_game.genre_tags),
-            audience_tags_raw=", ".join(sample_game.audience_tags),
             platform_tags=sample_game.platform_tags,
             website_url=sample_game.website_url,
         )
@@ -387,13 +366,14 @@ def test_create_game_rejects_missing_summary(game_service, registered_user):
             summary="",
             description="Valid description",
             genre_tags_raw="strategy",
-            audience_tags_raw="players",
             platform_tags=["pc"],
             website_url=None,
         )
 
 
-def test_create_game_rejects_missing_primary_genre_tag(game_service, registered_user):
+def test_create_game_rejects_missing_primary_genre_tag(
+    game_service, registered_user
+):
     with pytest.raises(ValueError, match="primary genre tag"):
         game_service.create_game(
             user_id=registered_user.user_id,
@@ -401,7 +381,6 @@ def test_create_game_rejects_missing_primary_genre_tag(game_service, registered_
             summary="Valid summary",
             description="Valid description",
             genre_tags_raw="",
-            audience_tags_raw="players",
             platform_tags=["pc"],
             website_url=None,
         )

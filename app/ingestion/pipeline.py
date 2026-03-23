@@ -83,7 +83,9 @@ async def run_ingestion(
             sum(len(handles) for handles in seen_handles_by_platform.values()),
         )
 
-        sources = _build_sources(game, runtime, limit_per_source, sources_override=sources_override)
+        sources = _build_sources(
+            game, runtime, limit_per_source, sources_override=sources_override
+        )
 
         tasks = [
             _run_source(
@@ -158,7 +160,9 @@ def _build_sources(
             try:
                 source_names.append(Source(s))
             except ValueError:
-                log.warning("[%s] Ignoring unknown source override %r", game.name, s)
+                log.warning(
+                    "[%s] Ignoring unknown source override %r", game.name, s
+                )
     else:
         source_names = game.discovery_sources
 
@@ -239,7 +243,7 @@ async def _run_source(
     run_index: int = 0,
     excluded_handles: set[str] | None = None,
 ) -> dict:
-    """Discover, score, and import prospects for a single source.
+    """Discover, score and import prospects for a single source.
 
     Step 1: Discover candidates.
     Step 2: Upsert all prospects into the DB.
@@ -343,7 +347,7 @@ async def _run_source(
             game,
             prospect,
             genre_fit_override=llm.genre_fit if llm else None,
-            audience_fit_override=llm.audience_fit if llm else None,
+            vibe_fit_override=llm.vibe_fit if llm else None,
             format_fit_override=llm.format_fit if llm else None,
             platform_fit_override=llm.platform_fit if llm else None,
             fit_summary_override=llm.fit_summary if llm else None,
@@ -352,12 +356,12 @@ async def _run_source(
         counts["scored"] += 1
 
         log.debug(
-            "[%s] %-35s  final=%.2f  genre=%.2f  audience=%.2f  format=%.2f  activity=%.2f  %s",
+            "[%s] %-35s  final=%.2f  genre=%.2f  vibe=%.2f  format=%.2f  activity=%.2f  %s",
             game.name,
             prospect.display_name[:35],
             score.final_score,
             score.genre_fit,
-            score.audience_fit,
+            score.vibe_fit,
             score.format_fit,
             score.activity_score,
             "✓ llm" if llm else "· keyword",
@@ -408,7 +412,7 @@ async def _run_source(
         score_breakdown_json = dump_json(
             {
                 "genre_fit": score.genre_fit,
-                "audience_fit": score.audience_fit,
+                "vibe_fit": score.vibe_fit,
                 "format_fit": score.format_fit,
                 "activity_score": score.activity_score,
                 "platform_fit": score.platform_fit,
@@ -651,7 +655,9 @@ def _load_cached_llm_scores(
             continue
         cached[row["prospect_id"]] = LLMFitScores(
             genre_fit=float(breakdown.get("genre_fit", 0.0)),
-            audience_fit=float(breakdown.get("audience_fit", 0.0)),
+            vibe_fit=float(
+                breakdown.get("vibe_fit", breakdown.get("audience_fit", 0.0))
+            ),
             format_fit=float(breakdown.get("format_fit", 0.5)),
             platform_fit=float(breakdown.get("platform_fit", 0.5)),
             fit_summary=row["fit_summary"] or "",

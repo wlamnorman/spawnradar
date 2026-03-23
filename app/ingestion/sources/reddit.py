@@ -31,7 +31,7 @@ class RedditSource(CandidateSource):
     """Discovers Reddit subreddits and relevant threads for a game.
 
     Searches both subreddits (communities) and posts/threads using the game's
-    genre and audience tags.  Subreddits are modelled as prospects you can
+    genre and kindred tags.  Subreddits are modelled as prospects you can
     post in; threads show active community conversations.
     """
 
@@ -157,35 +157,9 @@ def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     """Build Reddit search queries tuned for communities and active threads."""
     return build_tagged_queries(
         game,
-        genre_templates=(
-            "{tag} games",
-            "{tag} gaming",
-            "{tag} community",
-            "{tag} recommendations",
-            "{tag} dev",
-        ),
-        audience_templates=(
-            "{tag}",
-            "{tag} players",
-            "{tag} community",
-            "{tag} recommendations",
-        ),
-        mechanics_templates=(
-            "{tag} games",
-            "games with {tag}",
-            "{tag} game mechanics",
-        ),
-        tone_templates=(
-            "{tag} games",
-            "{tag} aesthetic games",
-            "{tag} indie games",
-        ),
-        game_name_templates=(
-            "{game_name}",
-            "{game_name} game",
-            "{game_name} review",
-            "{game_name} discussion",
-        ),
+        suffixes=("games", "gaming", "community", "recommendations", "indie games"),
+        prefixes=("best", "top"),
+        game_name_suffixes=("game", "review", "discussion"),
         run_index=run_index,
     )
 

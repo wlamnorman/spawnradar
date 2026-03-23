@@ -97,8 +97,8 @@ _HEADERS = {
 class YouTubeSource(CandidateSource):
     """Discovers YouTube channel candidates relevant to a game's tags.
 
-    Builds search queries from genre_tags and audience_tags, fetches YouTube
-    search results pages, and parses the embedded ytInitialData JSON to
+    Builds search queries from genre tags, fetches YouTube
+    search results pages and parses the embedded ytInitialData JSON to
     extract channel information.
 
     Channels are filtered by:
@@ -378,39 +378,17 @@ def _build_queries(game: Game, run_index: int = 0) -> list[TaggedQuery]:
     """Build search queries for YouTube scraper discovery."""
     return build_tagged_queries(
         game,
-        genre_templates=(
-            "{tag} games",
-            "indie {tag} game",
-            "{tag} game review",
-            "{tag} gameplay",
-            "{tag} gaming channel",
-            "{tag} streamer",
+        suffixes=(
+            "games",
+            "game",
+            "gameplay",
+            "game review",
+            "gaming channel",
+            "streamer",
+            "youtuber",
+            "lets play",
         ),
-        audience_templates=(
-            "{tag} games",
-            "indie games {tag}",
-            "{tag} creator",
-            "{tag} youtuber",
-            "{tag} reviewer",
-        ),
-        mechanics_templates=(
-            "games with {tag}",
-            "{tag} games",
-            "best games with {tag}",
-            "{tag} game design",
-        ),
-        tone_templates=(
-            "{tag} games",
-            "{tag} indie games",
-            "{tag} game aesthetic",
-            "best {tag} games",
-        ),
-        game_name_templates=(
-            "{game_name}",
-            "{game_name} gameplay",
-            "{game_name} review",
-            "{game_name} lets play",
-        ),
+        game_name_suffixes=("gameplay", "review", "lets play"),
         run_index=run_index,
     )
 
@@ -510,9 +488,8 @@ def _parse_channel_renderer(
         video_count=video_count,
         avatar_url=avatar_url,
         source_genre_tag=tags.genre,
-        source_audience_tag=tags.audience,
         source_mechanics_tag=tags.mechanics,
-        source_tone_tag=tags.tone,
+        source_vibe_tag=tags.vibe,
     ).model_dump()
 
     return CandidateRecord(
