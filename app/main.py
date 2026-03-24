@@ -61,7 +61,6 @@ from app.prospects.repository import (
 from app.prospects.router import router as prospects_router
 from app.prospects.service import ProspectService
 from app.routes.blog import router as blog_router
-from app.routes.creators import router as creators_router
 from app.routes.favicon import router as favicon_router
 from app.routes.health import router as health_router
 from app.routes.legal import router as legal_router
@@ -269,7 +268,6 @@ def create_app() -> FastAPI:
     app.include_router(legal_router)
     app.include_router(favicon_router)
     app.include_router(blog_router)
-    app.include_router(creators_router)
     app.include_router(auth_router)
     app.include_router(games_router)
     app.include_router(prospects_router)

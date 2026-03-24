@@ -173,33 +173,6 @@ CREATE TABLE IF NOT EXISTS prospect_score_observations (
     occurred_at    TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS creator_signups (
-    creator_id        TEXT PRIMARY KEY,
-    display_name      TEXT NOT NULL,
-    email             TEXT UNIQUE NOT NULL,
-    email_verified    INTEGER NOT NULL DEFAULT 0,
-    youtube_handle    TEXT,
-    twitch_handle     TEXT,
-    tiktok_handle     TEXT,
-    bluesky_handle    TEXT,
-    genre_interests   TEXT NOT NULL DEFAULT '[]',   -- JSON array of genre strings
-    platform_pref     TEXT NOT NULL DEFAULT 'any',  -- pc | console | mobile | browser | any
-    audience_size     TEXT,  -- "under_5k" | "5k_20k" | "20k_100k" | "100k_plus"
-    accepts_keys      TEXT NOT NULL DEFAULT 'yes',  -- yes | sometimes | no
-    preferred_contact TEXT NOT NULL DEFAULT 'email', -- email | youtube_dm | twitch_dm | twitter_dm
-    lead_time_pref    TEXT,  -- "1_week" | "2_3_weeks" | "1_month" | "no_pref"
-    -- Survey responses
-    pitch_first_check TEXT,   -- what do you look at first in a pitch?
-    pitch_delete_why  TEXT,   -- what makes you delete immediately?
-    pitch_open_to     TEXT NOT NULL DEFAULT '[]',  -- JSON array of factors
-    contact_timing    TEXT,   -- before | after | either | no_pref
-    creator_notes     TEXT,   -- anything else for developers to know
-    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_creator_signups_email ON creator_signups(email);
-
 CREATE TABLE IF NOT EXISTS request_rate_limits (
     event_id    TEXT PRIMARY KEY,
     scope       TEXT NOT NULL,
