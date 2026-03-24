@@ -29,14 +29,12 @@ class Source(StrEnum):
 
     YOUTUBE_API = "youtube_api"  # YouTube Data API v3 (quota-limited)
     YOUTUBE = "youtube"  # YouTube scraping fallback
-    REDDIT = "reddit"  # Reddit public JSON API
     BLUESKY = "bluesky"  # Bluesky public API
     TWITCH = "twitch"  # Twitch Helix API
 
 
 DEFAULT_DISCOVERY_SOURCES = [
     Source.YOUTUBE,
-    Source.REDDIT,
     Source.BLUESKY,
     Source.TWITCH,
 ]

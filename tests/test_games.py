@@ -41,7 +41,7 @@ def test_create_game_returns_correct_tags(game_service, registered_user):
     assert "mobile" in game.platform_tags
 
 
-def test_new_games_default_to_youtube_reddit_and_bluesky(
+def test_new_games_default_to_youtube_bluesky_and_twitch(
     game_service, registered_user
 ):
     game = game_service.create_game(
@@ -56,7 +56,6 @@ def test_new_games_default_to_youtube_reddit_and_bluesky(
 
     assert game.discovery_sources == [
         Source.YOUTUBE,
-        Source.REDDIT,
         Source.BLUESKY,
         Source.TWITCH,
     ]
@@ -321,7 +320,6 @@ def test_legacy_default_source_lists_gain_twitch():
 
     assert parsed == [
         Source.YOUTUBE,
-        Source.REDDIT,
         Source.BLUESKY,
         Source.TWITCH,
     ]

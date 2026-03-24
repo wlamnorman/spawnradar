@@ -332,8 +332,8 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
                             "audience_size_score": 0.63,
                             "why_selected": "Vibe and format align strongly with the game's target players.",
                             "reasons": [
-                                "Contact channel available: reddit_post",
-                                "Contact value present: https://reddit.example/post",
+                                "Contact channel available: youtube_dm",
+                                "Contact value present: creator@example.com",
                                 "Recent uploads feature adjacent tactics games.",
                             ],
                         }
@@ -351,9 +351,9 @@ def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
     assert 'class="queue-insights"' in response.text
     assert "Quick take" in response.text
     assert "Detailed rationale" in response.text
-    assert "Contact channel available: reddit_post" not in response.text
+    assert "Contact channel available: youtube_dm" not in response.text
     assert (
-        "Contact value present: https://reddit.example/post"
+        "Contact value present: creator@example.com"
         not in response.text
     )
     assert "<summary>Score breakdown</summary>" not in response.text

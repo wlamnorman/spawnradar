@@ -7,10 +7,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Prospect:
-    """A discovered marketing prospect (YouTube channel or Reddit community)."""
+    """A discovered marketing prospect (YouTube channel or Twitch streamer)."""
 
     prospect_id: str
-    platform: str  # youtube | reddit
+    platform: str  # youtube | twitch | bluesky
     handle: str
     display_name: str
     profile_url: str | None

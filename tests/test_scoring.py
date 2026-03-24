@@ -147,9 +147,9 @@ def test_contactability_details_do_not_appear_in_reasons():
     game = _make_game(genre_tags=["puzzle"])
     prospect = _make_prospect(
         description="puzzle tactics game",
-        contact_channel="reddit_post",
-        contact_value="https://reddit.example/post",
-        profile_url="https://reddit.example/post",
+        contact_channel="youtube_dm",
+        contact_value=None,
+        profile_url="https://youtube.com/@example",
     )
 
     result = score_prospect(game, prospect)
@@ -247,8 +247,8 @@ def test_developer_prospects_are_downranked_vs_creators_and_communities():
     community = _make_prospect(
         display_name="Strategy Community",
         description=common_description,
-        contact_channel="reddit_post",
-        contact_value="https://reddit.example/post",
+        contact_channel="youtube_dm",
+        contact_value=None,
         audience_size=50_000,
         raw_data={"prospect_type": "community", "last_active_days": 3},
     )

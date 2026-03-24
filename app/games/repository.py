@@ -17,7 +17,13 @@ from app.json_codec import (
 
 _LEGACY_DEFAULT_DISCOVERY_SOURCES = [
     Source.YOUTUBE.value,
-    Source.REDDIT.value,
+    Source.BLUESKY.value,
+]
+
+# Old default before reddit was removed
+_LEGACY_DEFAULT_WITH_REDDIT = [
+    Source.YOUTUBE.value,
+    "reddit",
     Source.BLUESKY.value,
 ]
 
@@ -28,8 +34,10 @@ def _parse_sources(raw: str | None) -> list[Source]:
         raw
         or dump_json([source.value for source in DEFAULT_DISCOVERY_SOURCES])
     )
-    if names == _LEGACY_DEFAULT_DISCOVERY_SOURCES:
-        names = [*names, Source.TWITCH.value]
+    # Upgrade legacy source lists that pre-date Twitch support (with or
+    # without the old Reddit entry which is no longer a valid source).
+    if names in (_LEGACY_DEFAULT_DISCOVERY_SOURCES, _LEGACY_DEFAULT_WITH_REDDIT):
+        names = [n for n in names if n != "reddit"] + [Source.TWITCH.value]
     valid = set(Source)
     return [Source(n) for n in names if n in valid]
 

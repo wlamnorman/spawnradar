@@ -153,7 +153,6 @@ def find_template(templates: list, platform: str):
     """Find the best-matching template for a prospect's platform."""
     channel_map = {
         "youtube": "youtube_dm",
-        "reddit": "reddit_dm",
         "twitch": "twitch_dm",
     }
     preferred_channel = channel_map.get(platform, "email")

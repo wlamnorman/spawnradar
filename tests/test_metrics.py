@@ -119,7 +119,7 @@ def test_metrics_record_discovery_distributions_and_scores(
                 profile_url="https://bsky.app/profile/weak-fit",
                 contact_channel="email",
                 contact_value="weak@example.com",
-                audience_size=50,
+                audience_size=150,
                 engagement_rate=0.01,
                 description="Unrelated lifestyle creator.",
                 raw_data={"query": "strategy"},
