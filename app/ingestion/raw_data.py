@@ -94,36 +94,6 @@ class YouTubeChannelData(BaseModel):
     )
 
 
-class RedditSubredditData(BaseModel):
-    """Raw data from a Reddit subreddit search result."""
-
-    source: Literal["reddit_search"] = "reddit_search"
-
-    subreddit_name: str = Field(
-        description="Subreddit name without the r/ prefix"
-    )
-    title: str = Field(description="Human-readable subreddit title")
-    over18: bool = Field(
-        default=False, description="Whether the subreddit is NSFW"
-    )
-
-
-class RedditThreadData(BaseModel):
-    """Raw data from a Reddit post/thread search result."""
-
-    source: Literal["reddit_search"] = "reddit_search"
-
-    post_id: str = Field(description="Reddit post ID (base-36 string)")
-    subreddit: str = Field(
-        description="Subreddit the post lives in, without r/"
-    )
-    author: str = Field(description="Reddit username of the post author")
-    score: int = Field(description="Net upvote score of the post")
-    num_comments: int = Field(description="Number of comments on the post")
-    permalink: str = Field(
-        description="Relative Reddit permalink, e.g. /r/foo/comments/…"
-    )
-
 
 class BlueskyActorData(BaseModel):
     """Raw data from a Bluesky actor search result + recent feed enrichment."""

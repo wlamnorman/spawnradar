@@ -17,8 +17,7 @@ _OFFICIAL_ACCOUNT_MARKERS = (
     "official account",
     "official channel",
     "official page",
-    "official subreddit",
-    "official discord",
+"official discord",
     "verified official",
 )
 _BLUESKY_CREATOR_HARD_MIN_FOLLOWERS = 50

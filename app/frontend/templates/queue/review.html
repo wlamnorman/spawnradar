@@ -1,13 +1,10 @@
 {% extends "base.html" %} {% macro contact_channel_label(channel) -%} {%- if
 channel == "email" -%}Email {%- elif channel == "twitch_dm" -%}Twitch DM {%-
-elif channel == "bluesky_reply" -%}Bluesky reply {%- elif channel ==
-"reddit_post" -%}Reddit post {%- elif channel == "reddit_comment" -%}Reddit
-comment {%- else -%}{{ channel.replace("_", " ").title() if channel else
+elif channel == "bluesky_reply" -%}Bluesky reply {%- else -%}{{ channel.replace("_", " ").title() if channel else
 "Profile" }} {%- endif -%} {%- endmacro %} {% macro
 contact_channel_short_label(channel) -%} {%- if channel == "email" -%}Email {%-
 elif channel == "twitch_dm" -%}DM {%- elif channel == "bluesky_reply" -%}Reply
-{%- elif channel == "reddit_post" -%}Post {%- elif channel == "reddit_comment"
--%}Comment {%- else -%}Profile {%- endif -%} {%- endmacro %} {% block title %}{{
+{%- else -%}Profile {%- endif -%} {%- endmacro %} {% block title %}{{
 game.name }} — Review Queue — SpawnRadar{% endblock %} {% block content %}
 <div class="queue-page-header">
     <div>
@@ -50,7 +47,7 @@ game.name }} — Review Queue — SpawnRadar{% endblock %} {% block content %}
     <div class="discovery-source-picker">
         <span class="source-picker-label">Focus on</span>
         {% set all_sources = [("youtube", "YouTube"), ("twitch", "Twitch"),
-        ("bluesky", "Bluesky"), ("reddit", "Reddit")] %} {% for source_id,
+        ("bluesky", "Bluesky")] %} {% for source_id,
         source_label in all_sources %} {% set available =
         source_credentials.get(source_id, true) %}
         <button
@@ -110,7 +107,7 @@ game.name }} — Review Queue — SpawnRadar{% endblock %} {% block content %}
         All
     </button>
     {% for source_id, source_label in [("youtube", "YouTube"), ("twitch",
-    "Twitch"), ("bluesky", "Bluesky"), ("reddit", "Reddit")] %}
+    "Twitch"), ("bluesky", "Bluesky")] %}
     <button
         type="button"
         class="queue-filter-btn"

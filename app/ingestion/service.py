@@ -258,7 +258,6 @@ class DiscoveryRunService:
             return
 
         labels = {
-            Source.REDDIT: "Reddit source: public JSON API",
             Source.BLUESKY: "Bluesky source: public XRPC API",
             Source.TWITCH: "Twitch source: Helix live channel discovery",
         }

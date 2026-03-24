@@ -66,7 +66,6 @@ async def review_queue(
             settings.twitch_client_id and settings.twitch_client_secret
         ),
         "bluesky": True,
-        "reddit": True,
     }
 
     return templates.TemplateResponse(

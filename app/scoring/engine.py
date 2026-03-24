@@ -4,11 +4,11 @@ Computes how well a prospect matches a game's tag profile across seven
 dimensions. LLM-computed overrides replace keyword-based calculations when
 available.
 
-Weights vary by prospect_type (read from raw_data) so that Reddit communities
-and Bluesky developers are judged on dimensions that are meaningful for them,
-rather than against a model designed for YouTube channels.
+Weights vary by prospect_type (read from raw_data) so that Bluesky developers
+are judged on dimensions that are meaningful for them, rather than against a
+model designed for YouTube/Twitch creators.
 
-creator  (YouTube channels, default)
+creator  (YouTube channels, Twitch streamers — default)
   genre_fit       0.25  — does this channel cover this genre?
   vibe_fit        0.20  — does their content vibe match the game's feel?
   format_fit      0.15  — does their format suit this type of game? (LLM only)
@@ -16,15 +16,6 @@ creator  (YouTube channels, default)
   contactability  0.10  — can we actually reach them?
   audience_size   0.10  — are they in the indie outreach sweet spot?
   platform_fit    0.05  — do platform tags appear in their content?
-
-community  (Reddit subreddits/threads)
-  genre_fit       0.35  — is this community about the right topic?
-  vibe_fit        0.25  — does the community vibe match the game?
-  format_fit      0.00  — N/A: communities have no content format
-  activity_score  0.05  — hard to measure; low weight
-  contactability  0.05  — always high for Reddit; barely discriminates
-  audience_size   0.20  — bigger community = more reach
-  platform_fit    0.10  — PC/mobile/etc. community focus matters
 
 developer  (Bluesky indie devs)
   genre_fit       0.30  — do they make/discuss similar games?
@@ -36,8 +27,8 @@ developer  (Bluesky indie devs)
   platform_fit    0.05  — platform relevance
 
 Type modifiers are then applied after the weighted score so developer peers
-remain discoverable internally without outranking creators or communities in
-the main outreach queue.
+remain discoverable internally without outranking creators in the main
+outreach queue.
 """
 
 from __future__ import annotations
@@ -68,15 +59,6 @@ _WEIGHTS: dict[str, dict[str, float]] = {
         "audience_size": 0.10,
         "platform": 0.05,
     },
-    "community": {
-        "genre": 0.35,
-        "vibe": 0.25,
-        "format": 0.00,
-        "activity": 0.05,
-        "contactability": 0.05,
-        "audience_size": 0.20,
-        "platform": 0.10,
-    },
     "developer": {
         "genre": 0.30,
         "vibe": 0.15,
@@ -90,7 +72,6 @@ _WEIGHTS: dict[str, dict[str, float]] = {
 
 _TYPE_SCORE_MULTIPLIER: dict[str, float] = {
     "creator": 1.0,
-    "community": 1.0,
     "developer": 0.55,
 }
 
@@ -129,9 +110,9 @@ def score_prospect(
     fit_summary, why_selected) replace the keyword/heuristic calculations
     when provided. All other dimensions are always computed locally.
 
-    Weights are selected based on the prospect's type (creator / community /
-    developer) stored in raw_data, so Reddit communities and Bluesky devs
-    are scored against dimensions that are meaningful for their format.
+    Weights are selected based on the prospect's type (creator / developer)
+    stored in raw_data, so Bluesky devs are scored against dimensions that
+    are meaningful for their format.
     """
     raw = prospect.raw_data
 

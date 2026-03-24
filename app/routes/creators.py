@@ -83,7 +83,6 @@ async def creator_signup(
     youtube_handle: Annotated[str, Form()] = "",
     twitch_handle: Annotated[str, Form()] = "",
     tiktok_handle: Annotated[str, Form()] = "",
-    reddit_handle: Annotated[str, Form()] = "",
     bluesky_handle: Annotated[str, Form()] = "",
     platform_pref: Annotated[str, Form()] = "any",
     audience_size: Annotated[str, Form()] = "",
@@ -120,7 +119,7 @@ async def creator_signup(
                 INSERT INTO creator_signups (
                     creator_id, display_name, email,
                     youtube_handle, twitch_handle, tiktok_handle,
-                    reddit_handle, bluesky_handle,
+                    bluesky_handle,
                     genre_interests, platform_pref, audience_size,
                     accepts_keys, preferred_contact, lead_time_pref,
                     pitch_first_check, pitch_delete_why,
@@ -128,7 +127,7 @@ async def creator_signup(
                 ) VALUES (
                     ?, ?, ?,
                     ?, ?, ?,
-                    ?, ?,
+                    ?,
                     ?, ?, ?,
                     ?, ?, ?,
                     ?, ?,
@@ -140,7 +139,6 @@ async def creator_signup(
                     youtube_handle.strip() or None,
                     twitch_handle.strip() or None,
                     tiktok_handle.strip() or None,
-                    reddit_handle.strip() or None,
                     bluesky_handle.strip() or None,
                     genre_interests, platform_pref, audience_size or None,
                     accepts_keys, preferred_contact, lead_time_pref,

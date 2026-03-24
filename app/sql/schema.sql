@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS games (
     platform_tags        TEXT NOT NULL DEFAULT '[]',   -- JSON array
     website_url        TEXT,
     discovery_schedule TEXT NOT NULL DEFAULT 'manual',           -- manual | daily | weekly
-    discovery_sources  TEXT NOT NULL DEFAULT '["youtube","reddit","bluesky","twitch"]', -- JSON array of source names
+    discovery_sources  TEXT NOT NULL DEFAULT '["youtube","bluesky","twitch"]', -- JSON array of source names
     status             TEXT NOT NULL DEFAULT 'active',
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS message_templates (
     template_id      TEXT PRIMARY KEY,
     game_id          TEXT NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
     name             TEXT NOT NULL,
-    channel          TEXT NOT NULL,  -- email | youtube_dm | reddit_dm | twitter
+    channel          TEXT NOT NULL,  -- email | youtube_dm | twitch_dm | twitter
     subject_template TEXT,
     body_template    TEXT NOT NULL,  -- supports {{creator_name}}, {{game_name}}, {{fit_reason}}
     created_at       TEXT NOT NULL DEFAULT (datetime('now')),
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS message_templates (
 
 CREATE TABLE IF NOT EXISTS prospects (
     prospect_id     TEXT PRIMARY KEY,
-    platform        TEXT NOT NULL,   -- youtube | reddit | bluesky | twitch
+    platform        TEXT NOT NULL,   -- youtube | bluesky | twitch
     handle          TEXT NOT NULL,
     display_name    TEXT NOT NULL,
     profile_url     TEXT,
@@ -181,13 +181,12 @@ CREATE TABLE IF NOT EXISTS creator_signups (
     youtube_handle    TEXT,
     twitch_handle     TEXT,
     tiktok_handle     TEXT,
-    reddit_handle     TEXT,
     bluesky_handle    TEXT,
     genre_interests   TEXT NOT NULL DEFAULT '[]',   -- JSON array of genre strings
     platform_pref     TEXT NOT NULL DEFAULT 'any',  -- pc | console | mobile | browser | any
     audience_size     TEXT,  -- "under_5k" | "5k_20k" | "20k_100k" | "100k_plus"
     accepts_keys      TEXT NOT NULL DEFAULT 'yes',  -- yes | sometimes | no
-    preferred_contact TEXT NOT NULL DEFAULT 'email', -- email | youtube_dm | twitch_dm | reddit_dm | twitter_dm
+    preferred_contact TEXT NOT NULL DEFAULT 'email', -- email | youtube_dm | twitch_dm | twitter_dm
     lead_time_pref    TEXT,  -- "1_week" | "2_3_weeks" | "1_month" | "no_pref"
     -- Survey responses
     pitch_first_check TEXT,   -- what do you look at first in a pitch?

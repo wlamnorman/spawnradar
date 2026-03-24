@@ -27,10 +27,6 @@
         return "Twitch DM";
       case "bluesky_reply":
         return "Bluesky reply";
-      case "reddit_post":
-        return "Reddit post";
-      case "reddit_comment":
-        return "Reddit comment";
       default:
         return channel
           ? channel
@@ -49,10 +45,6 @@
         return "DM";
       case "bluesky_reply":
         return "Reply";
-      case "reddit_post":
-        return "Post";
-      case "reddit_comment":
-        return "Comment";
       default:
         return "Profile";
     }
