@@ -11,3 +11,4 @@ data/
 .env.staging
 .env*
 *.egg-info
+.worktrees/
