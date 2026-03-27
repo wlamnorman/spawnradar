@@ -100,6 +100,53 @@ def test_parse_clip_record_returns_none_for_missing_game_id():
     assert _parse_clip_record({"id": "c1", "title": "t"}) is None
 
 
+import pytest
+
+
+@pytest.mark.anyio
+async def test_fetch_clips_returns_clip_records(monkeypatch):
+    """Adapter fetches clips for each broadcaster, returning TwitchClipRecords."""
+    from app.creator_index.adapters.twitch import TwitchAccountAdapter, TwitchClipRecord
+
+    clip_data = {
+        "data": [
+            {
+                "id": "clip1",
+                "broadcaster_id": "111",
+                "broadcaster_name": "Streamer",
+                "game_id": "33214",
+                "title": "Cool clip",
+                "view_count": 500,
+                "created_at": "2025-06-01T10:00:00Z",
+                "thumbnail_url": "https://example.com/thumb.jpg",
+                "url": "https://clips.twitch.tv/clip1",
+                "language": "en",
+            }
+        ],
+        "pagination": {},
+    }
+
+    async def fake_request(client, method, url, *, params=None, headers=None):
+        return clip_data
+
+    monkeypatch.setattr(
+        "app.creator_index.adapters.twitch.twitch_request_json", fake_request
+    )
+
+    adapter = TwitchAccountAdapter("cid", "csecret")
+    import httpx
+    async with httpx.AsyncClient() as client:
+        headers = {"Authorization": "Bearer fake", "Client-Id": "cid"}
+        result = await adapter._fetch_clips_for_users(
+            client, headers, ["111"]
+        )
+
+    assert "111" in result
+    assert len(result["111"]) == 1
+    assert isinstance(result["111"][0], TwitchClipRecord)
+    assert result["111"][0].game_id == "33214"
+
+
 def _record_call(
     calls: list[tuple[str, int, dict[str, str]]],
     *,
@@ -168,6 +215,30 @@ def _fake_twitch_bundle_for_game(
             ),
         ),
     )
+
+
+def _insert_test_igdb_game(db_path: str, igdb_game_id: int, name: str) -> None:
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO igdb_games (
+                igdb_id, name, slug, summary, first_release_date,
+                platform_ids_json, platform_names_json,
+                raw_payload_json, last_synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                igdb_game_id,
+                name,
+                name.casefold().replace(" ", "-"),
+                None,
+                None,
+                "[]",
+                "[]",
+                "{}",
+                "2026-01-01T00:00:00+00:00",
+            ),
+        )
 
 
 class _FakeTwitchAdapter(AccountSeedAdapter):
@@ -474,23 +545,40 @@ def test_creator_index_sync_persists_platform_rows_and_cursors(
         website_url=None,
         igdb_genre_ids=[12, 24],  # Strategy, Tactical
     )
-    twitch = _FakeTwitchAdapter()
+    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
     youtube = _FakeYouTubeAdapter()
     service = CreatorIndexService(
         db_path=db_path,
         adapters={
-            "twitch": twitch,
             "youtube": youtube,
         },
     )
-
-    summary = asyncio.run(
-        service.sync_customer_game(
-            game,
-            platforms=("twitch", "youtube"),
-            limit_per_platform=5,
-        )
+    twitch_batch = DiscoveredAccountBatch(
+        platform=CrawlPlatform.TWITCH,
+        bundles=(
+            _fake_twitch_bundle_for_game(
+                f"tw-{game.customer_game_id}", game.name
+            ),
+        ),
+        igdb_game_id=296831,
     )
+
+    with patch.object(
+        service,
+        "_select_igdb_game_for_customer_game",
+        return_value=296831,
+    ), patch.object(
+        service,
+        "discover_account_bundles",
+        new=AsyncMock(return_value=twitch_batch),
+    ):
+        summary = asyncio.run(
+            service.sync_customer_game(
+                game,
+                platforms=("twitch", "youtube"),
+                limit_per_platform=5,
+            )
+        )
 
     assert summary.accounts_synced == 2
     assert summary.content_samples_synced == 3
@@ -564,7 +652,7 @@ def test_creator_index_sync_persists_platform_rows_and_cursors(
             "twitch",
             f"tw-{game.customer_game_id}",
             f"{game.name} TV",
-            f"https://www.twitch.tv/{game.slug}-tv",
+            f"https://www.twitch.tv/tw-{game.customer_game_id}-tv",
         ),
         (
             "youtube",
@@ -605,11 +693,9 @@ def test_creator_index_sync_persists_platform_rows_and_cursors(
         row["observation_count"] == 1 for row in game_play_rows
     )
     assert [(row["platform"], row["status"]) for row in jobs] == [
-        ("twitch", "completed"),
         ("youtube", "completed"),
     ]
     assert [(row["platform"], row["cursor_key"]) for row in cursors] == [
-        ("twitch", "search:twitch"),
         ("youtube", "search:youtube"),
     ]
     assert {row["cursor_scope"] for row in cursors} == {
@@ -636,21 +722,33 @@ def test_creator_index_sync_active_customer_games_uses_all_active_games(
         website_url=None,
         igdb_genre_ids=[12],  # Strategy (placeholder)
     )
-    twitch = _FakeTwitchAdapter()
-    service = CreatorIndexService(
-        db_path=db_path,
-        adapters={"twitch": twitch},
-    )
+    service = CreatorIndexService(db_path=db_path)
 
-    summary = asyncio.run(
-        service.sync_active_customer_games(
-            platforms=("twitch",), limit_per_platform=2
+    with patch.object(
+        service,
+        "_select_igdb_game_for_customer_game",
+        side_effect=[296831, 119133],
+    ), patch.object(
+        service,
+        "run_entrypoint",
+        new=AsyncMock(
+            return_value=PlatformSyncSummary(
+                platform="twitch",
+                accounts_synced=1,
+                content_samples_synced=0,
+                contact_points_synced=0,
+            )
+        ),
+    ) as mock_run_entrypoint:
+        summary = asyncio.run(
+            service.sync_active_customer_games(
+                platforms=("twitch",), limit_per_platform=2
+            )
         )
-    )
 
     assert summary.games_seen == 2
     assert summary.accounts_synced == 2
-    assert len(twitch.calls) == 2
+    assert mock_run_entrypoint.await_count == 2
 
 
 def test_creator_index_sync_active_customer_games_can_filter_by_name(
@@ -718,6 +816,7 @@ def test_creator_index_sync_customer_game_keeps_other_platforms_when_one_fails(
         website_url=None,
         igdb_genre_ids=[12, 24],  # Strategy, Tactical
     )
+    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
     service = CreatorIndexService(
         db_path=db_path,
         adapters={
@@ -766,7 +865,6 @@ def test_creator_index_sync_customer_game_keeps_other_platforms_when_one_fails(
         ).fetchall()
 
     assert [(row["platform"], row["status"]) for row in jobs] == [
-        ("twitch", "completed"),
         ("youtube", "failed"),
     ]
 
@@ -965,6 +1063,7 @@ def test_game_plays_observation_count_increments_on_repeated_sync(
         website_url=None,
         igdb_genre_ids=[12, 24],  # Strategy, Tactical
     )
+    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
     service = CreatorIndexService(db_path=db_path)
     batch = DiscoveredAccountBatch(
         platform=CrawlPlatform.TWITCH,
@@ -1020,6 +1119,7 @@ def test_language_persisted_from_twitch_profile(
         website_url=None,
         igdb_genre_ids=[12, 24],  # Strategy, Tactical
     )
+    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
     service = CreatorIndexService(db_path=db_path)
     batch = DiscoveredAccountBatch(
         platform=CrawlPlatform.TWITCH,

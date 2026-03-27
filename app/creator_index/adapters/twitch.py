@@ -40,6 +40,8 @@ _HEADERS = {
     "Accept": "application/json",
 }
 _VIDEO_FETCH_CONCURRENCY = 5
+_CLIP_FETCH_CONCURRENCY = 5
+_CLIP_LOOKBACK_DAYS = 730  # ~2 years
 log = logging.getLogger(__name__)
 
 
@@ -619,6 +621,70 @@ class TwitchAccountAdapter(AccountSeedAdapter):
             )
         )
         return follower_totals
+
+    async def _fetch_clips_for_users(
+        self,
+        client: httpx.AsyncClient,
+        headers: dict[str, str],
+        broadcaster_ids: list[str],
+    ) -> dict[str, list[TwitchClipRecord]]:
+        semaphore = asyncio.Semaphore(_CLIP_FETCH_CONCURRENCY)
+        rows: dict[str, list[TwitchClipRecord]] = {}
+        now = datetime.now(UTC)
+        started_at = (now - timedelta(days=_CLIP_LOOKBACK_DAYS)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+
+        async def fetch_user_clips(broadcaster_id: str) -> None:
+            async with semaphore:
+                clips: list[TwitchClipRecord] = []
+                cursor: str | None = None
+                # Fetch up to 2 pages (200 clips max) to stay within rate budget
+                for _ in range(2):
+                    params: dict[str, str | int] = {
+                        "broadcaster_id": broadcaster_id,
+                        "first": 100,
+                        "started_at": started_at,
+                    }
+                    if cursor:
+                        params["after"] = cursor
+                    try:
+                        body = await twitch_request_json(
+                            client,
+                            "GET",
+                            f"{_TWITCH_API_BASE}/clips",
+                            params=params,
+                            headers=headers,
+                        )
+                    except (httpx.HTTPError, ValueError) as exc:
+                        log.warning(
+                            "Skipping Twitch clips for %s: %s",
+                            broadcaster_id,
+                            exc,
+                        )
+                        break
+                    for item in as_list(body.get("data")):
+                        if isinstance(item, dict):
+                            clip = _parse_clip_record(item)
+                            if clip is not None:
+                                clips.append(clip)
+                    pagination = body.get("pagination")
+                    cursor = (
+                        pagination.get("cursor")
+                        if isinstance(pagination, dict)
+                        else None
+                    )
+                    if not cursor:
+                        break
+                rows[broadcaster_id] = clips
+
+        await asyncio.gather(
+            *(
+                fetch_user_clips(broadcaster_id)
+                for broadcaster_id in sorted({*broadcaster_ids})
+            )
+        )
+        return rows
 
 
 def _build_queries(customer_game: CustomerGame) -> list[str]:
