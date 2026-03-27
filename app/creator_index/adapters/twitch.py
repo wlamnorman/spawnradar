@@ -754,6 +754,8 @@ def _bundle_from_records(
     channel_info: TwitchChannelInfoRecord | None,
     stream: TwitchStreamRecord | None,
     videos: Sequence[TwitchVideoRecord],
+    clips: Sequence[TwitchClipRecord] = (),
+    clip_game_names: dict[str, str] | None = None,
     follower_total: int | None,
 ) -> AccountSeedBundle | None:
     broadcaster_id = channel.broadcaster_id
@@ -818,6 +820,17 @@ def _bundle_from_records(
             game_name=video.game_name,
             game_id=video.game_id,
         )
+
+    resolved_names = clip_game_names or {}
+    for clip in clips:
+        clip_game_name = resolved_names.get(clip.game_id)
+        if clip_game_name:
+            _append_observed_game(
+                games_played,
+                observed_games,
+                game_name=clip_game_name,
+                game_id=clip.game_id,
+            )
 
     content_samples_list: list[ContentSampleSeed] = []
     for position, video in enumerate(videos):

@@ -1348,6 +1348,152 @@ def test_facets_games_played_passed_through():
     assert facets.games_played == ("Elden Ring", "Dark Souls")
 
 
+def test_bundle_from_records_extracts_games_from_clips():
+    from app.creator_index.adapters.twitch import (
+        TwitchSearchChannel,
+        TwitchUser,
+        TwitchClipRecord,
+        _bundle_from_records,
+    )
+
+    channel = TwitchSearchChannel(
+        broadcaster_id="111",
+        broadcaster_login="streamer",
+        display_name="Streamer",
+        title=None,
+        thumbnail_url=None,
+        broadcaster_language="en",
+        game_id=None,
+        game_name=None,
+        tags=(),
+        is_live=False,
+        started_at=None,
+    )
+    user = TwitchUser(
+        user_id="111",
+        login="streamer",
+        display_name="Streamer",
+        description="I play games",
+        profile_image_url=None,
+    )
+    clips = [
+        TwitchClipRecord(
+            clip_id="c1",
+            broadcaster_id="111",
+            game_id="33214",
+            title="clip1",
+            view_count=100,
+            created_at="2025-06-01T00:00:00Z",
+            thumbnail_url=None,
+            url=None,
+            language="en",
+        ),
+        TwitchClipRecord(
+            clip_id="c2",
+            broadcaster_id="111",
+            game_id="21779",
+            title="clip2",
+            view_count=200,
+            created_at="2025-05-01T00:00:00Z",
+            thumbnail_url=None,
+            url=None,
+            language="en",
+        ),
+    ]
+    game_names = {"33214": "Fortnite", "21779": "League of Legends"}
+
+    bundle = _bundle_from_records(
+        channel=channel,
+        user=user,
+        channel_info=None,
+        stream=None,
+        videos=[],
+        clips=clips,
+        clip_game_names=game_names,
+        follower_total=1000,
+    )
+
+    assert bundle is not None
+    observed_names = {og.game_name for og in bundle.observed_games}
+    assert "Fortnite" in observed_names
+    assert "League of Legends" in observed_names
+    for og in bundle.observed_games:
+        assert og.platform_game_id is not None
+
+
+def test_bundle_from_records_deduplicates_clip_and_stream_games():
+    """If a game appears in both the live stream and clips, it's deduplicated."""
+    from app.creator_index.adapters.twitch import (
+        TwitchSearchChannel,
+        TwitchUser,
+        TwitchStreamRecord,
+        TwitchClipRecord,
+        _bundle_from_records,
+    )
+
+    channel = TwitchSearchChannel(
+        broadcaster_id="111",
+        broadcaster_login="streamer",
+        display_name="Streamer",
+        title=None,
+        thumbnail_url=None,
+        broadcaster_language="en",
+        game_id=None,
+        game_name=None,
+        tags=(),
+        is_live=True,
+        started_at="2025-06-15T10:00:00Z",
+    )
+    user = TwitchUser(
+        user_id="111",
+        login="streamer",
+        display_name="Streamer",
+        description=None,
+        profile_image_url=None,
+    )
+    stream = TwitchStreamRecord(
+        user_id="111",
+        game_id="33214",
+        game_name="Fortnite",
+        title="Live now!",
+        tags=(),
+        viewer_count=500,
+        language="en",
+        started_at="2025-06-15T10:00:00Z",
+    )
+    clips = [
+        TwitchClipRecord(
+            clip_id="c1",
+            broadcaster_id="111",
+            game_id="33214",
+            title="clip",
+            view_count=100,
+            created_at="2025-06-01T00:00:00Z",
+            thumbnail_url=None,
+            url=None,
+            language="en",
+        ),
+    ]
+    game_names = {"33214": "Fortnite"}
+
+    bundle = _bundle_from_records(
+        channel=channel,
+        user=user,
+        channel_info=None,
+        stream=stream,
+        videos=[],
+        clips=clips,
+        clip_game_names=game_names,
+        follower_total=1000,
+    )
+
+    assert bundle is not None
+    fortnite_obs = [
+        og for og in bundle.observed_games if og.game_name == "Fortnite"
+    ]
+    assert len(fortnite_obs) == 1
+
+
 def test_facets_games_played_empty_for_youtube():
     profile = YouTubeChannelSeed(
         channel_id="yt-1",
