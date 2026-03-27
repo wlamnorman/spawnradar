@@ -147,6 +147,36 @@ async def test_fetch_clips_returns_clip_records(monkeypatch):
     assert result["111"][0].game_id == "33214"
 
 
+@pytest.mark.anyio
+async def test_resolve_game_names_maps_twitch_ids_to_names(monkeypatch):
+    from app.creator_index.adapters.twitch import TwitchAccountAdapter
+
+    games_response = {
+        "data": [
+            {"id": "33214", "name": "Fortnite", "box_art_url": None},
+            {"id": "21779", "name": "League of Legends", "box_art_url": None},
+        ]
+    }
+
+    async def fake_request(client, method, url, *, params=None, headers=None):
+        return games_response
+
+    monkeypatch.setattr(
+        "app.creator_index.adapters.twitch.twitch_request_json", fake_request
+    )
+
+    adapter = TwitchAccountAdapter("cid", "csecret")
+    import httpx
+    async with httpx.AsyncClient() as client:
+        headers = {"Authorization": "Bearer fake", "Client-Id": "cid"}
+        result = await adapter._resolve_game_names(
+            client, headers, {"33214", "21779"}
+        )
+
+    assert result["33214"] == "Fortnite"
+    assert result["21779"] == "League of Legends"
+
+
 def _record_call(
     calls: list[tuple[str, int, dict[str, str]]],
     *,

@@ -686,6 +686,37 @@ class TwitchAccountAdapter(AccountSeedAdapter):
         )
         return rows
 
+    async def _resolve_game_names(
+        self,
+        client: httpx.AsyncClient,
+        headers: dict[str, str],
+        game_ids: set[str],
+    ) -> dict[str, str]:
+        """Resolve Twitch game IDs to display names via GET /helix/games."""
+        if not game_ids:
+            return {}
+        names: dict[str, str] = {}
+        for chunk in chunks(sorted(game_ids), 100):
+            params = tuple(("id", gid) for gid in chunk)
+            try:
+                body = await twitch_request_json(
+                    client,
+                    "GET",
+                    f"{_TWITCH_API_BASE}/games",
+                    params=params,
+                    headers=headers,
+                )
+            except (httpx.HTTPError, ValueError) as exc:
+                log.warning("Skipping game name resolution chunk: %s", exc)
+                continue
+            for item in as_list(body.get("data")):
+                if isinstance(item, dict):
+                    gid = _clean_str(item.get("id"))
+                    name = _clean_str(item.get("name"))
+                    if gid and name:
+                        names[gid] = name
+        return names
+
 
 def _build_queries(customer_game: CustomerGame) -> list[str]:
     queries: list[str] = []
