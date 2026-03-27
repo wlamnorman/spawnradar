@@ -259,6 +259,7 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         streams_by_user,
                         videos_by_user,
                         followers,
+                        clips_by_user,
                     ) = await asyncio.gather(
                         self._fetch_users(
                             client, auth_headers, broadcaster_ids
@@ -275,6 +276,9 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         self._fetch_follower_totals(
                             client, auth_headers, broadcaster_ids
                         ),
+                        self._fetch_clips_for_users(
+                            client, auth_headers, broadcaster_ids
+                        ),
                     )
                 except (httpx.HTTPError, ValueError) as exc:
                     log.warning(
@@ -285,6 +289,19 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                     cursors.pop(cursor_key, None)
                     continue
 
+                # Resolve game names — isolated so a failure doesn't discard the whole batch
+                all_clip_game_ids: set[str] = set()
+                for user_clips in clips_by_user.values():
+                    for clip in user_clips:
+                        all_clip_game_ids.add(clip.game_id)
+                try:
+                    clip_game_names = await self._resolve_game_names(
+                        client, auth_headers, all_clip_game_ids
+                    )
+                except (httpx.HTTPError, ValueError) as exc:
+                    log.warning("Clip game name resolution failed: %s", exc)
+                    clip_game_names = {}
+
                 bundles_before_query = len(bundles)
                 for channel in fresh_channels:
                     broadcaster_id = channel.broadcaster_id
@@ -294,6 +311,8 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         channel_info=channels_by_id.get(broadcaster_id),
                         stream=streams_by_user.get(broadcaster_id),
                         videos=videos_by_user.get(broadcaster_id, []),
+                        clips=clips_by_user.get(broadcaster_id, []),
+                        clip_game_names=clip_game_names,
                         follower_total=followers.get(broadcaster_id),
                     )
                     if bundle is not None:
@@ -339,6 +358,7 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         streams_by_user,
                         videos_by_user,
                         followers,
+                        clips_by_user,
                     ) = await asyncio.gather(
                         self._fetch_users(client, auth_headers, chunk),
                         self._fetch_channel_info(
@@ -351,6 +371,9 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         self._fetch_follower_totals(
                             client, auth_headers, chunk
                         ),
+                        self._fetch_clips_for_users(
+                            client, auth_headers, chunk
+                        ),
                     )
                 except (httpx.HTTPError, ValueError) as exc:
                     log.warning(
@@ -359,6 +382,19 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         exc,
                     )
                     continue
+
+                # Resolve game names — isolated so a failure doesn't discard the whole batch
+                all_clip_game_ids: set[str] = set()
+                for user_clips in clips_by_user.values():
+                    for clip in user_clips:
+                        all_clip_game_ids.add(clip.game_id)
+                try:
+                    clip_game_names = await self._resolve_game_names(
+                        client, auth_headers, all_clip_game_ids
+                    )
+                except (httpx.HTTPError, ValueError) as exc:
+                    log.warning("Clip game name resolution failed: %s", exc)
+                    clip_game_names = {}
 
                 bundles_before_chunk = len(bundles)
                 for bid in chunk:
@@ -384,6 +420,8 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         channel_info=channels_by_id.get(bid),
                         stream=streams_by_user.get(bid),
                         videos=videos_by_user.get(bid, []),
+                        clips=clips_by_user.get(bid, []),
+                        clip_game_names=clip_game_names,
                         follower_total=followers.get(bid),
                     )
                     if bundle is not None:

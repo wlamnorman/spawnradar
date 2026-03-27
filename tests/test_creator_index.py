@@ -1494,6 +1494,79 @@ def test_bundle_from_records_deduplicates_clip_and_stream_games():
     assert len(fortnite_obs) == 1
 
 
+@pytest.mark.anyio
+async def test_adapter_discover_queries_fetches_clips(monkeypatch):
+    """Verify the adapter calls the clips endpoint during discovery."""
+    from app.creator_index.adapters.twitch import TwitchAccountAdapter
+
+    calls = []
+
+    async def fake_request(client, method, url, *, params=None, headers=None):
+        calls.append(url)
+        if "/oauth2/token" in url:
+            return {"access_token": "tok"}
+        if "/search/channels" in url:
+            return {
+                "data": [
+                    {
+                        "id": "111",
+                        "broadcaster_login": "test",
+                        "display_name": "Test",
+                        "is_live": False,
+                        "tags": [],
+                    }
+                ],
+                "pagination": {},
+            }
+        if "/users" in url:
+            return {
+                "data": [
+                    {"id": "111", "login": "test", "display_name": "Test"}
+                ]
+            }
+        if "/channels" in url and "/followers" not in url:
+            return {"data": [{"broadcaster_id": "111", "tags": []}]}
+        if "/streams" in url:
+            return {"data": []}
+        if "/videos" in url:
+            return {"data": []}
+        if "/clips" in url:
+            return {
+                "data": [
+                    {
+                        "id": "c1",
+                        "broadcaster_id": "111",
+                        "broadcaster_name": "Test",
+                        "game_id": "33214",
+                        "title": "Nice",
+                        "view_count": 50,
+                        "created_at": "2025-06-01T00:00:00Z",
+                    }
+                ],
+                "pagination": {},
+            }
+        if "/games" in url:
+            return {"data": [{"id": "33214", "name": "Fortnite"}]}
+        if "/followers" in url:
+            return {"total": 500}
+        return {"data": []}
+
+    monkeypatch.setattr(
+        "app.creator_index.adapters.twitch.twitch_request_json", fake_request
+    )
+
+    adapter = TwitchAccountAdapter("cid", "csecret")
+    bundles = await adapter.discover_seed_accounts("test", 5)
+
+    # Verify clips endpoint was called
+    assert any("/clips" in c for c in calls), f"clips not called: {calls}"
+    assert any("/games" in c for c in calls), f"games not called for resolution: {calls}"
+
+    assert len(bundles) >= 1
+    observed_names = {og.game_name for og in bundles[0].observed_games}
+    assert "Fortnite" in observed_names
+
+
 def test_facets_games_played_empty_for_youtube():
     profile = YouTubeChannelSeed(
         channel_id="yt-1",
