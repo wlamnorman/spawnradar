@@ -596,7 +596,7 @@ class TwitchAccountAdapter(AccountSeedAdapter):
                         f"{_TWITCH_API_BASE}/videos",
                         params={
                             "user_id": broadcaster_id,
-                            "first": 20,
+                            "first": 50,
                             "period": "month",
                             "sort": "time",
                         },
