@@ -1,9 +1,6 @@
 """Tests for registration, empty-dashboard flow and dev login."""
 
-import json
 import re
-import uuid
-from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -30,7 +27,6 @@ def _make_client(monkeypatch, tmp_path) -> TestClient:
         "PADDLE_INDIE_PRICE_ID",
         "PADDLE_ENVIRONMENT",
         "RESEND_API_KEY",
-        "SMTP_HOST",
     ):
         monkeypatch.setenv(key, "")
     app = create_app()
@@ -91,7 +87,7 @@ def test_empty_trial_dashboard_shows_add_card(monkeypatch, tmp_path):
     assert response.text.count("Locked during trial") == 2
     assert response.text.count("Add Game") == 3
     assert "Add game to get started!" not in response.text
-    assert "quota-bar" in response.text
+    assert "game-card-add" in response.text
 
 
 def test_dashboard_game_cards_include_run_discovery_action(
@@ -115,9 +111,7 @@ def test_dashboard_game_cards_include_run_discovery_action(
                 "name": "Orbit Drift",
                 "summary": "Arcade racing across collapsing star lanes.",
                 "description": "A longer internal description that should not appear on the dashboard card.",
-                "genre_primary_tags": "racing, arcade",
-                "genre_tags": "racing, arcade",
-                "platform_tags": "browser",
+                "igdb_genre_ids": "10",
                 "website_url": "",
             },
             follow_redirects=False,
@@ -125,7 +119,8 @@ def test_dashboard_game_cards_include_run_discovery_action(
         response = client.get("/games")
 
     assert response.status_code == 200
-    assert "Open Queue" in response.text
+    assert "Find creators" in response.text
+    assert "/prospects" in response.text
     assert "Arcade racing across collapsing star lanes." in response.text
     assert (
         "A longer internal description that should not appear on the dashboard card."
@@ -156,9 +151,7 @@ def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
                 "name": "Orbit Drift",
                 "summary": "Arcade racing across collapsing star lanes.",
                 "description": "Arcade racing across collapsing star lanes.",
-                "genre_primary_tags": "racing, arcade",
-                "genre_tags": "racing, arcade",
-                "platform_tags": "browser",
+                "igdb_genre_ids": "10",
                 "website_url": "orbitdrift.example",
             },
             follow_redirects=False,
@@ -191,7 +184,7 @@ def test_pricing_page_shows_single_subscription_offer(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert "One plan for efficient game outreach." in response.text
-    assert "3-day free trial" in response.text
+    assert "Browse unlimited creator matches" in response.text
     assert "Billing unavailable" in response.text
     assert "Studio" not in response.text
 
@@ -218,7 +211,6 @@ def test_dev_login_creates_session_when_enabled(monkeypatch, tmp_path):
     monkeypatch.setenv("SECRET_KEY", "test-secret")
     monkeypatch.setenv("DEV_AUTO_LOGIN", "1")
     monkeypatch.setenv("RESEND_API_KEY", "")
-    monkeypatch.setenv("SMTP_HOST", "")
     app = create_app()
 
     with TestClient(app) as client:
@@ -230,132 +222,3 @@ def test_dev_login_creates_session_when_enabled(monkeypatch, tmp_path):
     assert "session_id" in response.cookies
     assert home_response.status_code == 200
     assert "dev@spawnradar.local" in home_response.text
-
-
-def test_queue_page_shows_expanded_thumbnails_and_visible_score_snapshot(
-    monkeypatch, tmp_path
-):
-    db_path = str(tmp_path / "queue-ui.sqlite3")
-    monkeypatch.setenv("DB_PATH", db_path)
-    monkeypatch.setenv("SECRET_KEY", "test-secret")
-    monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
-    monkeypatch.setenv("RESEND_API_KEY", "")
-    monkeypatch.setenv("SMTP_HOST", "")
-    app = create_app()
-
-    with TestClient(app) as client:
-        _post_form(
-            client,
-            get_path="/auth/register",
-            post_path="/auth/register",
-            data={"email": "queue@example.com", "password": "password123"},
-            follow_redirects=False,
-        )
-        _verify_user_email(db_path, "queue@example.com")
-        _post_form(
-            client,
-            get_path="/games/new",
-            post_path="/games",
-            data={
-                "name": "Star Tactician",
-                "summary": "Fleet battles in deep space.",
-                "description": "Fleet battles in deep space.",
-                "genre_primary_tags": "strategy, tactics",
-                "genre_tags": "strategy, tactics",
-                "platform_tags": "pc",
-                "website_url": "startactician.example",
-            },
-            follow_redirects=False,
-        )
-
-        with get_connection(db_path) as conn:
-            game = conn.execute(
-                "SELECT game_id, slug FROM games ORDER BY created_at DESC LIMIT 1"
-            ).fetchone()
-            now = datetime.now(UTC).isoformat()
-            prospect_id = str(uuid.uuid4())
-            draft_item_id = str(uuid.uuid4())
-            conn.execute(
-                """
-                INSERT INTO prospects
-                    (prospect_id, platform, handle, display_name, profile_url,
-                     contact_channel, contact_value, audience_size, engagement_rate,
-                     description, raw_data, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    prospect_id,
-                    "youtube",
-                    "roguelikerabbit",
-                    "RogueLikeRabbit",
-                    "https://youtube.example/roguelikerabbit",
-                    "email",
-                    "rogue@example.com",
-                    2600,
-                    0.06,
-                    "Covers indie roguelikes.",
-                    json.dumps(
-                        {
-                            "avatar_url": "https://img.example.com/avatar.jpg",
-                            "recent_video_thumbnails": [
-                                f"https://img.example.com/thumb-{i}.jpg"
-                                for i in range(1, 7)
-                            ],
-                        }
-                    ),
-                    now,
-                    now,
-                ),
-            )
-            conn.execute(
-                """
-                INSERT INTO draft_items
-                    (draft_item_id, game_id, prospect_id, body_text, status,
-                     priority_score, fit_summary, score_breakdown,
-                     created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    draft_item_id,
-                    game["game_id"],
-                    prospect_id,
-                    "Hi RogueLikeRabbit,\n\nI'd love to share Star Tactician with you.",
-                    "queued",
-                    0.7,
-                    "Strong match for strategy players.",
-                    json.dumps(
-                        {
-                            "genre_fit": 0.92,
-                            "vibe_fit": 0.88,
-                            "platform_fit": 1.0,
-                            "contactability": 0.75,
-                            "audience_size_score": 0.63,
-                            "why_selected": "Vibe and format align strongly with the game's target players.",
-                            "reasons": [
-                                "Contact channel available: youtube_dm",
-                                "Contact value present: creator@example.com",
-                                "Recent uploads feature adjacent tactics games.",
-                            ],
-                        }
-                    ),
-                    now,
-                    now,
-                ),
-            )
-
-        response = client.get(f"/games/{game['slug']}/queue")
-
-    assert response.status_code == 200
-    assert response.text.count('class="video-thumbnail"') == 6
-    assert "score-dim-card" in response.text
-    assert 'class="queue-insights"' in response.text
-    assert "Quick take" in response.text
-    assert "Detailed rationale" in response.text
-    assert "Contact channel available: youtube_dm" not in response.text
-    assert (
-        "Contact value present: creator@example.com"
-        not in response.text
-    )
-    assert "<summary>Score breakdown</summary>" not in response.text
-    assert '<details class="message-accordion">' in response.text
-    assert "<summary>Message draft</summary>" in response.text

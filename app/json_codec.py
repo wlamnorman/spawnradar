@@ -26,3 +26,8 @@ def load_json_list(raw: str | None) -> list[Any]:
 def load_json_string_list(raw: str | None) -> list[str]:
     """Deserialize a JSON array and keep only string elements."""
     return [value for value in load_json_list(raw) if isinstance(value, str)]
+
+
+def load_json_int_list(raw: str | None) -> list[int]:
+    """Deserialize a JSON array and keep only integer elements."""
+    return [value for value in load_json_list(raw) if isinstance(value, int)]

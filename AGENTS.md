@@ -2,14 +2,14 @@
 
 Guidance for coding agents working in this repository.
 
-## Required Checks
+## Required checks
 
-- Before finishing Python changes, run `make typecheck` if the change is broad.
+- Before finishing broad Python changes, run `make typecheck`.
 - For narrower Python changes, run `.venv/bin/basedpyright` on the affected files at minimum.
+- Run relevant tests for the area you changed.
 - Fix type errors rather than suppressing them unless there is a concrete reason.
-- Run relevant tests for the area you changed. For broad changes, run `.venv/bin/pytest`.
 
-## Standard Commands
+## Standard commands
 
 ```bash
 make lint
@@ -20,21 +20,26 @@ make check
 
 ## Design documents
 
-Some subsystems have a `DESIGN.md` that explains the intent and structure of
-that area at a conceptual level. Keep these current when making architectural
-changes — new dimensions, renamed concepts, restructured data models, changes
-to how data flows between subsystems.
+Some subsystems have a `DESIGN.md` that explains the intent and structure of that
+area at a conceptual level. Keep these current when making architectural changes:
+new dimensions, renamed concepts, restructured data models, or changes to how data
+flows between subsystems.
 
-Do **not** update them for small implementation details: tweaking a numeric
-weight, adding an alias, extending a catalog, or renaming an internal helper.
-These documents describe *how the system is meant to work*, not every parameter
-value. A reader should be able to understand the design from the document
-without it becoming a maintenance burden.
+Do not update design docs for small implementation details such as numeric tuning,
+small helper refactors, or minor internal renames. These documents should describe
+how the system is meant to work, not every changing detail.
 
 Current design documents:
-- `app/games/tags/DESIGN.md` — tag taxonomy, profiles, normalization, query composition
+- `app/creator_index/DESIGN.md`
+
+## Stable repository facts
+
+- `customer_games` are the customer-owned games tracked in SpawnRadar.
+- `app/creator_index/` is the background-built platform data bank for reusable creator/account data.
+- The durable primitive in the creator index is a platform account in `source_accounts`, not a merged cross-platform creator identity.
+- `creator_games_played` is the aggregated record of games a platform account has been observed playing.
+- `creator_index` and customer-facing prospect/review flows are related, but they are not the same subsystem and should not be conflated in code structure.
 
 ## Notes
 
-- `make run` keep the existing local DB and seed dev data in place.
-- Use `sr rm-db` when you want a clean local reset.
+- `make run` keeps the existing local DB and seed dev data in place.

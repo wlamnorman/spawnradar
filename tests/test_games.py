@@ -1,12 +1,6 @@
-"""Tests for game creation, updates, templates, assets and billing limits."""
+"""Tests for game creation, updates, and billing limits."""
 
 import pytest
-
-from app.games.models import Asset, Game, MessageTemplate
-from app.games.repository import _parse_sources
-from app.games.tags import TagProfile
-from app.ingestion.pipeline import youtube_candidate_limit
-from app.ingestion.registry import Source
 
 
 def test_create_game_stores_and_returns_game(game_service, registered_user):
@@ -15,254 +9,117 @@ def test_create_game_stores_and_returns_game(game_service, registered_user):
         name="SpacePuzzle",
         summary="A puzzle game set in space.",
         description="A puzzle game set in space",
-        genre_tags_raw="puzzle, space",
-        platform_tags=["browser"],
         website_url=None,
+        igdb_genre_ids=[9],  # Puzzle
     )
-    assert isinstance(game, Game)
+    from app.games.models import CustomerGame
+
+    assert isinstance(game, CustomerGame)
     assert game.name == "SpacePuzzle"
     assert game.user_id == registered_user.user_id
 
 
-def test_create_game_returns_correct_tags(game_service, registered_user):
+def test_create_game_stores_igdb_ids(game_service, registered_user):
     game = game_service.create_game(
         user_id=registered_user.user_id,
         name="TagGame",
-        summary="Testing tag normalization.",
+        summary="Testing IGDB taxonomy IDs.",
         description="Testing tags",
-        genre_tags_raw="puzzle, word game, daily",
-        platform_tags=["browser", "mobile"],
         website_url=None,
+        igdb_genre_ids=[9, 26],  # Puzzle, Quiz/Trivia
+        igdb_theme_ids=[42],  # Erotic (just an example ID)
+        igdb_game_mode_ids=[1, 3],
+        igdb_player_perspective_ids=[2, 4],
     )
-    assert "puzzle" in game.genre_tags
-    assert "word game" in game.genre_tags
-    assert "daily" in game.genre_tags
-    assert "browser" in game.platform_tags
-    assert "mobile" in game.platform_tags
+    assert 9 in game.igdb_genre_ids
+    assert 26 in game.igdb_genre_ids
+    assert 42 in game.igdb_theme_ids
+    assert 1 in game.igdb_game_mode_ids
+    assert 3 in game.igdb_game_mode_ids
+    assert 2 in game.igdb_player_perspective_ids
+    assert 4 in game.igdb_player_perspective_ids
 
 
-def test_new_games_default_to_youtube_bluesky_and_twitch(
+def test_create_game_stores_platforms_and_labels(
     game_service, registered_user
 ):
     game = game_service.create_game(
         user_id=registered_user.user_id,
-        name="Signal Game",
-        summary="Testing discovery source defaults.",
-        description="Testing discovery source defaults",
-        genre_tags_raw="strategy",
-        platform_tags=["pc"],
+        name="PlatformGame",
+        summary="Testing platform storage.",
+        description="Testing platform storage.",
         website_url=None,
+        platforms=["pc", "switch", "board-game"],
+        igdb_genre_ids=[9],
     )
-
-    assert game.discovery_sources == [
-        Source.YOUTUBE,
-        Source.BLUESKY,
-        Source.TWITCH,
+    assert game.platforms == ["pc", "switch", "board-game"]
+    assert game.platform_labels == [
+        "PC / Steam",
+        "Nintendo Switch",
+        "Board Game",
     ]
 
 
-def test_genre_tags_parsed_from_comma_separated_string(
+def test_create_game_defaults_optional_igdb_fields(
     game_service, registered_user
 ):
     game = game_service.create_game(
         user_id=registered_user.user_id,
-        name="ParseGame",
-        summary="Testing tag parsing.",
-        description="Testing tag parsing",
-        genre_tags_raw="  action , rpg , strategy  ",
-        platform_tags=["pc"],
+        name="MinimalGame",
+        summary="Minimal game with just a genre.",
+        description="Testing defaults",
         website_url=None,
+        igdb_genre_ids=[9],  # Puzzle
     )
-    assert game.genre_tags == ["action", "rpg", "strategy"]
+    assert game.igdb_genre_ids == [9]
+    assert game.igdb_theme_ids == []
+    assert game.igdb_game_mode_ids == []
+    assert game.igdb_player_perspective_ids == []
 
 
-def test_structured_tags_store_primary_and_secondary_profiles(
+def test_customer_facing_labels_merge_curated_keyword_buckets(
     game_service, registered_user
 ):
     game = game_service.create_game(
         user_id=registered_user.user_id,
-        name="StructureTest",
-        summary="Testing structured tags.",
-        description="Testing structured tags",
-        genre_tags_raw="",
-        platform_tags=["pc"],
+        name="BucketLabels",
+        summary="Labels include curated buckets.",
+        description="Labels include curated buckets.",
         website_url=None,
-        genre_primary_tags_raw="rts, turn based tactics",
-        genre_secondary_tags_raw="tower defence, strategy, xcom-like",
+        igdb_genre_ids=[12],
+        igdb_theme_ids=[18],
+        igdb_keyword_ids=["roguelike", "cozy", "crafting"],
     )
-
-    assert game.genre_primary_tags == [
-        "real-time strategy",
-        "turn-based tactics",
-    ]
-    assert game.genre_secondary_tags == [
-        "tower defense",
-        "strategy",
-        "xcom like",
-    ]
-    assert game.genre_tags == [
-        "real-time strategy",
-        "turn-based tactics",
-        "tower defense",
-        "strategy",
-        "xcom like",
-    ]
-
-
-def test_primary_tags_are_ordered_first_in_query_builder(
-    game_service, registered_user
-):
-    game = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="QueryWeightTest",
-        summary="Testing query order.",
-        description="Testing query order",
-        genre_tags_raw="",
-        platform_tags=["pc"],
-        website_url=None,
-        genre_primary_tags_raw="turn based tactics",
-        genre_secondary_tags_raw="strategy, sci-fi",
-    )
-
-    from app.ingestion.query_builder import build_basic_queries
-
-    queries = build_basic_queries(game)
-
-    assert queries[:3] == [
-        "turn-based tactics",
-        "strategy",
-        "sci-fi",
-    ]
-
-
-def test_discovery_readiness_allows_complete_games(game_service, sample_game):
-    readiness = game_service.get_discovery_readiness(sample_game)
-
-    assert readiness.can_run is True
-    assert readiness.missing_fields == ()
-    assert readiness.message == "Discovery ready."
-
-
-def test_discovery_readiness_reports_missing_summary_and_primary_genre_tags(
-    game_service, game_repo, registered_user
-):
-    legacy_game = game_repo.create(
-        game_id="legacy-game-1",
-        user_id=registered_user.user_id,
-        name="Legacy Game",
-        summary=None,
-        description="A legacy game with sparse metadata.",
-        genre_tags=[],
-        genre_tag_profile=TagProfile.empty(),
-        mechanics_tag_profile=TagProfile.empty(),
-        vibe_tag_profile=TagProfile.empty(),
-        kindred_tag_profile=TagProfile.empty(),
-        platform_tags=["browser"],
-        website_url=None,
-    )
-
-    readiness = game_service.get_discovery_readiness(legacy_game)
-
-    assert readiness.can_run is False
-    assert readiness.missing_fields == ("summary", "primary genre tags")
-    assert (
-        readiness.message
-        == "Finish setup before running discovery. Missing summary and primary genre tags."
-    )
+    assert "Role-playing (RPG)" in game.genre_labels
+    assert "Roguelike" in game.genre_labels
+    assert "Science fiction" in game.theme_labels
+    assert "Cozy" in game.theme_labels
+    assert game.mechanic_labels == ["Crafting"]
 
 
 def test_update_game_changes_fields(
     game_service, sample_game, registered_user
 ):
     updated = game_service.update_game(
-        game_id=sample_game.game_id,
+        customer_game_id=sample_game.customer_game_id,
         user_id=registered_user.user_id,
         name="PuzzleQuest Updated",
         summary="An updated summary",
         description="An updated description",
-        genre_tags_raw="puzzle, adventure",
-        platform_tags=["mobile"],
         website_url="https://example.com",
+        platforms=["mobile", "vr"],
+        igdb_genre_ids=[9, 12],  # Puzzle, Strategy
+        igdb_game_mode_ids=[1, 2],
+        igdb_player_perspective_ids=[3],
     )
     assert updated.name == "PuzzleQuest Updated"
     assert updated.description == "An updated description"
-    assert "adventure" in updated.genre_tags
-    assert updated.platform_tags == ["mobile"]
     assert updated.website_url == "https://example.com"
-
-
-def test_add_template_stores_template_linked_to_game(
-    game_service, sample_game, registered_user
-):
-    template = game_service.add_template(
-        game_id=sample_game.game_id,
-        user_id=registered_user.user_id,
-        name="YouTube Outreach",
-        channel="youtube_dm",
-        subject_template=None,
-        body_template="Hi {{creator_name}}, check out {{game_name}}!",
-    )
-    assert isinstance(template, MessageTemplate)
-    assert template.game_id == sample_game.game_id
-    assert template.channel == "youtube_dm"
-    assert "{{creator_name}}" in template.body_template
-
-
-def test_delete_template_removes_it(
-    game_service, template_repo, sample_game, registered_user
-):
-    template = game_service.add_template(
-        game_id=sample_game.game_id,
-        user_id=registered_user.user_id,
-        name="To Delete",
-        channel="email",
-        subject_template="Hello",
-        body_template="Body text here",
-    )
-    assert template_repo.get_by_id(template.template_id) is not None
-
-    game_service.delete_template(
-        template_id=template.template_id,
-        game_id=sample_game.game_id,
-        user_id=registered_user.user_id,
-    )
-    assert template_repo.get_by_id(template.template_id) is None
-
-
-def test_add_asset_stores_asset(game_service, sample_game, registered_user):
-    asset = game_service.add_asset(
-        game_id=sample_game.game_id,
-        user_id=registered_user.user_id,
-        asset_type="screenshot",
-        title="Main Menu Screenshot",
-        body=None,
-        url="https://cdn.example.com/screenshot.png",
-    )
-    assert isinstance(asset, Asset)
-    assert asset.game_id == sample_game.game_id
-    assert asset.asset_type == "screenshot"
-    assert asset.title == "Main Menu Screenshot"
-
-
-def test_delete_asset_removes_it(
-    game_service, asset_repo, sample_game, registered_user
-):
-    asset = game_service.add_asset(
-        game_id=sample_game.game_id,
-        user_id=registered_user.user_id,
-        asset_type="logo",
-        title="Game Logo",
-        body=None,
-        url="https://cdn.example.com/logo.png",
-    )
-    assert asset_repo.get_by_id(asset.asset_id) is not None
-
-    game_service.delete_asset(
-        asset_id=asset.asset_id,
-        game_id=sample_game.game_id,
-        user_id=registered_user.user_id,
-    )
-    assert asset_repo.get_by_id(asset.asset_id) is None
+    assert updated.platforms == ["mobile", "vr"]
+    assert 9 in updated.igdb_genre_ids
+    assert 12 in updated.igdb_genre_ids
+    assert updated.igdb_game_mode_ids == [1, 2]
+    assert updated.igdb_player_perspective_ids == [3]
 
 
 def test_game_limit_returns_false_after_trial_limit(
@@ -277,52 +134,12 @@ def test_game_limit_returns_false_after_trial_limit(
             name=f"Game {i}",
             summary="First game summary",
             description="First game description",
-            genre_tags_raw="puzzle",
-            platform_tags=["browser"],
             website_url=None,
+            igdb_genre_ids=[9],
         )
 
     # Should now be at the Indie trial limit (3 games)
     assert billing_service.check_game_limit(registered_user.user_id) is False
-
-
-def test_youtube_candidate_limit_is_capped_at_ten():
-    assert youtube_candidate_limit(50) == 10
-    assert youtube_candidate_limit(10) == 10
-    assert youtube_candidate_limit(6) == 6
-
-
-def test_message_templates_can_target_twitch_dm(game_service, registered_user):
-    game = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Twitch Template Game",
-        summary="Testing Twitch template support.",
-        description="Testing Twitch template support",
-        genre_tags_raw="strategy",
-        platform_tags=["pc"],
-        website_url=None,
-    )
-
-    template = game_service.add_template(
-        game_id=game.game_id,
-        user_id=registered_user.user_id,
-        name="Twitch Whisper",
-        channel="twitch_dm",
-        subject_template=None,
-        body_template="Hi {{creator_name}}, want to see {{game_name}}?",
-    )
-
-    assert template.channel == "twitch_dm"
-
-
-def test_legacy_default_source_lists_gain_twitch():
-    parsed = _parse_sources('["youtube", "reddit", "bluesky"]')
-
-    assert parsed == [
-        Source.YOUTUBE,
-        Source.BLUESKY,
-        Source.TWITCH,
-    ]
 
 
 def test_create_game_rejects_summary_longer_than_150_characters(
@@ -334,8 +151,6 @@ def test_create_game_rejects_summary_longer_than_150_characters(
             name="Summary Limit",
             summary="x" * 151,
             description="Valid description",
-            genre_tags_raw="strategy",
-            platform_tags=["pc"],
             website_url=None,
         )
 
@@ -345,13 +160,11 @@ def test_update_game_rejects_description_longer_than_1000_characters(
 ):
     with pytest.raises(ValueError, match="1000 characters or fewer"):
         game_service.update_game(
-            game_id=sample_game.game_id,
+            customer_game_id=sample_game.customer_game_id,
             user_id=registered_user.user_id,
             name=sample_game.name,
             summary=sample_game.summary or "",
             description="x" * 1001,
-            genre_tags_raw=", ".join(sample_game.genre_tags),
-            platform_tags=sample_game.platform_tags,
             website_url=sample_game.website_url,
         )
 
@@ -363,22 +176,5 @@ def test_create_game_rejects_missing_summary(game_service, registered_user):
             name="Missing Summary",
             summary="",
             description="Valid description",
-            genre_tags_raw="strategy",
-            platform_tags=["pc"],
-            website_url=None,
-        )
-
-
-def test_create_game_rejects_missing_primary_genre_tag(
-    game_service, registered_user
-):
-    with pytest.raises(ValueError, match="primary genre tag"):
-        game_service.create_game(
-            user_id=registered_user.user_id,
-            name="Missing Genre",
-            summary="Valid summary",
-            description="Valid description",
-            genre_tags_raw="",
-            platform_tags=["pc"],
             website_url=None,
         )

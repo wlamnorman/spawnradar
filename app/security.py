@@ -82,13 +82,17 @@ def consume_rate_limit(
         for rule in rules
     ]
 
+    import random
+
     with get_connection(db_path) as conn:
-        conn.execute(
-            """
-            DELETE FROM request_rate_limits
-            WHERE created_at < datetime('now', '-7 days')
-            """
-        )
+        # Probabilistic cleanup: run ~1% of calls to avoid write overhead
+        if random.random() < 0.01:
+            conn.execute(
+                """
+                DELETE FROM request_rate_limits
+                WHERE created_at < datetime('now', '-7 days')
+                """
+            )
 
         for key_hash, limit, window_seconds in hashed_rules:
             row = conn.execute(

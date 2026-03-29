@@ -1,0 +1,592 @@
+{% extends "base.html" %} {% block title %}{{ game.name }} — Creator Matches —
+SpawnRadar{% endblock %} {% block meta_description %}<meta
+    name="description"
+    content="Review ranked creator matches for your game, including overlap, reach, and contact details."
+/>{% endblock %} {% block og_title %}{{ game.name }} — Creator Matches —
+SpawnRadar{% endblock %} {% block og_description %}Review ranked creator matches
+for your game, including overlap, reach, and contact details.{% endblock %} {%
+block twitter_title %}{{ game.name }} — Creator Matches — SpawnRadar{% endblock
+%} {% block twitter_description %}Review ranked creator matches for your game,
+including overlap, reach, and contact details.{% endblock %} {% block content %}
+<div class="setup-header">
+    <div>
+        <h1>{{ game.name }} Creator Prospects</h1>
+    </div>
+    <div class="setup-header-actions">
+        <a href="/games" class="button secondary">← Dashboard</a>
+    </div>
+</div>
+
+<div class="prospects-toolbar">
+    <p class="text-muted prospects-toolbar-count">
+        {{ total_count }} creator{{ "s" if total_count != 1 else "" }} matched
+    </p>
+    {% if filters_unlocked %}
+    <details class="prospects-filter-menu">
+        <summary class="button secondary">
+            Filters {% if filters_active %}<span class="prospects-filter-badge"
+                >{{ (1 if reach_filter_active else 0) + (1 if
+                overlap_filter_active else 0) }}</span
+            >{% endif %}
+        </summary>
+        <form
+            method="get"
+            class="prospects-filter-panel"
+            data-range-filter-form
+        >
+            <div class="form-group">
+                <label>Reach</label>
+                <div class="prospects-range-values">
+                    <span data-range-label="min_reach"></span>
+                    <span data-range-label="max_reach"></span>
+                </div>
+                <div class="prospects-dual-range" data-range-wrapper="reach">
+                    <div class="prospects-dual-range-track"></div>
+                    <div class="prospects-dual-range-active"></div>
+                    <input
+                        type="range"
+                        min="0"
+                        max="{{ reach_filter_max }}"
+                        step="10000"
+                        value="{{ min_reach }}"
+                        data-range-input="min_reach"
+                        data-range-kind="reach"
+                    />
+                    <input
+                        type="range"
+                        min="0"
+                        max="{{ reach_filter_max }}"
+                        step="10000"
+                        value="{{ max_reach }}"
+                        data-range-input="max_reach"
+                        data-range-kind="reach"
+                    />
+                </div>
+                <input type="hidden" name="min_reach" value="{{ min_reach }}" />
+                <input type="hidden" name="max_reach" value="{{ max_reach }}" />
+            </div>
+            <div class="form-group">
+                <label>Interest overlap</label>
+                <div class="prospects-range-values">
+                    <span data-range-label="min_overlap"></span>
+                    <span data-range-label="max_overlap"></span>
+                </div>
+                <div class="prospects-dual-range" data-range-wrapper="overlap">
+                    <div class="prospects-dual-range-track"></div>
+                    <div class="prospects-dual-range-active"></div>
+                    <input
+                        type="range"
+                        min="0"
+                        max="{{ overlap_filter_max }}"
+                        step="1"
+                        value="{{ min_overlap }}"
+                        data-range-input="min_overlap"
+                        data-range-kind="overlap"
+                    />
+                    <input
+                        type="range"
+                        min="0"
+                        max="{{ overlap_filter_max }}"
+                        step="1"
+                        value="{{ max_overlap }}"
+                        data-range-input="max_overlap"
+                        data-range-kind="overlap"
+                    />
+                </div>
+                <input
+                    type="hidden"
+                    name="min_overlap"
+                    value="{{ min_overlap }}"
+                />
+                <input
+                    type="hidden"
+                    name="max_overlap"
+                    value="{{ max_overlap }}"
+                />
+            </div>
+            <div class="prospects-filter-actions">
+                <button type="submit" class="button secondary">Apply</button>
+                {% if filters_active %}
+                <a
+                    href="/games/{{ game.slug }}/prospects"
+                    class="button secondary"
+                    >Clear</a
+                >
+                {% endif %}
+            </div>
+        </form>
+    </details>
+    {% else %}
+    <a href="/billing" class="button secondary">Filters</a>
+    {% endif %}
+</div>
+
+{% if not prospects %}
+<div class="empty-state">
+    <h2>
+        {% if filters_active %}No creators match your current filters{% else
+        %}No matching creators found yet{% endif %}
+    </h2>
+    <p>
+        {% if filters_active %}Try lowering your reach or interest overlap
+        thresholds to see more creator matches.{% else %}Our system is
+        continuously building its data bank. As more creators are discovered and
+        their game libraries are mapped, matches will appear here.{% endif %}
+    </p>
+</div>
+{% else %}
+<div class="prospects-table-wrap">
+    <table class="prospects-table">
+        <thead>
+            <tr>
+                <th class="col-rank">#</th>
+                <th class="col-creator">Creator</th>
+                <th class="col-games">Games</th>
+                <th class="col-tags">Matching Tags</th>
+                <th class="col-score">Interest Overlap</th>
+                <th class="col-reach">Reach</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for prospect in prospects %} {% set contact = namespace(
+            email_url=None, email_title=None, discord_url=None, twitch_url=None,
+            youtube_url=None, x_url=None, instagram_url=None, bluesky_url=None )
+            %} {% if prospect.profile.platform == "twitch" and
+            prospect.profile.canonical_url %} {% set contact.twitch_url =
+            prospect.profile.canonical_url %} {% elif prospect.profile.platform
+            == "youtube" and prospect.profile.canonical_url %} {% set
+            contact.youtube_url = prospect.profile.canonical_url %} {% endif %}
+            {% for email in prospect.profile.contact_emails %} {% if
+            contact.email_url is none %} {% set contact.email_url = "mailto:" ~
+            email %} {% set contact.email_title = email %} {% endif %} {% endfor
+            %} {% for url in prospect.profile.contact_discord_urls %} {% if
+            contact.discord_url is none %} {% set contact.discord_url = url %}
+            {% endif %} {% endfor %} {% for url in
+            prospect.profile.contact_social_links %} {% if ("twitter.com/" in
+            url or "x.com/" in url) and contact.x_url is none %} {% set
+            contact.x_url = url %} {% elif "instagram.com/" in url and
+            contact.instagram_url is none %} {% set contact.instagram_url = url
+            %} {% elif "bsky.app/" in url and contact.bluesky_url is none %} {%
+            set contact.bluesky_url = url %} {% elif ("youtube.com/" in url or
+            "youtu.be/" in url) and contact.youtube_url is none %} {% set
+            contact.youtube_url = url %} {% endif %} {% endfor %} {% set
+            has_contact_icons = contact.email_url is not none or
+            contact.discord_url is not none or contact.twitch_url is not none or
+            contact.youtube_url is not none or contact.x_url is not none or
+            contact.instagram_url is not none or contact.bluesky_url is not none
+            %}
+            <tr>
+                <td class="col-rank">
+                    {{ (page - 1) * page_size + loop.index }}
+                </td>
+                <td class="col-creator">
+                    <div class="creator-cell">
+                        {% if prospect.profile.avatar_url %}
+                        <img
+                            class="creator-avatar"
+                            src="{{ prospect.profile.avatar_url }}"
+                            alt=""
+                            width="50"
+                            height="50"
+                            loading="lazy"
+                        />
+                        {% endif %}
+                        <div class="creator-details">
+                            <div class="creator-name">
+                                {{ prospect.profile.display_name }}
+                            </div>
+                            {% if has_contact_icons %}
+                            <div class="creator-contact-row">
+                                {% if contact.email_url %}
+                                <a
+                                    class="contact-icon contact-icon--email"
+                                    href="{{ contact.email_url }}"
+                                    title="{{ contact.email_title }}"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <rect
+                                            x="2"
+                                            y="4"
+                                            width="20"
+                                            height="16"
+                                            rx="2"
+                                        />
+                                        <path
+                                            d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"
+                                        />
+                                    </svg>
+                                </a>
+                                {% endif %} {% if contact.discord_url %}
+                                <a
+                                    class="contact-icon contact-icon--discord"
+                                    href="{{ contact.discord_url }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    title="Discord"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"
+                                        />
+                                    </svg>
+                                </a>
+                                {% endif %} {% if contact.twitch_url %}
+                                <a
+                                    class="contact-icon contact-icon--twitch"
+                                    href="{{ contact.twitch_url }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    title="Twitch"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            d="M4 3h16v11l-4 4h-3l-2 2H8v-2H4V3zm2 2v11h3v2l2-2h4l3-3V5H6zm4 2h2v5h-2V7zm5 0h2v5h-2V7z"
+                                        />
+                                    </svg>
+                                </a>
+                                {% endif %} {% if contact.youtube_url %}
+                                <a
+                                    class="contact-icon contact-icon--youtube"
+                                    href="{{ contact.youtube_url }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    title="YouTube"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"
+                                        />
+                                    </svg>
+                                </a>
+                                {% endif %} {% if contact.x_url %}
+                                <a
+                                    class="contact-icon contact-icon--x"
+                                    href="{{ contact.x_url }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    title="X / Twitter"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+                                        />
+                                    </svg>
+                                </a>
+                                {% endif %} {% if contact.instagram_url %}
+                                <a
+                                    class="contact-icon contact-icon--instagram"
+                                    href="{{ contact.instagram_url }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    title="Instagram"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <rect
+                                            x="2"
+                                            y="2"
+                                            width="20"
+                                            height="20"
+                                            rx="5"
+                                        />
+                                        <circle cx="12" cy="12" r="5" />
+                                        <circle
+                                            cx="17.5"
+                                            cy="6.5"
+                                            r="1.5"
+                                            fill="currentColor"
+                                            stroke="none"
+                                        />
+                                    </svg>
+                                </a>
+                                {% endif %} {% if contact.bluesky_url %}
+                                <a
+                                    class="contact-icon contact-icon--bluesky"
+                                    href="{{ contact.bluesky_url }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    title="Bluesky"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            d="M12 2C8.5 4.5 5.5 9 5 11.5c-.5 2.5.5 4 2.5 4 1.5 0 2.5-.5 3-1-.5 1.5-2 3-4.5 3.5 3 .5 5.5-.5 6-3 .5 2.5 3 3.5 6 3-2.5-.5-4-2-4.5-3.5.5.5 1.5 1 3 1 2 0 3-1.5 2.5-4C19 9 15.5 4.5 12 2z"
+                                        />
+                                    </svg>
+                                </a>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                <td class="col-games">
+                    <div class="game-icons">
+                        {% for game in prospect.relevant_games[:10] %} {% if
+                        game.cover_url %}
+                        <span
+                            class="game-icon-wrap"
+                            data-tooltip="{{ game.name|e }}"
+                        >
+                            <img
+                                class="game-icon"
+                                src="{{ game.cover_url }}"
+                                alt="{{ game.name|e }}"
+                                width="36"
+                                height="48"
+                                loading="lazy"
+                            />
+                        </span>
+                        {% endif %} {% endfor %} {% if
+                        prospect.relevant_game_count > 10 %}
+                        <span
+                            class="game-icon-more"
+                            title="{{ prospect.relevant_game_count - 10 }} more games"
+                            >+{{ prospect.relevant_game_count - 10 }}</span
+                        >
+                        {% elif prospect.relevant_game_count == 0 %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td class="col-tags">
+                    {% for tag_type, tag_id in prospect.overlap_tags %}
+                    <span class="pill">{{ tag_label(tag_type, tag_id) }}</span>
+                    {% endfor %}
+                </td>
+                <td class="col-score">
+                    {{ "%.0f"|format(prospect.coverage_score * 100) }}%
+                </td>
+                <td class="col-reach">
+                    {{ "{:,}".format(prospect.profile.reach) }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if trial_page_locked %}
+<div
+    class="upgrade-nudge"
+    style="margin-top: 24px; margin-bottom: 0; text-align: center"
+>
+    Showing the top {{ page_size }} creator matches during trial. Subscribe to
+    unlock the full list.
+    <a href="/billing">Subscribe now →</a>
+</div>
+{% elif total_pages > 1 %}
+<div
+    class="pagination"
+    style="display: flex; gap: 8px; justify-content: center; margin-top: 24px"
+>
+    {% if page > 1 %}
+    <a
+        href="?page={{ page - 1 }}{{ filter_query_suffix }}"
+        class="button secondary"
+        >← Previous</a
+    >
+    {% endif %} {% for p in range(1, total_pages + 1) %} {% if p == page %}
+    <span class="button" style="pointer-events: none">{{ p }}</span>
+    {% elif p <= 3 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1)
+    %}
+    <a href="?page={{ p }}{{ filter_query_suffix }}" class="button secondary"
+        >{{ p }}</a
+    >
+    {% elif p == 4 or p == total_pages - 2 %}
+    <span class="text-muted" style="align-self: center">…</span>
+    {% endif %} {% endfor %} {% if page < total_pages %}
+    <a
+        href="?page={{ page + 1 }}{{ filter_query_suffix }}"
+        class="button secondary"
+        >Next →</a
+    >
+    {% endif %}
+</div>
+{% endif %}
+
+<div id="game-tooltip"></div>
+<script>
+    (function () {
+        var tip = document.getElementById("game-tooltip");
+        document.querySelectorAll(".game-icon-wrap").forEach(function (el) {
+            el.addEventListener("mouseenter", function (e) {
+                tip.textContent = el.getAttribute("data-tooltip");
+                tip.style.opacity = "1";
+            });
+            el.addEventListener("mousemove", function (e) {
+                tip.style.left = e.clientX + 12 + "px";
+                tip.style.top = e.clientY - 30 + "px";
+            });
+            el.addEventListener("mouseleave", function () {
+                tip.style.opacity = "0";
+            });
+        });
+    })();
+
+    (function () {
+        function formatReach(value, ceiling) {
+            var numeric = Number(value);
+            if (numeric <= 0) return "Min: Any";
+            if (numeric >= ceiling) return "Max: Any";
+            return (
+                (this && this.maxLabel ? "Max: " : "Min: ") +
+                numeric.toLocaleString()
+            );
+        }
+
+        function formatOverlap(value, isMax) {
+            var numeric = Number(value);
+            if (!isMax && numeric <= 0) return "Min: Any";
+            if (isMax && numeric >= 100) return "Max: Any";
+            return (isMax ? "Max: " : "Min: ") + numeric + "%";
+        }
+
+        document
+            .querySelectorAll("[data-range-filter-form]")
+            .forEach(function (form) {
+                var reachMin = form.querySelector(
+                    '[data-range-input="min_reach"]',
+                );
+                var reachMax = form.querySelector(
+                    '[data-range-input="max_reach"]',
+                );
+                var overlapMin = form.querySelector(
+                    '[data-range-input="min_overlap"]',
+                );
+                var overlapMax = form.querySelector(
+                    '[data-range-input="max_overlap"]',
+                );
+                var hiddenMinReach = form.querySelector(
+                    'input[name="min_reach"]',
+                );
+                var hiddenMaxReach = form.querySelector(
+                    'input[name="max_reach"]',
+                );
+                var hiddenMinOverlap = form.querySelector(
+                    'input[name="min_overlap"]',
+                );
+                var hiddenMaxOverlap = form.querySelector(
+                    'input[name="max_overlap"]',
+                );
+                var reachMinLabel = form.querySelector(
+                    '[data-range-label="min_reach"]',
+                );
+                var reachMaxLabel = form.querySelector(
+                    '[data-range-label="max_reach"]',
+                );
+                var overlapMinLabel = form.querySelector(
+                    '[data-range-label="min_overlap"]',
+                );
+                var overlapMaxLabel = form.querySelector(
+                    '[data-range-label="max_overlap"]',
+                );
+                var reachWrapper = form.querySelector(
+                    '[data-range-wrapper="reach"]',
+                );
+                var overlapWrapper = form.querySelector(
+                    '[data-range-wrapper="overlap"]',
+                );
+                var reachCeiling = Number(reachMax.max);
+
+                function clampPair(minInput, maxInput) {
+                    if (Number(minInput.value) > Number(maxInput.value)) {
+                        if (document.activeElement === minInput) {
+                            maxInput.value = minInput.value;
+                        } else {
+                            minInput.value = maxInput.value;
+                        }
+                    }
+                }
+
+                function render() {
+                    clampPair(reachMin, reachMax);
+                    clampPair(overlapMin, overlapMax);
+                    hiddenMinReach.value = reachMin.value;
+                    hiddenMaxReach.value = reachMax.value;
+                    hiddenMinOverlap.value = overlapMin.value;
+                    hiddenMaxOverlap.value = overlapMax.value;
+                    reachWrapper.style.setProperty(
+                        "--range-start",
+                        (Number(reachMin.value) / reachCeiling) * 100 + "%",
+                    );
+                    reachWrapper.style.setProperty(
+                        "--range-end",
+                        (Number(reachMax.value) / reachCeiling) * 100 + "%",
+                    );
+                    overlapWrapper.style.setProperty(
+                        "--range-start",
+                        Number(overlapMin.value) + "%",
+                    );
+                    overlapWrapper.style.setProperty(
+                        "--range-end",
+                        Number(overlapMax.value) + "%",
+                    );
+                    reachMinLabel.textContent =
+                        Number(reachMin.value) <= 0
+                            ? "Min: Any"
+                            : "Min: " + Number(reachMin.value).toLocaleString();
+                    reachMaxLabel.textContent =
+                        Number(reachMax.value) >= reachCeiling
+                            ? "Max: Any"
+                            : "Max: " + Number(reachMax.value).toLocaleString();
+                    overlapMinLabel.textContent =
+                        Number(overlapMin.value) <= 0
+                            ? "Min: Any"
+                            : "Min: " + overlapMin.value + "%";
+                    overlapMaxLabel.textContent =
+                        Number(overlapMax.value) >= 100
+                            ? "Max: Any"
+                            : "Max: " + overlapMax.value + "%";
+                }
+
+                [reachMin, reachMax, overlapMin, overlapMax].forEach(
+                    function (input) {
+                        input.addEventListener("input", render);
+                    },
+                );
+                render();
+            });
+    })();
+</script>
+{% endif %} {% endblock %}

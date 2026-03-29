@@ -1,28 +1,27 @@
 {% extends "base.html" %} {% block title %}My Games — SpawnRadar{% endblock %}
-{% block content %} {% if subscription.is_trialing %}
+{% block meta_description %}<meta
+    name="description"
+    content="Manage your games and track creator discovery from one dashboard."
+/>{% endblock %} {% block og_title %}My Games — SpawnRadar{% endblock %} {%
+block og_description %}Manage your games and track creator discovery from one
+dashboard.{% endblock %} {% block twitter_title %}My Games — SpawnRadar{%
+endblock %} {% block twitter_description %}Manage your games and track creator
+discovery from one dashboard.{% endblock %} {% block content %} {% if
+subscription.is_trialing %}
 <div class="trial-banner">
     <strong>Trial:</strong> {{ subscription.trial_days_remaining }} day{% if
-    subscription.trial_days_remaining != 1 %}s{% endif %} left –
-    <strong>limited use.</strong>
-    <a href="/pricing">Subscribe now</a>
+    subscription.trial_days_remaining != 1 %}s{% endif %} left. Explore creator
+    discovery for your game.
 </div>
 {% endif %}
 <div class="dashboard-header">
     <div>
         <h1>Your Games</h1>
-        {% if not discovery_status.can_run %}
-        <p class="subtle discovery-status is-blocked">
-            {{ discovery_status.message }}
-        </p>
-        {% endif %}
     </div>
-    {% include "partials/discovery_quota_bars.html" %}
 </div>
 
 <div class="game-grid">
-    {% for game in games %} {% set readiness =
-    game_discovery_readiness.get(game.game_id) %} {% set count =
-    queue_counts.get(game.game_id, 0) %}
+    {% for game in games %}
     <div class="game-card">
         <div class="game-card-header">
             <h2 class="game-card-title">
@@ -38,7 +37,6 @@
                         type="button"
                         class="card-icon-btn card-menu-trigger"
                         title="More options"
-                        onclick="toggleCardMenu(this)"
                     >
                         ⋯
                     </button>
@@ -59,7 +57,7 @@
                         <form
                             method="post"
                             action="/games/{{ game.slug }}/delete"
-                            onsubmit="return confirm('Permanently delete {{ game.name | e }}? This cannot be undone.')"
+                            data-confirm="Permanently delete {{ game.name | e }}? This cannot be undone."
                         >
                             <input
                                 type="hidden"
@@ -83,33 +81,21 @@
         {% endif %}
 
         <div class="tag-row">
-            {% for tag in game.platform_tags %}
-            <span class="tag-pill tag-platform">{{ tag }}</span>
-            {% endfor %} {% for tag in game.genre_primary_tags %}
-            <span class="tag-pill tag-genre">{{ tag }}</span>
-            {% endfor %} {% for tag in game.genre_secondary_tags %}
-            <span class="tag-pill tag-genre-secondary">{{ tag }}</span>
-            {% endfor %} {% for tag in game.ordered_mechanics_tags() %}
-            <span class="tag-pill tag-mechanics">{{ tag }}</span>
-            {% endfor %} {% for tag in game.ordered_vibe_tags() %}
-            <span class="tag-pill tag-vibe">{{ tag }}</span>
-            {% endfor %} {% for tag in game.kindred_primary_tags %}
-            <span class="tag-pill tag-kindred">{{ tag }}</span>
+            {% for label in game.genre_labels %}
+            <span class="tag-pill tag-genre">{{ label }}</span>
+            {% endfor %} {% for label in game.theme_labels %}
+            <span class="tag-pill tag-vibe">{{ label }}</span>
+            {% endfor %} {% for label in game.mechanic_labels %}
+            <span class="tag-pill tag-mechanic">{{ label }}</span>
             {% endfor %}
         </div>
 
         <div class="game-card-footer">
             <div class="game-card-actions">
-                {% if count > 0 %}
-                <span class="queue-badge">{{ count }} ranked leads</span>
-                {% endif %}
-                <a href="/games/{{ game.slug }}/queue" class="button"
-                    >Open Queue & Run Discovery</a
+                <a href="/games/{{ game.slug }}/prospects" class="button"
+                    >Find creators</a
                 >
             </div>
-            {% if not readiness.can_run %}
-            <p class="game-card-note">{{ readiness.message }}</p>
-            {% endif %}
         </div>
     </div>
     {% endfor %} {% for slot_index in range(placeholder_slots) %} {% if
@@ -135,56 +121,6 @@
 </div>
 
 {% endblock %} {% block scripts %}
-<script>
-    function capTagRows(container, maxRows) {
-        const pills = Array.from(container.querySelectorAll(".tag-pill"));
-        if (!pills.length) return;
-
-        const rowTops = [];
-        pills.forEach((p) => {
-            if (!rowTops.includes(p.offsetTop)) rowTops.push(p.offsetTop);
-        });
-
-        if (rowTops.length <= maxRows) return;
-
-        const cutoffTop = rowTops[maxRows];
-        const toHide = pills.filter((p) => p.offsetTop >= cutoffTop);
-        const lastVisible = pills.filter((p) => p.offsetTop < cutoffTop);
-
-        toHide.forEach((p) => {
-            p.style.display = "none";
-        });
-        let hiddenCount = toHide.length;
-
-        const morePill = document.createElement("span");
-        morePill.className = "tag-pill tag-more";
-        morePill.textContent = `+${hiddenCount} more`;
-        container.appendChild(morePill);
-
-        const targetTop = rowTops[maxRows - 1];
-        while (morePill.offsetTop > targetTop && lastVisible.length > 0) {
-            lastVisible.pop().style.display = "none";
-            morePill.textContent = `+${++hiddenCount} more`;
-        }
-    }
-
-    document.querySelectorAll(".tag-row").forEach((row) => capTagRows(row, 6));
-
-    function toggleCardMenu(btn) {
-        const dropdown = btn.nextElementSibling;
-        const isOpen = !dropdown.classList.contains("hidden");
-        document
-            .querySelectorAll(".card-menu-dropdown")
-            .forEach((d) => d.classList.add("hidden"));
-        if (!isOpen) dropdown.classList.remove("hidden");
-    }
-
-    document.addEventListener("click", (e) => {
-        if (!e.target.closest(".card-menu")) {
-            document
-                .querySelectorAll(".card-menu-dropdown")
-                .forEach((d) => d.classList.add("hidden"));
-        }
-    });
-</script>
+<script src="/static/confirm.js"></script>
+<script src="/static/dashboard.js"></script>
 {% endblock %}

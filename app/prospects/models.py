@@ -1,4 +1,4 @@
-"""Prospect domain models."""
+"""Domain models for ranked creator prospects."""
 
 from __future__ import annotations
 
@@ -6,57 +6,42 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class Prospect:
-    """A discovered marketing prospect (YouTube channel or Twitch streamer)."""
+class CreatorRankingProfile:
+    """Display-ready profile data for one creator."""
 
-    prospect_id: str
-    platform: str  # youtube | twitch | bluesky
-    handle: str
+    account_id: str
+    platform: str
     display_name: str
-    profile_url: str | None
-    contact_channel: str | None
-    contact_value: str | None
-    audience_size: int | None
-    engagement_rate: float | None
-    description: str | None
-    raw_data: dict
-    created_at: str
-    updated_at: str
+    handle: str | None
+    canonical_url: str | None
+    avatar_url: str | None
+    summary_text: str | None
+    recent_audience: int
+    reach: int
+    contact_emails: tuple[str, ...]
+    contact_discord_urls: tuple[str, ...]
+    contact_social_links: tuple[str, ...]
 
 
 @dataclass(frozen=True)
-class DraftItem:
-    """A generated outreach draft awaiting developer review."""
+class RelevantGame:
+    """A game this creator plays that overlaps with the customer game."""
 
-    draft_item_id: str
-    game_id: str
-    prospect_id: str
-    template_id: str | None
-    subject_line: str | None
-    body_text: str
-    status: str  # queued | approved | rejected | snoozed | sent
-    priority_score: float
-    fit_summary: str | None
-    score_breakdown: dict  # deserialized from JSON
-    last_edited_at: str | None
-    created_at: str
-    updated_at: str
+    name: str
+    cover_url: str | None
 
 
 @dataclass(frozen=True)
-class Outcome:
-    """Records the result of a developer action on a draft item."""
+class RankedProspect:
+    """One scored creator for a CustomerGame."""
 
-    outcome_id: str
-    draft_item_id: str
-    outcome_type: str  # approved | rejected | snoozed | sent
-    notes: str | None
-    created_at: str
+    profile: CreatorRankingProfile
+    coverage_score: float
+    overlap_tags: tuple[tuple[str, int | str], ...]
+    relevant_game_count: int
+    relevant_games: tuple[RelevantGame, ...] = ()
 
-
-@dataclass(frozen=True)
-class ReviewQueueItem:
-    """A combined view of a DraftItem with its associated Prospect."""
-
-    draft: DraftItem
-    prospect: Prospect
+    @property
+    def overlap_score(self) -> float:
+        """Backward-compatible alias while callers migrate."""
+        return self.coverage_score

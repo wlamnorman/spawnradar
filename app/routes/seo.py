@@ -1,7 +1,7 @@
 """Sitemap and robots.txt routes."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
 from app.routes.blog import _POSTS
@@ -11,7 +11,6 @@ router = APIRouter()
 _ROBOTS = """\
 User-agent: *
 Allow: /
-Disallow: /admin
 Disallow: /games
 Disallow: /auth
 
@@ -25,7 +24,7 @@ async def robots_txt() -> str:
 
 
 @router.get("/sitemap.xml", response_class=PlainTextResponse)
-async def sitemap_xml(request: Request) -> PlainTextResponse:
+async def sitemap_xml() -> PlainTextResponse:
     base = "https://spawnradar.com"
 
     static_urls = [

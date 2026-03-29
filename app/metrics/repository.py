@@ -14,45 +14,17 @@ class MetricEvent:
     event_id: str
     metric_key: str
     user_id: str | None
-    game_id: str | None
+    customer_game_id: str | None
     occurred_at: str
     value: float
     dedupe_key: str | None
     metadata: dict[str, object]
 
 
-@dataclass(frozen=True)
-class DiscoveryRunFact:
-    run_id: str
-    user_id: str
-    game_id: str
-    started_at: str
-    completed_at: str | None
-    status: str
-    discovered_count: int
-    scored_count: int
-    queued_count: int
-    error_message: str | None
-
-
-@dataclass(frozen=True)
-class ProspectScoreObservation:
-    observation_id: str
-    run_id: str
-    user_id: str
-    game_id: str
-    score: float
-    queued: bool
-    occurred_at: str
-
-
 class MetricsRepository:
     """Persist append-only metrics and analytics facts.
 
-    This stays separate from operational tables where necessary. In particular,
-    discovery run facts live outside the billing `discovery_runs` table because
-    the billing table cascades on user/game deletion, while analytics needs a
-    stable history for long-term reporting.
+    This stays separate from operational tables where necessary.
     """
 
     def __init__(self, db_path: str) -> None:
@@ -63,7 +35,7 @@ class MetricsRepository:
         metric_key: str,
         *,
         user_id: str | None = None,
-        game_id: str | None = None,
+        customer_game_id: str | None = None,
         occurred_at: str,
         value: float = 1.0,
         dedupe_key: str | None = None,
@@ -76,7 +48,7 @@ class MetricsRepository:
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO metric_events
-                    (event_id, metric_key, user_id, game_id, occurred_at, value,
+                    (event_id, metric_key, user_id, customer_game_id, occurred_at, value,
                      dedupe_key, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -84,7 +56,7 @@ class MetricsRepository:
                     event_id,
                     metric_key,
                     user_id,
-                    game_id,
+                    customer_game_id,
                     occurred_at,
                     value,
                     dedupe_key,
@@ -109,7 +81,7 @@ class MetricsRepository:
                 event_id=row["event_id"],
                 metric_key=row["metric_key"],
                 user_id=row["user_id"],
-                game_id=row["game_id"],
+                customer_game_id=row["customer_game_id"],
                 occurred_at=row["occurred_at"],
                 value=float(row["value"]),
                 dedupe_key=row["dedupe_key"],
@@ -163,179 +135,3 @@ class MetricsRepository:
                 (metric_key, user_id, occurred_before),
             ).fetchone()
         return row is not None
-
-    def create_discovery_run_fact(
-        self, run_id: str, user_id: str, game_id: str, *, started_at: str
-    ) -> None:
-        with get_connection(self._db_path) as conn:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO discovery_run_facts
-                    (run_id, user_id, game_id, started_at, status)
-                VALUES (?, ?, ?, ?, 'started')
-                """,
-                (run_id, user_id, game_id, started_at),
-            )
-
-    def complete_discovery_run_fact(
-        self,
-        run_id: str,
-        *,
-        completed_at: str,
-        discovered_count: int,
-        scored_count: int,
-        queued_count: int,
-    ) -> None:
-        with get_connection(self._db_path) as conn:
-            conn.execute(
-                """
-                UPDATE discovery_run_facts
-                SET completed_at = ?,
-                    status = 'completed',
-                    discovered_count = ?,
-                    scored_count = ?,
-                    queued_count = ?,
-                    error_message = NULL
-                WHERE run_id = ?
-                """,
-                (
-                    completed_at,
-                    discovered_count,
-                    scored_count,
-                    queued_count,
-                    run_id,
-                ),
-            )
-
-    def fail_discovery_run_fact(
-        self, run_id: str, *, failed_at: str, error_message: str
-    ) -> None:
-        with get_connection(self._db_path) as conn:
-            conn.execute(
-                """
-                UPDATE discovery_run_facts
-                SET completed_at = ?,
-                    status = 'failed',
-                    error_message = ?
-                WHERE run_id = ?
-                """,
-                (failed_at, error_message, run_id),
-            )
-
-    def get_discovery_run_fact(self, run_id: str) -> DiscoveryRunFact | None:
-        with get_connection(self._db_path) as conn:
-            row = conn.execute(
-                """
-                SELECT *
-                FROM discovery_run_facts
-                WHERE run_id = ?
-                """,
-                (run_id,),
-            ).fetchone()
-        if row is None:
-            return None
-        return DiscoveryRunFact(
-            run_id=row["run_id"],
-            user_id=row["user_id"],
-            game_id=row["game_id"],
-            started_at=row["started_at"],
-            completed_at=row["completed_at"],
-            status=row["status"],
-            discovered_count=int(row["discovered_count"]),
-            scored_count=int(row["scored_count"]),
-            queued_count=int(row["queued_count"]),
-            error_message=row["error_message"],
-        )
-
-    def list_discovery_run_facts(self) -> list[DiscoveryRunFact]:
-        with get_connection(self._db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM discovery_run_facts
-                ORDER BY started_at ASC
-                """
-            ).fetchall()
-        return [
-            DiscoveryRunFact(
-                run_id=row["run_id"],
-                user_id=row["user_id"],
-                game_id=row["game_id"],
-                started_at=row["started_at"],
-                completed_at=row["completed_at"],
-                status=row["status"],
-                discovered_count=int(row["discovered_count"]),
-                scored_count=int(row["scored_count"]),
-                queued_count=int(row["queued_count"]),
-                error_message=row["error_message"],
-            )
-            for row in rows
-        ]
-
-    def first_discovery_run_start_by_user(self) -> dict[str, str]:
-        with get_connection(self._db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT user_id, MIN(started_at) AS first_started_at
-                FROM discovery_run_facts
-                GROUP BY user_id
-                """
-            ).fetchall()
-        return {
-            str(row["user_id"]): str(row["first_started_at"])
-            for row in rows
-            if row["user_id"] is not None
-            and row["first_started_at"] is not None
-        }
-
-    def record_prospect_score_observation(
-        self,
-        run_id: str,
-        *,
-        user_id: str,
-        game_id: str,
-        score: float,
-        queued: bool,
-        occurred_at: str,
-    ) -> None:
-        with get_connection(self._db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO prospect_score_observations
-                    (observation_id, run_id, user_id, game_id, score, queued, occurred_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    str(uuid.uuid4()),
-                    run_id,
-                    user_id,
-                    game_id,
-                    score,
-                    int(queued),
-                    occurred_at,
-                ),
-            )
-
-    def list_prospect_score_observations(
-        self,
-    ) -> list[ProspectScoreObservation]:
-        with get_connection(self._db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM prospect_score_observations
-                ORDER BY occurred_at ASC
-                """
-            ).fetchall()
-        return [
-            ProspectScoreObservation(
-                observation_id=row["observation_id"],
-                run_id=row["run_id"],
-                user_id=row["user_id"],
-                game_id=row["game_id"],
-                score=float(row["score"]),
-                queued=bool(row["queued"]),
-                occurred_at=row["occurred_at"],
-            )
-            for row in rows
-        ]

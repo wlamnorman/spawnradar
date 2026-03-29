@@ -96,18 +96,24 @@ endef
 dev:
 	$(STOP_PORT)
 	@$(PYTHON) -m app.devtools.seed_dev data/spawnradar.sqlite3
-	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 wikiquests
 	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 strife-of-stars
+	@$(PYTHON) -m app.devtools.cli --db-path data/spawnradar.sqlite3 seed-test-user
 	@echo "Starting dev server at $(URL)"
 	$(OPEN_BROWSER_DEV)
 	exec env DEV_AUTO_LOGIN=1 $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
+
+scrape:
+	$(STOP_PORT)
+	@echo "Starting server at $(URL)"
+	exec $(UVICORN) app.main:app --host $(HOST) --port $(PORT)
+
 
 ## Start local server as a regular user would see it — no auto-login, opens register page
 run:
 	$(STOP_PORT)
 	@echo "Starting server at $(URL)"
 	$(OPEN_BROWSER_RUN)
-	exec $(UVICORN) app.main:app --reload --host $(HOST) --port $(PORT)
+	exec $(UVICORN) app.main:app --host $(HOST) --port $(PORT)
 
 
 ## Show this help

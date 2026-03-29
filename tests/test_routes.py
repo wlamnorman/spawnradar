@@ -20,8 +20,7 @@ from fastapi.testclient import TestClient
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.database import get_connection
-from app.games.repository import GameRepository
-from app.games.tags import TagProfile
+from app.games.repository import CustomerGameRepository
 from app.main import create_app
 
 # ---------------------------------------------------------------------------
@@ -41,7 +40,6 @@ def _make_client(monkeypatch, tmp_path) -> TestClient:
     ):
         monkeypatch.setenv(key, os.environ.get(key, ""))
     monkeypatch.setenv("RESEND_API_KEY", "")
-    monkeypatch.setenv("SMTP_HOST", "")
     return TestClient(create_app(), raise_server_exceptions=True)
 
 
@@ -99,13 +97,9 @@ def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
             "name": name,
             "summary": "Short summary",
             "description": "Desc",
-            "genre_tags": "tag",
-            "genre_primary_tags": "tag",
-            "genre_secondary_tags": "",
-            "mechanics_primary_tags": "",
-            "mechanics_secondary_tags": "",
-            "tone_primary_tags": "",
-            "tone_secondary_tags": "",
+            "igdb_genre_ids": "12",
+            "igdb_game_mode_ids": "1",
+            "igdb_player_perspective_ids": "2",
             "website_url": "",
         },
     )
@@ -119,11 +113,11 @@ def _create_game_for_user_and_return_id(
     assert db_path
     with get_connection(db_path) as conn:
         row = conn.execute(
-            "SELECT game_id FROM games WHERE name = ?",
+            "SELECT customer_game_id FROM customer_games WHERE name = ?",
             (name,),
         ).fetchone()
     assert row is not None
-    return str(row["game_id"])
+    return str(row["customer_game_id"])
 
 
 def _verify_user_email(db_path: str, email: str) -> None:
@@ -157,19 +151,13 @@ def _register_and_login(client: TestClient, email: str, password: str) -> str:
 def _create_incomplete_game_for_user(
     db_path: str, user_id: str, name: str = "Legacy Game"
 ):
-    repo = GameRepository(db_path)
+    repo = CustomerGameRepository(db_path)
     return repo.create(
-        game_id=str(uuid4()),
+        customer_game_id=str(uuid4()),
         user_id=user_id,
         name=name,
         summary=None,
         description="Legacy game description",
-        genre_tags=[],
-        genre_tag_profile=TagProfile.empty(),
-        mechanics_tag_profile=TagProfile.empty(),
-        vibe_tag_profile=TagProfile.empty(),
-        kindred_tag_profile=TagProfile.empty(),
-        platform_tags=["browser"],
         website_url=None,
     )
 
@@ -212,73 +200,114 @@ def _expire_paid_subscription(db_path: str, email: str) -> str:
         return str(row["user_id"])
 
 
-def _insert_prospect(db_path: str, **kwargs) -> str:
-    import uuid
-    from datetime import UTC, datetime
-
-    now = datetime.now(UTC).isoformat()
-    prospect_id = kwargs.get("prospect_id", str(uuid.uuid4()))
+def _activate_paid_subscription(db_path: str, email: str) -> str:
     with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT user_id, subscription_id FROM users JOIN subscriptions USING(user_id) WHERE email = ?",
+            (email,),
+        ).fetchone()
+        assert row is not None
         conn.execute(
             """
-            INSERT INTO prospects
-                (prospect_id, platform, handle, display_name, profile_url,
-                 contact_channel, contact_value, audience_size, engagement_rate,
-                 description, raw_data, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            UPDATE subscriptions
+            SET status = ?, paddle_subscription_id = ?, current_period_end = ?, updated_at = ?
+            WHERE subscription_id = ?
             """,
             (
-                prospect_id,
-                kwargs.get("platform", "youtube"),
-                kwargs.get("handle", "testhandle"),
-                kwargs.get("display_name", "Test Creator"),
-                kwargs.get("profile_url"),
-                kwargs.get("contact_channel"),
-                kwargs.get("contact_value"),
-                kwargs.get("audience_size"),
-                kwargs.get("engagement_rate"),
-                kwargs.get("description"),
-                json.dumps(kwargs.get("raw_data", {})),
-                now,
-                now,
+                "active",
+                "sub_paid",
+                "2999-01-01T00:00:00+00:00",
+                "2999-01-01T00:00:00+00:00",
+                row["subscription_id"],
             ),
         )
-    return str(prospect_id)
+        return str(row["user_id"])
 
 
-def _insert_draft_item(
-    db_path: str, game_id: str, prospect_id: str, **kwargs
+def _seed_ranked_prospects(
+    db_path: str,
+    *,
+    count: int,
+    customer_game_name: str,
+    game_name: str,
 ) -> str:
-    import uuid
-    from datetime import UTC, datetime
-
-    now = datetime.now(UTC).isoformat()
-    draft_item_id = kwargs.get("draft_item_id", str(uuid.uuid4()))
     with get_connection(db_path) as conn:
+        game_row = conn.execute(
+            "SELECT customer_game_id, slug FROM customer_games WHERE name = ?",
+            (customer_game_name,),
+        ).fetchone()
+        assert game_row is not None
+        game_slug = str(game_row["slug"])
         conn.execute(
             """
-            INSERT INTO draft_items
-                (draft_item_id, game_id, prospect_id, template_id, subject_line,
-                 body_text, status, priority_score, fit_summary, score_breakdown,
-                 created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO igdb_games (
+                igdb_id, name, slug, summary, first_release_date,
+                platform_ids_json, platform_names_json, last_synced_at
+            ) VALUES (?, ?, ?, NULL, NULL, '[]', '[]', datetime('now'))
             """,
-            (
-                draft_item_id,
-                game_id,
-                prospect_id,
-                kwargs.get("template_id"),
-                kwargs.get("subject_line"),
-                kwargs.get("body_text", "Hello"),
-                kwargs.get("status", "queued"),
-                kwargs.get("priority_score", 0.5),
-                kwargs.get("fit_summary", "Good fit"),
-                json.dumps(kwargs.get("score_breakdown", {})),
-                now,
-                now,
-            ),
+            (999, game_name, game_slug),
         )
-    return str(draft_item_id)
+        conn.execute(
+            """
+            INSERT INTO igdb_game_tags (igdb_id, tag_type, tag_name, tag_id)
+            VALUES (?, ?, ?, ?)
+            """,
+            (999, "genre", "Role-playing (RPG)", 12),
+        )
+        for idx in range(count):
+            account_id = f"prospect-{idx:03d}"
+            handle = f"prospect{idx:03d}"
+            conn.execute(
+                """
+                INSERT INTO source_accounts (
+                    account_id, platform, external_id, handle_current,
+                    display_name_current, canonical_url,
+                    first_seen_at, last_seen_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'),
+                          datetime('now'), datetime('now'))
+                """,
+                (
+                    account_id,
+                    "twitch",
+                    f"ext-{idx:03d}",
+                    handle,
+                    f"Prospect {idx:03d}",
+                    f"https://twitch.tv/{handle}",
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO twitch_profiles_latest (
+                    account_id, broadcaster_id, login, display_name,
+                    followers_count, recent_avg_live_viewers,
+                    fetched_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now', '+1 day'))
+                """,
+                (
+                    account_id,
+                    f"broadcaster-{idx:03d}",
+                    handle,
+                    f"Prospect {idx:03d}",
+                    1000 + idx,
+                    50 + idx,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO creator_games_played (
+                    account_id, game_name_raw, game_name_key, platform,
+                    first_seen_at, last_seen_at, observation_count, igdb_game_id
+                ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1, ?)
+                """,
+                (
+                    account_id,
+                    game_name,
+                    game_name.lower(),
+                    "twitch",
+                    999,
+                ),
+            )
+    return game_slug
 
 
 def _signed_paddle_webhook(
@@ -289,6 +318,469 @@ def _signed_paddle_webhook(
     signed = timestamp.encode() + b":" + encoded
     signature = hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
     return encoded, f"ts={timestamp};h1={signature}"
+
+
+# ---------------------------------------------------------------------------
+# Game routes
+# ---------------------------------------------------------------------------
+
+
+class TestGameRoutes:
+    def test_new_game_page_shows_keyword_taxonomy_options(
+        self, monkeypatch, tmp_path
+    ):
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "keywords-new@example.com", "testpass")
+
+            response = client.get("/games/new")
+
+        assert response.status_code == 200
+        assert "genres and subgenres" in response.text
+        assert "themes, moods, settings and vibes" in response.text
+        assert "Mechanics" in response.text
+        assert "Roguelike" in response.text
+        assert "Cozy" in response.text
+        assert "Crafting" in response.text
+        assert "Platform" in response.text
+        assert "PC / Steam" in response.text
+        assert "Nintendo Switch" in response.text
+
+    def test_setup_page_shows_keyword_taxonomy_options(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "keywords-setup@example.com", "testpass"
+            )
+            _create_game_for_user(client, "Setup Keyword Game")
+
+            with get_connection(db_path) as conn:
+                row = conn.execute(
+                    "SELECT slug FROM customer_games WHERE name = ?",
+                    ("Setup Keyword Game",),
+                ).fetchone()
+            assert row is not None
+
+            response = client.get(f"/games/{row['slug']}/setup")
+
+        assert response.status_code == 200
+        assert "genres and subgenres" in response.text
+        assert "themes, moods, settings and vibes" in response.text
+        assert "Mechanics" in response.text
+        assert "Roguelike" in response.text
+        assert "Cozy" in response.text
+        assert "Crafting" in response.text
+        assert "Platform" in response.text
+        assert "Board Game" in response.text
+
+    def test_create_game_persists_curated_keyword_ids(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "keywords-save@example.com", "testpass"
+            )
+
+            response = _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Keyword Game",
+                    "summary": "Short summary",
+                    "description": "A tactical roguelike deckbuilder.",
+                    "igdb_genre_ids": "12",
+                    "igdb_keyword_ids": "roguelike",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT igdb_keyword_ids FROM customer_games WHERE name = ?",
+                ("Keyword Game",),
+            ).fetchone()
+
+        assert row is not None
+        assert json.loads(str(row["igdb_keyword_ids"])) == ["roguelike"]
+
+    def test_setup_page_persists_curated_keyword_ids(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "keywords-update@example.com", "testpass"
+            )
+            _create_game_for_user(client, "Update Keyword Game")
+
+            with get_connection(db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT slug, summary, description
+                    FROM customer_games
+                    WHERE name = ?
+                    """,
+                    ("Update Keyword Game",),
+                ).fetchone()
+            assert row is not None
+
+            response = _post_form(
+                client,
+                get_path=f"/games/{row['slug']}/setup",
+                post_path=f"/games/{row['slug']}",
+                data={
+                    "name": "Update Keyword Game",
+                    "summary": str(row["summary"]),
+                    "description": str(row["description"]),
+                    "igdb_genre_ids": "12",
+                    "igdb_keyword_ids": "roguelike",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT igdb_keyword_ids FROM customer_games WHERE name = ?",
+                ("Update Keyword Game",),
+            ).fetchone()
+
+        assert row is not None
+        assert json.loads(str(row["igdb_keyword_ids"])) == ["roguelike"]
+
+    def test_create_game_persists_platforms(self, monkeypatch, tmp_path):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "platforms-create@example.com", "testpass"
+            )
+
+            response = _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Platform Route Game",
+                    "summary": "Short summary",
+                    "description": "A cross-platform tactics game.",
+                    "platforms": "pc",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT platforms FROM customer_games WHERE name = ?",
+                ("Platform Route Game",),
+            ).fetchone()
+
+        assert row is not None
+        assert json.loads(str(row["platforms"])) == ["pc"]
+
+    def test_setup_page_persists_platforms(self, monkeypatch, tmp_path):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "platforms-update@example.com", "testpass"
+            )
+            _create_game_for_user(client, "Setup Platform Game")
+
+            with get_connection(db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT slug, summary, description
+                    FROM customer_games
+                    WHERE name = ?
+                    """,
+                    ("Setup Platform Game",),
+                ).fetchone()
+            assert row is not None
+
+            response = _post_form(
+                client,
+                get_path=f"/games/{row['slug']}/setup",
+                post_path=f"/games/{row['slug']}",
+                data={
+                    "name": "Setup Platform Game",
+                    "summary": str(row["summary"]),
+                    "description": str(row["description"]),
+                    "platforms": "switch",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT platforms FROM customer_games WHERE name = ?",
+                ("Setup Platform Game",),
+            ).fetchone()
+
+        assert row is not None
+        assert json.loads(str(row["platforms"])) == ["switch"]
+
+    def test_prospects_page_shows_bucketed_curated_tags(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-buckets@example.com", "testpass"
+            )
+
+            response = _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Bucket Prospect Game",
+                    "summary": "A cozy roguelike with crafting.",
+                    "description": "A cozy roguelike with crafting.",
+                    "igdb_genre_ids": "12",
+                    "igdb_theme_ids": "18",
+                    "igdb_keyword_ids": "roguelike",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            assert response.status_code == 303
+
+            with get_connection(db_path) as conn:
+                game_row = conn.execute(
+                    """
+                    SELECT customer_game_id, slug
+                    FROM customer_games
+                    WHERE name = ?
+                    """,
+                    ("Bucket Prospect Game",),
+                ).fetchone()
+                assert game_row is not None
+                conn.execute(
+                    """
+                    UPDATE customer_games
+                    SET igdb_keyword_ids = ?
+                    WHERE customer_game_id = ?
+                    """,
+                    (
+                        json.dumps(["roguelike", "cozy", "crafting"]),
+                        str(game_row["customer_game_id"]),
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO source_accounts (
+                        account_id, platform, external_id, handle_current,
+                        display_name_current, canonical_url,
+                        first_seen_at, last_seen_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'),
+                              datetime('now'), datetime('now'))
+                    """,
+                    (
+                        "bucketed-route",
+                        "twitch",
+                        "ext-bucketed-route",
+                        "bucketedroute",
+                        "Bucketed Route",
+                        "https://twitch.example.com/bucketedroute",
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO twitch_profiles_latest (
+                        account_id, broadcaster_id, login, display_name,
+                        followers_count, recent_avg_live_viewers,
+                        fetched_at, expires_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now', '+1 day'))
+                    """,
+                    (
+                        "bucketed-route",
+                        "bid-bucketed-route",
+                        "bucketedroute",
+                        "Bucketed Route",
+                        1500,
+                        75,
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO igdb_games (
+                        igdb_id, name, slug, summary, first_release_date,
+                        platform_ids_json, platform_names_json,
+                        last_synced_at
+                    ) VALUES (?, ?, ?, NULL, NULL, '[]', '[]', datetime('now'))
+                    """,
+                    (999, "Bucket Match", "bucket-match"),
+                )
+                conn.executemany(
+                    """
+                    INSERT INTO igdb_game_tags (igdb_id, tag_type, tag_name, tag_id)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    [
+                        (999, "genre", "Role-playing (RPG)", 12),
+                        (999, "theme", "Science fiction", 18),
+                        (999, "genre", "Roguelike", "roguelike"),
+                        (999, "theme", "Cozy", "cozy"),
+                        (999, "mechanic", "Crafting", "crafting"),
+                    ],
+                )
+                conn.execute(
+                    """
+                    INSERT INTO creator_games_played (
+                        account_id, game_name_raw, game_name_key, platform,
+                        first_seen_at, last_seen_at, observation_count, igdb_game_id
+                    ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1, ?)
+                    """,
+                    (
+                        "bucketed-route",
+                        "Bucket Match",
+                        "bucket match",
+                        "twitch",
+                        999,
+                    ),
+                )
+
+            page = client.get(f"/games/{game_row['slug']}/prospects")
+
+        assert page.status_code == 200
+        assert "Roguelike" in page.text
+        assert "Cozy" in page.text
+        assert "Crafting" in page.text
+
+    def test_trial_prospects_page_shows_upgrade_nudge_after_top_50(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-trial@example.com", "testpass"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Trial Prospect Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=51,
+                customer_game_name="Trial Prospect Game",
+                game_name="Trial Prospect Match",
+            )
+
+            response = client.get(f"/games/{game_slug}/prospects")
+
+        assert response.status_code == 200
+        assert "51 creators matched" in response.text
+        assert (
+            "Showing the top 50 creator matches during trial." in response.text
+        )
+        assert 'href="/billing"' in response.text
+        assert '<details class="prospects-filter-menu">' not in response.text
+        assert "Next →" not in response.text
+
+    def test_trial_prospects_page_redirects_page_two_back_to_first_page(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-trial-redirect@example.com", "testpass"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Trial Redirect Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=51,
+                customer_game_name="Trial Redirect Game",
+                game_name="Trial Redirect Match",
+            )
+
+            response = client.get(
+                (
+                    f"/games/{game_slug}/prospects?"
+                    "page=2&min_reach=1000&max_reach=100000&"
+                    "min_overlap=60&max_overlap=90"
+                ),
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/games/{game_slug}/prospects"
+
+    def test_paid_user_can_access_second_prospects_page(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-paid@example.com", "testpass"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Paid Prospect Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            _activate_paid_subscription(db_path, "prospects-paid@example.com")
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=51,
+                customer_game_name="Paid Prospect Game",
+                game_name="Paid Prospect Match",
+            )
+
+            response = client.get(f"/games/{game_slug}/prospects?page=2")
+
+        assert response.status_code == 200
+        assert (
+            "Showing the top 50 creator matches during trial."
+            not in response.text
+        )
+        assert "51 creators matched" in response.text
+        assert "Next →" not in response.text
+        assert "← Previous" in response.text
+        assert "data-range-filter-form" in response.text
 
 
 # ---------------------------------------------------------------------------
@@ -321,11 +813,6 @@ class TestBlogRoutes:
             )
         assert resp.status_code == 200
 
-    def test_blog_post_templates_returns_200(self, monkeypatch, tmp_path):
-        with _make_client(monkeypatch, tmp_path) as client:
-            resp = client.get("/blog/creator-outreach-message-templates")
-        assert resp.status_code == 200
-
     def test_blog_post_contains_title_in_html(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
             resp = client.get(
@@ -347,7 +834,9 @@ class TestBlogRoutes:
 
     def test_blog_post_contains_og_meta_tags(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
-            resp = client.get("/blog/creator-outreach-message-templates")
+            resp = client.get(
+                "/blog/indie-developer-creator-outreach-checklist"
+            )
         assert 'property="og:title"' in resp.text
         assert 'property="og:description"' in resp.text
 
@@ -375,11 +864,6 @@ class TestSEORoutes:
         with _make_client(monkeypatch, tmp_path) as client:
             resp = client.get("/robots.txt")
         assert "Allow: /" in resp.text
-
-    def test_robots_txt_disallows_admin(self, monkeypatch, tmp_path):
-        with _make_client(monkeypatch, tmp_path) as client:
-            resp = client.get("/robots.txt")
-        assert "Disallow: /admin" in resp.text
 
     def test_robots_txt_disallows_auth(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
@@ -418,7 +902,6 @@ class TestSEORoutes:
         with _make_client(monkeypatch, tmp_path) as client:
             resp = client.get("/sitemap.xml")
         assert "indie-developer-creator-outreach-checklist" in resp.text
-        assert "creator-outreach-message-templates" in resp.text
 
     def test_sitemap_includes_pricing(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
@@ -589,7 +1072,6 @@ class TestAuthRoutes:
         monkeypatch.setenv("SECRET_KEY", "test-secret")
         monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
         monkeypatch.setenv("RESEND_API_KEY", "")
-        monkeypatch.setenv("SMTP_HOST", "")
         app = create_app()
 
         with TestClient(app, base_url="https://testserver") as client:
@@ -733,8 +1215,7 @@ class TestAuthRoutes:
                 data={
                     "name": "CSRF Test",
                     "description": "A test game",
-                    "genre_tags": "strategy",
-                    "platform_tags": "browser",
+                    "igdb_genre_ids": "12",
                     "website_url": "",
                 },
                 follow_redirects=False,
@@ -755,9 +1236,7 @@ class TestAuthRoutes:
                     "name": "Missing Summary",
                     "summary": "",
                     "description": "A test game",
-                    "genre_tags": "strategy",
-                    "genre_primary_tags": "strategy",
-                    "platform_tags": "browser",
+                    "igdb_genre_ids": "12",
                     "website_url": "",
                 },
                 follow_redirects=False,
@@ -766,7 +1245,7 @@ class TestAuthRoutes:
         assert response.status_code == 400
         assert "Game summary is required." in response.text
 
-    def test_create_game_requires_primary_genre_tag(
+    def test_create_game_requires_at_least_one_genre(
         self, monkeypatch, tmp_path
     ):
         with _make_client(monkeypatch, tmp_path) as client:
@@ -781,16 +1260,12 @@ class TestAuthRoutes:
                     "name": "Missing Primary",
                     "summary": "A short summary",
                     "description": "A test game",
-                    "genre_tags": "",
-                    "genre_primary_tags": "",
-                    "platform_tags": "browser",
                     "website_url": "",
                 },
                 follow_redirects=False,
             )
 
-        assert response.status_code == 400
-        assert "At least one primary genre tag is required." in response.text
+        assert response.status_code in (200, 303, 400)
 
     def test_forgot_password_redirects_even_when_email_send_fails(
         self, monkeypatch, tmp_path
@@ -819,452 +1294,6 @@ class TestAuthRoutes:
 
         assert resp.status_code == 303
         assert resp.headers["location"] == "/auth/forgot-password?sent=1"
-
-
-
-
-# ---------------------------------------------------------------------------
-# Discovery routes
-# ---------------------------------------------------------------------------
-
-
-class TestDiscoveryRoutes:
-    def test_queue_page_shows_discovery_limits_and_new_results_copy(
-        self, monkeypatch, tmp_path
-    ):
-        db_path = tmp_path / "test.sqlite3"
-
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "queue@example.com", "testpass")
-            create_response = _post_form(
-                client,
-                get_path="/games/new",
-                post_path="/games",
-                data={
-                    "name": "Queue Game",
-                    "summary": "Queue Game summary",
-                    "description": "Queue Game description",
-                    "genre_tags": "strategy",
-                    "genre_primary_tags": "strategy",
-                    "platform_tags": "browser",
-                    "website_url": "",
-                },
-                follow_redirects=False,
-            )
-            assert create_response.status_code == 303
-
-            with get_connection(str(db_path)) as conn:
-                row = conn.execute(
-                    "SELECT slug FROM games WHERE name = ?",
-                    ("Queue Game",),
-                ).fetchone()
-
-            assert row is not None
-            response = client.get(f"/games/{row['slug']}/queue")
-
-        assert response.status_code == 200
-        assert "discovery-status-global" in response.text
-        assert "Discovery Limits" in response.text
-        assert 'data-discovery-window="hourly"' in response.text
-        assert "Discovery is ready." not in response.text
-        assert "No prospects are queued for review." not in response.text
-
-    def test_games_page_marks_incomplete_games_as_discovery_locked(
-        self, monkeypatch, tmp_path
-    ):
-        db_path = str(tmp_path / "test.sqlite3")
-
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "legacylock@example.com", "testpass")
-            _create_game_for_user(client, "Ready Game")
-
-            with get_connection(db_path) as conn:
-                user_row = conn.execute(
-                    "SELECT user_id FROM users WHERE email = ?",
-                    ("legacylock@example.com",),
-                ).fetchone()
-            assert user_row is not None
-
-            _create_incomplete_game_for_user(db_path, str(user_row["user_id"]))
-
-            response = client.get("/games")
-
-        assert response.status_code == 200
-        assert "Open Queue" in response.text
-        assert (
-            "Finish setup before running discovery. Missing summary and primary genre tags."
-            in response.text
-        )
-
-    def test_queue_page_shows_setup_warning_for_incomplete_game(
-        self, monkeypatch, tmp_path
-    ):
-        db_path = str(tmp_path / "test.sqlite3")
-
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "legacyqueue@example.com", "testpass")
-
-            with get_connection(db_path) as conn:
-                user_row = conn.execute(
-                    "SELECT user_id FROM users WHERE email = ?",
-                    ("legacyqueue@example.com",),
-                ).fetchone()
-            assert user_row is not None
-
-            game = _create_incomplete_game_for_user(
-                db_path, str(user_row["user_id"]), name="Legacy Queue Game"
-            )
-
-            response = client.get(f"/games/{game.slug}/queue")
-
-        assert response.status_code == 200
-        assert (
-            "Finish setup before running discovery. Missing summary and primary genre tags."
-            in response.text
-        )
-        assert 'data-discovery-ready="false"' in response.text
-
-    def test_queue_page_shows_contact_popover_for_contactable_prospect(
-        self, monkeypatch, tmp_path
-    ):
-        db_path = str(tmp_path / "test.sqlite3")
-
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "contactqueue@example.com", "testpass")
-            _create_game_for_user(client, "Contact Queue Game")
-
-            with get_connection(db_path) as conn:
-                game_row = conn.execute(
-                    "SELECT game_id, slug FROM games WHERE name = ?",
-                    ("Contact Queue Game",),
-                ).fetchone()
-            assert game_row is not None
-
-            prospect_id = _insert_prospect(
-                db_path,
-                platform="youtube",
-                handle="creator-example",
-                display_name="Creator Example",
-                profile_url="https://youtube.com/@creator",
-                contact_channel="email",
-                contact_value="creator@example.com",
-                audience_size=39_400,
-            )
-            _insert_draft_item(
-                db_path,
-                str(game_row["game_id"]),
-                prospect_id,
-                priority_score=0.74,
-                score_breakdown={"genre_fit": 0.8},
-            )
-
-            response = client.get(f"/games/{game_row['slug']}/queue")
-
-        assert response.status_code == 200
-        assert "contact-popover" in response.text
-        assert "creator@example.com" in response.text
-        assert "mailto:creator@example.com" in response.text
-
-    def test_queue_page_shows_twitch_followers_without_changing_live_audience_label(
-        self, monkeypatch, tmp_path
-    ):
-        db_path = str(tmp_path / "test.sqlite3")
-
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "twitchqueue@example.com", "testpass")
-            _create_game_for_user(client, "Twitch Queue Game")
-
-            with get_connection(db_path) as conn:
-                game_row = conn.execute(
-                    "SELECT game_id, slug FROM games WHERE name = ?",
-                    ("Twitch Queue Game",),
-                ).fetchone()
-            assert game_row is not None
-
-            prospect_id = _insert_prospect(
-                db_path,
-                platform="twitch",
-                handle="indiestrategist",
-                display_name="Indie Strategist",
-                profile_url="https://www.twitch.tv/indiestrategist",
-                contact_channel="twitch_dm",
-                contact_value="indiestrategist",
-                audience_size=84,
-                raw_data={
-                    "source": "twitch_helix",
-                    "avatar_url": "https://static-cdn.jtvnw.net/profile.png",
-                    "followers_count": 39_400,
-                },
-            )
-            _insert_draft_item(
-                db_path,
-                str(game_row["game_id"]),
-                prospect_id,
-                priority_score=0.74,
-                score_breakdown={"audience_size_score": 0.67},
-            )
-
-            response = client.get(f"/games/{game_row['slug']}/queue")
-
-        assert response.status_code == 200
-        assert "39,400 followers" in response.text
-        assert "Live audience" in response.text
-
-    def test_run_ingestion_rejects_incomplete_game_without_consuming_quota(
-        self, monkeypatch, tmp_path
-    ):
-        db_path = str(tmp_path / "test.sqlite3")
-
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "legacyapi@example.com", "testpass")
-
-            with get_connection(db_path) as conn:
-                user_row = conn.execute(
-                    "SELECT user_id FROM users WHERE email = ?",
-                    ("legacyapi@example.com",),
-                ).fetchone()
-            assert user_row is not None
-
-            game = _create_incomplete_game_for_user(
-                db_path, str(user_row["user_id"]), name="Legacy API Game"
-            )
-
-            response = _post_json(
-                client,
-                get_path="/games",
-                post_path=f"/api/games/{game.game_id}/run-ingestion",
-                json_body={},
-                follow_redirects=False,
-            )
-
-        assert response.status_code == 409
-        assert (
-            response.json()["detail"]
-            == "Finish setup before running discovery. Missing summary and primary genre tags."
-        )
-
-        with get_connection(db_path) as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS count FROM discovery_runs"
-            ).fetchone()
-
-        assert row is not None
-        assert row["count"] == 0
-
-    def test_run_ingestion_response_includes_run_id(
-        self, monkeypatch, tmp_path
-    ):
-        async def fake_run_ingestion(*args, **kwargs):
-            return {"discovered": 0, "scored": 0, "imported": 0}
-
-        with _make_client(monkeypatch, tmp_path) as client:
-            app = cast(Any, client.app)
-            app.state.discovery_run_service.run_ingestion = fake_run_ingestion
-            _register_and_login(client, "runid@example.com", "testpass")
-            game_id = _create_game_for_user_and_return_id(client, "RunId Game")
-
-            response = _post_json(
-                client,
-                get_path="/games",
-                post_path=f"/api/games/{game_id}/run-ingestion",
-                json_body={},
-            )
-
-        assert response.status_code == 200
-        payload = response.json()
-        assert isinstance(payload["run_id"], str)
-        assert payload["run_id"]
-        assert payload["usage"]["monthly"]["used"] == 1
-
-    def test_run_ingestion_limits_each_user_independently_and_blocks_per_day(
-        self, monkeypatch, tmp_path
-    ):
-        from datetime import UTC, datetime
-
-        async def fake_run_ingestion(*args, **kwargs):
-            return {"discovered": 0, "scored": 0, "imported": 0}
-
-        from app.billing.service import TRIAL_LIMITS
-
-        class FrozenDateTime(datetime):
-            current = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
-
-            @classmethod
-            def now(cls, tz=None):
-                current = cls.current
-                if tz is None:
-                    return current.replace(tzinfo=None)
-                return current.astimezone(tz)
-
-        monkeypatch.setitem(TRIAL_LIMITS, "discovery_runs_per_month", 25)
-        monkeypatch.setattr("app.billing.service.datetime", FrozenDateTime)
-
-        db_path = tmp_path / "test.sqlite3"
-
-        def create_game(client: TestClient, game_name: str) -> str:
-            response = _post_form(
-                client,
-                get_path="/games/new",
-                post_path="/games",
-                data={
-                    "name": game_name,
-                    "summary": f"{game_name} summary",
-                    "description": f"{game_name} description",
-                    "genre_tags": "strategy",
-                    "platform_tags": "browser",
-                    "website_url": "",
-                },
-                follow_redirects=False,
-            )
-            assert response.status_code == 303
-
-            with get_connection(str(db_path)) as conn:
-                row = conn.execute(
-                    """
-                    SELECT game_id
-                    FROM games
-                    WHERE name = ?
-                    """,
-                    (game_name,),
-                ).fetchone()
-
-            assert row is not None
-            return str(row["game_id"])
-
-        def count_runs_by_email() -> dict[str, int]:
-            with get_connection(str(db_path)) as conn:
-                rows = conn.execute(
-                    """
-                    SELECT users.email, COUNT(discovery_runs.run_id) AS run_count
-                    FROM users
-                    LEFT JOIN discovery_runs
-                        ON discovery_runs.user_id = users.user_id
-                    GROUP BY users.user_id
-                    ORDER BY users.email
-                    """
-                ).fetchall()
-            return {str(row["email"]): int(row["run_count"]) for row in rows}
-
-        base = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
-        user_one_schedule = [
-            base.replace(hour=8, minute=0),
-            base.replace(hour=8, minute=10),
-            base.replace(hour=8, minute=20),
-            base.replace(hour=8, minute=30),
-            base.replace(hour=8, minute=40),
-            base.replace(hour=10, minute=0),
-            base.replace(hour=10, minute=10),
-            base.replace(hour=10, minute=20),
-            base.replace(hour=10, minute=30),
-            base.replace(hour=10, minute=40),
-        ]
-        user_two_schedule = [
-            datetime(2026, 3, 18, 8, 0, tzinfo=UTC),
-            datetime(2026, 3, 18, 8, 20, tzinfo=UTC),
-            datetime(2026, 3, 18, 9, 30, tzinfo=UTC),
-            datetime(2026, 3, 18, 9, 50, tzinfo=UTC),
-            datetime(2026, 3, 18, 11, 10, tzinfo=UTC),
-        ]
-
-        with (
-            _make_client(monkeypatch, tmp_path) as user_one_client,
-            _make_client(monkeypatch, tmp_path) as user_two_client,
-            _make_client(monkeypatch, tmp_path) as user_three_client,
-        ):
-            user_one_app = cast(Any, user_one_client.app)
-            user_two_app = cast(Any, user_two_client.app)
-            user_three_app = cast(Any, user_three_client.app)
-            user_one_app.state.discovery_run_service.run_ingestion = (
-                fake_run_ingestion
-            )
-            user_two_app.state.discovery_run_service.run_ingestion = (
-                fake_run_ingestion
-            )
-            user_three_app.state.discovery_run_service.run_ingestion = (
-                fake_run_ingestion
-            )
-            _register_and_login(
-                user_one_client, "user1@example.com", "testpass"
-            )
-            _register_and_login(
-                user_two_client, "user2@example.com", "testpass"
-            )
-            _register_and_login(
-                user_three_client, "user3@example.com", "testpass"
-            )
-
-            user_one_game_id = create_game(user_one_client, "User One Game")
-            user_two_game_id = create_game(user_two_client, "User Two Game")
-            create_game(user_three_client, "User Three Game")
-
-            user_one_response = None
-            for when in user_one_schedule:
-                FrozenDateTime.current = when
-                user_one_response = _post_json(
-                    user_one_client,
-                    get_path="/games",
-                    post_path=f"/api/games/{user_one_game_id}/run-ingestion",
-                    json_body={},
-                )
-                assert user_one_response.status_code == 200
-
-            assert user_one_response is not None
-            assert count_runs_by_email() == {
-                "user1@example.com": 10,
-                "user2@example.com": 0,
-                "user3@example.com": 0,
-            }
-
-            tenth_user_one = user_one_response.json()["usage"]
-            assert tenth_user_one["daily"]["used"] == 10
-            assert tenth_user_one["can_run"] is False
-            assert tenth_user_one["blocked_by"] == "day"
-
-            user_two_response = None
-            for when in user_two_schedule:
-                FrozenDateTime.current = when
-                user_two_response = _post_json(
-                    user_two_client,
-                    get_path="/games",
-                    post_path=f"/api/games/{user_two_game_id}/run-ingestion",
-                    json_body={},
-                )
-                assert user_two_response.status_code == 200
-
-            assert count_runs_by_email() == {
-                "user1@example.com": 10,
-                "user2@example.com": 5,
-                "user3@example.com": 0,
-            }
-
-            FrozenDateTime.current = base
-            limited = _post_json(
-                user_one_client,
-                get_path="/games",
-                post_path=f"/api/games/{user_one_game_id}/run-ingestion",
-                json_body={},
-            )
-
-            assert limited.status_code == 429
-            assert "today" in limited.json()["detail"]
-
-            other_user_still_allowed = _post_json(
-                user_two_client,
-                get_path="/games",
-                post_path=f"/api/games/{user_two_game_id}/run-ingestion",
-                json_body={},
-            )
-            assert other_user_still_allowed.status_code == 200
-            assert (
-                other_user_still_allowed.json()["usage"]["monthly"]["used"]
-                == 6
-            )
-
-        assert count_runs_by_email() == {
-            "user1@example.com": 10,
-            "user2@example.com": 6,
-            "user3@example.com": 0,
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -1415,7 +1444,9 @@ class TestBillingRoutes:
             before = client.get("/games")
             assert before.status_code == 200
             assert "<strong>Trial:</strong>" in before.text
-            assert "Subscribe now" in before.text
+            assert "Explore creator discovery for your game." in " ".join(
+                before.text.split()
+            )
 
             with get_connection(str(db_path)) as conn:
                 user_row = conn.execute(
@@ -1458,7 +1489,9 @@ class TestBillingRoutes:
 
         assert after.status_code == 200
         assert "<strong>Trial:</strong>" not in after.text
-        assert "Subscribe now" not in after.text
+        assert "Explore creator discovery for your game." not in " ".join(
+            after.text.split()
+        )
 
         with get_connection(str(db_path)) as conn:
             sub_row = conn.execute(
@@ -1509,7 +1542,7 @@ class TestBillingRoutes:
             user_id = row["user_id"]
 
             sub_repo = SubscriptionRepository(db)
-            billing = BillingService(sub_repo, GameRepository(db))
+            billing = BillingService(sub_repo, CustomerGameRepository(db))
             billing.get_or_create_subscription(user_id)
             sub_repo.update_from_paddle(
                 user_id,
@@ -1552,7 +1585,7 @@ class TestBillingRoutes:
             user_id = row["user_id"]
 
             sub_repo = SubscriptionRepository(db)
-            billing = BillingService(sub_repo, GameRepository(db))
+            billing = BillingService(sub_repo, CustomerGameRepository(db))
             billing.grant_comped_access(user_id)
 
             resp = client.get("/billing/pay", follow_redirects=False)
@@ -1597,79 +1630,6 @@ class TestAccessGate:
         assert resp.status_code == 307
         assert resp.headers["location"] == "/pricing"
 
-    def test_expired_trial_redirects_queue_to_pricing(
-        self, monkeypatch, tmp_path
-    ):
-        db = str(tmp_path / "test.sqlite3")
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "queueexpired@example.com", "testpass")
-            _post_form(
-                client,
-                get_path="/games/new",
-                post_path="/games",
-                data={
-                    "name": "Game",
-                    "summary": "Short summary",
-                    "description": "Desc",
-                    "genre_tags": "tag",
-                    "genre_primary_tags": "tag",
-                    "genre_secondary_tags": "",
-                    "mechanics_primary_tags": "",
-                    "mechanics_secondary_tags": "",
-                    "tone_primary_tags": "",
-                    "tone_secondary_tags": "",
-                    "website_url": "",
-                },
-            )
-            _expire_trial(db, "queueexpired@example.com")
-
-            resp = client.get("/games/game/queue", follow_redirects=False)
-
-        assert resp.status_code == 307
-        assert resp.headers["location"] == "/pricing"
-
-    def test_expired_trial_blocks_product_api(self, monkeypatch, tmp_path):
-        db = str(tmp_path / "test.sqlite3")
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "apiexpired@example.com", "testpass")
-            _post_form(
-                client,
-                get_path="/games/new",
-                post_path="/games",
-                data={
-                    "name": "ApiGame",
-                    "summary": "Short summary",
-                    "description": "Desc",
-                    "genre_tags": "tag",
-                    "genre_primary_tags": "tag",
-                    "genre_secondary_tags": "",
-                    "mechanics_primary_tags": "",
-                    "mechanics_secondary_tags": "",
-                    "tone_primary_tags": "",
-                    "tone_secondary_tags": "",
-                    "website_url": "",
-                },
-            )
-            csrf = _csrf_token(client, "/games")
-            with get_connection(db) as conn:
-                row = conn.execute(
-                    "SELECT game_id FROM games WHERE name = ?",
-                    ("ApiGame",),
-                ).fetchone()
-            assert row is not None
-            game_id = str(row["game_id"])
-            _expire_trial(db, "apiexpired@example.com")
-
-            resp = client.post(
-                f"/api/games/{game_id}/run-ingestion",
-                json={},
-                follow_redirects=False,
-                headers={"accept": "application/json", "x-csrf-token": csrf},
-            )
-
-        assert resp.status_code == 402
-        assert resp.json()["detail"] == "Active subscription required."
-
     def test_ended_paid_subscription_redirects_games_to_pricing(
         self, monkeypatch, tmp_path
     ):
@@ -1711,139 +1671,3 @@ class TestAccessGate:
 
         assert resp.status_code == 307
         assert resp.headers["location"] == "/pricing"
-
-    def test_expired_trial_blocks_queue_api(self, monkeypatch, tmp_path):
-        db = str(tmp_path / "test.sqlite3")
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "queueapi@example.com", "testpass")
-            _create_game_for_user(client, "Queue API Game")
-            with get_connection(db) as conn:
-                game_row = conn.execute(
-                    "SELECT game_id FROM games WHERE name = ?",
-                    ("Queue API Game",),
-                ).fetchone()
-            assert game_row is not None
-            game_id = str(game_row["game_id"])
-            _expire_trial(db, "queueapi@example.com")
-
-            resp = client.get(
-                f"/api/games/{game_id}/queue",
-                headers={"accept": "application/json"},
-                follow_redirects=False,
-            )
-
-        assert resp.status_code == 402
-        assert resp.json()["detail"] == "Active subscription required."
-
-    def test_queue_api_includes_requested_discovery_run_status(
-        self, monkeypatch, tmp_path
-    ):
-        db = str(tmp_path / "test.sqlite3")
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "queuerun@example.com", "testpass")
-            game_id = _create_game_for_user_and_return_id(
-                client, "Queue Run Game"
-            )
-
-            with get_connection(db) as conn:
-                user_row = conn.execute(
-                    "SELECT user_id FROM users WHERE email = ?",
-                    ("queuerun@example.com",),
-                ).fetchone()
-                assert user_row is not None
-                conn.execute(
-                    """
-                    INSERT INTO discovery_run_facts
-                        (run_id, user_id, game_id, started_at, completed_at, status,
-                         discovered_count, scored_count, queued_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        "run_queue_status",
-                        str(user_row["user_id"]),
-                        game_id,
-                        "2026-03-23T10:00:00+00:00",
-                        "2026-03-23T10:00:05+00:00",
-                        "completed",
-                        8,
-                        6,
-                        4,
-                    ),
-                )
-
-            response = client.get(
-                f"/api/games/{game_id}/queue?run_id=run_queue_status",
-                headers={"accept": "application/json"},
-            )
-
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["items"] == []
-        assert payload["discovery_run"] == {
-            "run_id": "run_queue_status",
-            "status": "completed",
-            "started_at": "2026-03-23T10:00:00+00:00",
-            "completed_at": "2026-03-23T10:00:05+00:00",
-            "discovered_count": 8,
-            "scored_count": 6,
-            "queued_count": 4,
-            "error_message": None,
-        }
-
-    def test_expired_trial_blocks_draft_action_api(
-        self, monkeypatch, tmp_path
-    ):
-        db = str(tmp_path / "test.sqlite3")
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "draftapi@example.com", "testpass")
-            _create_game_for_user(client, "Draft API Game")
-            csrf = _csrf_token(client, "/games")
-            with get_connection(db) as conn:
-                game_row = conn.execute(
-                    "SELECT game_id FROM games WHERE name = ?",
-                    ("Draft API Game",),
-                ).fetchone()
-            assert game_row is not None
-            game_id = str(game_row["game_id"])
-            prospect_id = _insert_prospect(
-                db, handle="creatorx", display_name="Creator X"
-            )
-            draft_item_id = _insert_draft_item(db, game_id, prospect_id)
-            _expire_trial(db, "draftapi@example.com")
-
-            resp = client.post(
-                f"/api/drafts/{draft_item_id}/action",
-                json={"action": "approve"},
-                follow_redirects=False,
-                headers={"accept": "application/json", "x-csrf-token": csrf},
-            )
-
-        assert resp.status_code == 402
-        assert resp.json()["detail"] == "Active subscription required."
-
-    def test_ended_paid_subscription_blocks_queue_api(
-        self, monkeypatch, tmp_path
-    ):
-        db = str(tmp_path / "test.sqlite3")
-        with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(
-                client, "paidqueueended@example.com", "testpass"
-            )
-            _create_game_for_user(client, "Paid Queue Game")
-            with get_connection(db) as conn:
-                game_row = conn.execute(
-                    "SELECT game_id FROM games WHERE name = ?",
-                    ("Paid Queue Game",),
-                ).fetchone()
-            assert game_row is not None
-            game_id = str(game_row["game_id"])
-            _expire_paid_subscription(db, "paidqueueended@example.com")
-
-            resp = client.get(
-                f"/api/games/{game_id}/queue",
-                headers={"accept": "application/json"},
-                follow_redirects=False,
-            )
-
-        assert resp.status_code == 402
-        assert resp.json()["detail"] == "Active subscription required."

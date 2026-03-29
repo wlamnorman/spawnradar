@@ -1,4 +1,4 @@
-"""Database operations for subscriptions and billing usage."""
+"""Database operations for subscriptions."""
 
 from __future__ import annotations
 
@@ -158,90 +158,6 @@ class SubscriptionRepository:
                 )
 
         return self.get_by_user(user_id)
-
-
-class DiscoveryRunRepository:
-    """Tracks discovery run usage for billing and source diversification."""
-
-    def __init__(self, db_path: str) -> None:
-        self._db_path = db_path
-
-    def create(
-        self,
-        run_id: str,
-        user_id: str,
-        game_id: str,
-        *,
-        created_at: str | None = None,
-    ) -> None:
-        timestamp = created_at or datetime.now(UTC).isoformat()
-        with get_connection(self._db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO discovery_runs (run_id, user_id, game_id, created_at)
-                VALUES (?, ?, ?, ?)
-                """,
-                (run_id, user_id, game_id, timestamp),
-            )
-
-    def count_for_user_since(self, user_id: str, since: str) -> int:
-        with get_connection(self._db_path) as conn:
-            row = conn.execute(
-                """
-                SELECT COUNT(*) AS run_count
-                FROM discovery_runs
-                WHERE user_id = ? AND created_at >= ?
-                """,
-                (user_id, since),
-            ).fetchone()
-        return int(row["run_count"]) if row is not None else 0
-
-    def list_created_at_for_user_since(
-        self, user_id: str, since: str
-    ) -> list[datetime]:
-        with get_connection(self._db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT created_at
-                FROM discovery_runs
-                WHERE user_id = ? AND created_at >= ?
-                ORDER BY created_at ASC
-                """,
-                (user_id, since),
-            ).fetchall()
-        return [datetime.fromisoformat(str(row["created_at"])) for row in rows]
-
-    def count_for_game(self, game_id: str) -> int:
-        with get_connection(self._db_path) as conn:
-            row = conn.execute(
-                """
-                SELECT COUNT(*) AS run_count
-                FROM discovery_runs
-                WHERE game_id = ?
-                """,
-                (game_id,),
-            ).fetchone()
-        return int(row["run_count"]) if row is not None else 0
-
-    def delete_for_user(self, user_id: str) -> int:
-        """Delete all recorded discovery runs for a single user."""
-        with get_connection(self._db_path) as conn:
-            row = conn.execute(
-                """
-                SELECT COUNT(*) AS run_count
-                FROM discovery_runs
-                WHERE user_id = ?
-                """,
-                (user_id,),
-            ).fetchone()
-            deleted_count = int(row["run_count"]) if row is not None else 0
-            conn.execute(
-                "DELETE FROM discovery_runs WHERE user_id = ?",
-                (user_id,),
-            )
-        return deleted_count
-
-
 def _row_to_subscription(row: Any) -> Subscription:
     return Subscription(
         subscription_id=row["subscription_id"],

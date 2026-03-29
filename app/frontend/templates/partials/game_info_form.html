@@ -1,0 +1,282 @@
+<form method="post" action="{{ form_action }}" class="game-form" data-game-form>
+    <input
+        type="hidden"
+        name="csrf_token"
+        value="{{ csrf_token_for(request) }}"
+    />
+    <div class="form-section">
+        <div class="form-group">
+            <label for="name">Game name <span class="required">*</span></label>
+            <input
+                type="text"
+                id="name"
+                name="name"
+                required
+                value="{{ name_value | default('') }}"
+            />
+        </div>
+
+        <div class="form-group">
+            <label for="summary">Summary <span class="required">*</span></label>
+            <textarea
+                id="summary"
+                name="summary"
+                class="textarea-compact"
+                rows="2"
+                required
+                maxlength="150"
+                placeholder="One-sentence pitch for your game and who it is for."
+                data-char-count="summary-chars"
+            >
+{{ summary_value | default('') }}</textarea
+            >
+            <p class="field-hint summary-char-hint">
+                <span id="summary-chars">
+                    {{ (summary_value | default('')) | length }} </span
+                >/150
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label for="description"
+                >Description <span class="required">*</span></label
+            >
+            <textarea
+                id="description"
+                name="description"
+                required
+                rows="{{ description_rows | default(10) }}"
+                maxlength="1000"
+                placeholder="Describe your game, what makes it distinct and who it is for."
+                data-char-count="description-chars"
+            >
+{{ description_value | default('') }}</textarea
+            >
+            <p class="field-hint summary-char-hint">
+                <span id="description-chars">
+                    {{ (description_value | default('')) | length }} </span
+                >/1000
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label>Platform</label>
+            <div class="checkbox-group">
+                {% for value, label in platform_options %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="platforms"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_platforms
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Genres <span class="required">*</span></label>
+            <p class="field-hint">
+                Select the genres and subgenres that best describe your game.
+            </p>
+            <div class="checkbox-group">
+                {% for value, label in igdb_genres %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="igdb_genre_ids"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_igdb_genre_ids
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %} {% for value, label in igdb_genre_keywords %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="igdb_keyword_ids"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_igdb_keyword_ids
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Themes</label>
+            <p class="field-hint">
+                Select the themes, moods, settings and vibes that fit your game.
+            </p>
+            <div class="checkbox-group">
+                {% for value, label in igdb_themes %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="igdb_theme_ids"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_igdb_theme_ids
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %} {% for value, label in igdb_theme_keywords %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="igdb_keyword_ids"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_igdb_keyword_ids
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Mechanics</label>
+            <p class="field-hint">
+                Use these to capture gameplay structure and systems like
+                crafting, permadeath or base building.
+            </p>
+            <div class="checkbox-group">
+                {% for value, label in igdb_mechanic_keywords %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="igdb_keyword_ids"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_igdb_keyword_ids
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Game modes</label>
+            <p class="field-hint">
+                Store the ways your game is played, even if we do not use them
+                in matching yet.
+            </p>
+            <div class="checkbox-group">
+                {% for value, label in igdb_game_modes %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="igdb_game_mode_ids"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_igdb_game_mode_ids
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Player perspectives</label>
+            <p class="field-hint">
+                Store the camera or presentation perspective for the game.
+            </p>
+            <div class="checkbox-group">
+                {% for value, label in igdb_player_perspectives %}
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="igdb_player_perspective_ids"
+                        value="{{ value }}"
+                        {%
+                        if
+                        value
+                        in
+                        (selected_igdb_player_perspective_ids
+                        |
+                        default(()))
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="button">{{ submit_label }}</button>
+        {% if cancel_href %}
+        <a href="{{ cancel_href }}" class="button secondary"
+            >{{ cancel_label | default('Cancel') }}</a
+        >
+        {% endif %}
+    </div>
+</form>

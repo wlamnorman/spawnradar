@@ -1,5 +1,12 @@
 {% extends "base.html" %} {% block title %}Billing — SpawnRadar{% endblock %} {%
-block content %}
+block meta_description %}<meta
+    name="description"
+    content="Manage your SpawnRadar subscription and trial status."
+/>{% endblock %} {% block og_title %}Billing — SpawnRadar{% endblock %} {% block
+og_description %}Manage your SpawnRadar subscription and trial status.{%
+endblock %} {% block twitter_title %}Billing — SpawnRadar{% endblock %} {% block
+twitter_description %}Manage your SpawnRadar subscription and trial status.{%
+endblock %} {% block content %}
 <section class="pricing-header pricing-header-single">
     <h1>Your subscription</h1>
 </section>
@@ -12,11 +19,6 @@ block content %}
                     ${{ indie_price }}<span>/month + applicable tax</span>
                 </div>
             </div>
-            <p class="plan-summary">
-                Run discovery, review ranked opportunities and draft targeted
-                outreach in one place.
-            </p>
-
             {% if subscription.is_trialing and not subscription.has_subscription
             %}
             <div class="billing-status-rows">
@@ -32,17 +34,15 @@ block content %}
             {% if portal_enabled %}
             <a
                 href="/billing/pay?tier=indie"
-                class="button button-full"
-                style="margin-top: 8px"
+                class="button button-full billing-action"
             >
                 Subscribe now →
             </a>
             {% else %}
             <button
                 type="button"
-                class="button button-full"
+                class="button button-full billing-action"
                 disabled
-                style="margin-top: 8px"
             >
                 Billing unavailable
             </button>
@@ -81,15 +81,9 @@ block content %}
             </div>
 
             {% if error %}
-            <div class="alert alert-error" style="margin-top: 8px">
-                {{ error }}
-            </div>
+            <div class="alert alert-error billing-alert">{{ error }}</div>
             {% elif portal_enabled %}
-            <a
-                href="/billing/portal"
-                class="button button-full"
-                style="margin-top: 8px"
-            >
+            <a href="/billing/portal" class="button button-full billing-action">
                 Manage subscription →
             </a>
             <p class="pricing-note">

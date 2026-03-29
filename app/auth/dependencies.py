@@ -11,7 +11,6 @@ from app.dependencies import get_auth_service, get_billing_service
 
 
 async def get_current_user(
-    request: Request,
     session_id: str | None = Cookie(default=None),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> User | None:
@@ -41,7 +40,6 @@ async def require_user(
 
 
 async def require_verified_user(
-    request: Request,
     user: User = Depends(require_user),
 ) -> User:
     """Require an authenticated user with a verified email address."""
@@ -70,13 +68,6 @@ async def require_product_access(
         )
 
     raise HTTPException(status_code=307, headers={"Location": "/pricing"})
-
-
-async def require_admin(user: User = Depends(require_user)) -> User:
-    """FastAPI dependency that requires the user to be an admin."""
-    if not user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required.")
-    return user
 
 
 def _reject(request: Request):

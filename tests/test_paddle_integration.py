@@ -33,7 +33,6 @@ def _make_client(monkeypatch, tmp_path) -> TestClient:
     monkeypatch.setenv("PADDLE_ENVIRONMENT", "sandbox")
     monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
     monkeypatch.setenv("RESEND_API_KEY", "")
-    monkeypatch.setenv("SMTP_HOST", "")
     app = create_app()
     return TestClient(app)
 
@@ -64,10 +63,9 @@ def test_billing_pay_page_embeds_paddle_checkout_context(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert "https://cdn.paddle.com/paddle/v2/paddle.js" in response.text
-    assert "Paddle.Checkout.open" in response.text
     assert "pri_test_indie" in response.text
     assert "test_123456789012345678901234567" in response.text
-    assert 'displayMode: "overlay"' in response.text
+    assert "billing-pay.js" in response.text
 
 
 def test_paddle_cdn_script_is_reachable_softly():

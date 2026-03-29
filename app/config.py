@@ -45,6 +45,13 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_csv(name: str) -> tuple[str, ...]:
+    raw = os.environ.get(name)
+    if raw is None:
+        return ()
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
 @dataclass(frozen=True)
 class Settings:
     """All runtime configuration for Spawnradar.
@@ -69,8 +76,14 @@ class Settings:
     twitch_client_secret: str
     dev_auto_login: bool
     youtube_api_key: str
-    anthropic_api_key: str
     youtube_cache_dir: str
+    anthropic_api_key: str
+    scheduler_enabled: bool
+    creator_index_game_names: tuple[str, ...]
+    creator_index_bootstrap_enabled: bool
+    creator_index_twitch_min_live_viewers: int
+    creator_index_twitch_min_followers: int
+    creator_index_customer_game_twitch_probe_limit: int
 
     @property
     def uses_https(self) -> bool:
@@ -143,6 +156,11 @@ class Settings:
                 "TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET must either both be set or both be empty."
             )
 
+        if self.creator_index_customer_game_twitch_probe_limit < 1:
+            raise ConfigError(
+                "CREATOR_INDEX_CUSTOMER_GAME_TWITCH_PROBE_LIMIT must be at least 1."
+            )
+
         return self
 
     @classmethod
@@ -168,7 +186,26 @@ class Settings:
             twitch_client_secret=_env_str("TWITCH_CLIENT_SECRET"),
             dev_auto_login=_env_bool("DEV_AUTO_LOGIN"),
             youtube_api_key=_env_str("YOUTUBE_API_KEY"),
-            anthropic_api_key=_env_str("ANTHROPIC_API_KEY"),
             youtube_cache_dir="data/yt_cache",
+            anthropic_api_key=_env_str("ANTHROPIC_API_KEY"),
+            scheduler_enabled=_env_bool("SCHEDULER_ENABLED"),
+            creator_index_game_names=_env_csv("CREATOR_INDEX_GAME_NAMES"),
+            creator_index_bootstrap_enabled=_env_bool(
+                "CREATOR_INDEX_BOOTSTRAP_ENABLED", True
+            ),
+            creator_index_twitch_min_live_viewers=_env_int(
+                "CREATOR_INDEX_TWITCH_MIN_LIVE_VIEWERS", 10
+            ),
+            creator_index_twitch_min_followers=_env_int(
+                "CREATOR_INDEX_TWITCH_MIN_FOLLOWERS", 0
+            ),
+            creator_index_customer_game_twitch_probe_limit=_env_int(
+                "CREATOR_INDEX_CUSTOMER_GAME_TWITCH_PROBE_LIMIT", 10
+            ),
         )
-        return settings.validate()
+        try:
+            return settings.validate()
+        except ValueError as exc:
+            if isinstance(exc, ConfigError):
+                raise
+            raise ConfigError(str(exc)) from exc

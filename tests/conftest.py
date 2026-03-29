@@ -2,27 +2,13 @@ import pytest
 
 from app.auth.repository import SessionRepository, UserRepository
 from app.auth.service import AuthService
-from app.billing.repository import (
-    DiscoveryRunRepository,
-    SubscriptionRepository,
-)
+from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.database import initialize_database
-from app.games.repository import (
-    AssetRepository,
-    GameRepository,
-    MessageTemplateRepository,
-)
-from app.games.service import GameService
-from app.ingestion.service import DiscoveryRunService
+from app.games.repository import CustomerGameRepository
+from app.games.service import CustomerGameService
 from app.metrics.repository import MetricsRepository
 from app.metrics.service import MetricsService
-from app.prospects.repository import (
-    DraftItemRepository,
-    OutcomeRepository,
-    ProspectRepository,
-)
-from app.prospects.service import ProspectService
 
 
 @pytest.fixture
@@ -61,51 +47,12 @@ def metrics_service(metrics_repo, sub_repo):
 
 @pytest.fixture
 def game_repo(db_path):
-    return GameRepository(db_path)
+    return CustomerGameRepository(db_path)
 
 
 @pytest.fixture
-def asset_repo(db_path):
-    return AssetRepository(db_path)
-
-
-@pytest.fixture
-def template_repo(db_path):
-    return MessageTemplateRepository(db_path)
-
-
-@pytest.fixture
-def game_service(game_repo, asset_repo, template_repo, metrics_service):
-    return GameService(game_repo, asset_repo, template_repo, metrics_service)
-
-
-@pytest.fixture
-def discovery_run_service(db_path, template_repo, metrics_service):
-    return DiscoveryRunService(
-        template_repo,
-        db_path=db_path,
-        metrics_service=metrics_service,
-    )
-
-
-@pytest.fixture
-def prospect_repo(db_path):
-    return ProspectRepository(db_path)
-
-
-@pytest.fixture
-def draft_repo(db_path):
-    return DraftItemRepository(db_path)
-
-
-@pytest.fixture
-def outcome_repo(db_path):
-    return OutcomeRepository(db_path)
-
-
-@pytest.fixture
-def prospect_service(draft_repo, outcome_repo):
-    return ProspectService(draft_repo, outcome_repo)
+def game_service(game_repo, metrics_service):
+    return CustomerGameService(game_repo, metrics_service)
 
 
 @pytest.fixture
@@ -114,16 +61,10 @@ def sub_repo(db_path):
 
 
 @pytest.fixture
-def run_repo(db_path):
-    return DiscoveryRunRepository(db_path)
-
-
-@pytest.fixture
-def billing_service(sub_repo, game_repo, run_repo, metrics_service):
+def billing_service(sub_repo, game_repo, metrics_service):
     return BillingService(
         sub_repo,
         game_repo,
-        run_repo,
         metrics_service=metrics_service,
         paddle_api_key="test_api_key",
         paddle_client_side_token="test_123456789012345678901234567",
@@ -144,7 +85,6 @@ def sample_game(game_service, registered_user):
         name="PuzzleQuest",
         summary="A daily browser word puzzle challenge for fast-thinking trivia fans.",
         description="A daily browser-based puzzle game for word puzzle fans",
-        genre_tags_raw="puzzle, word game, daily",
-        platform_tags=["browser"],
         website_url=None,
+        igdb_genre_ids=[9],  # Puzzle
     )

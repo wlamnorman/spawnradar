@@ -14,7 +14,6 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.admin.router import router as admin_router
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.auth.repository import (
@@ -31,40 +30,27 @@ from app.billing.models import (
     TIER_PRICES,
     Subscription,
 )
-from app.billing.repository import (
-    DiscoveryRunRepository,
-    SubscriptionRepository,
-)
+from app.billing.repository import SubscriptionRepository
 from app.billing.router import router as billing_router
 from app.billing.service import BillingService
 from app.config import Settings
 from app.database import initialize_database
 from app.dependencies import get_billing_service, get_templates
 from app.email.service import EmailService
-from app.games.repository import (
-    AssetRepository,
-    GameRepository,
-    MessageTemplateRepository,
-)
+from app.games.repository import CustomerGameRepository
 from app.games.router import router as games_router
-from app.games.service import GameService
-from app.ingestion.base import SourceRuntime
-from app.ingestion.service import DiscoveryRunService
+from app.games.service import CustomerGameService
 from app.metrics.repository import MetricsRepository
 from app.metrics.router import router as metrics_router
 from app.metrics.service import MetricsService
-from app.prospects.repository import (
-    DraftItemRepository,
-    OutcomeRepository,
-    ProspectRepository,
-)
 from app.prospects.router import router as prospects_router
-from app.prospects.service import ProspectService
 from app.routes.blog import router as blog_router
 from app.routes.favicon import router as favicon_router
 from app.routes.health import router as health_router
 from app.routes.legal import router as legal_router
 from app.routes.seo import router as seo_router
+from app.runtime import SourceRuntime
+from app.scheduler.setup import create_scheduler, schedule_game_discovery
 from app.security import csrf_token_for
 
 # Configure logging for our app modules.
@@ -77,6 +63,7 @@ _APP_DIR = Path(__file__).resolve().parent
 _FRONTEND_DIR = _APP_DIR / "frontend"
 _TEMPLATES_DIR = _FRONTEND_DIR / "templates"
 _STATIC_DIR = _FRONTEND_DIR / "static"
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -86,20 +73,20 @@ async def lifespan(app: FastAPI):
     initialize_database(settings.db_path)
 
     db_path = settings.db_path
+    source_runtime = SourceRuntime(
+        youtube_api_key=settings.youtube_api_key,
+        youtube_cache_dir=settings.youtube_cache_dir,
+        twitch_client_id=settings.twitch_client_id,
+        twitch_client_secret=settings.twitch_client_secret,
+    )
 
     # Repositories
     user_repo = UserRepository(db_path)
     session_repo = SessionRepository(db_path)
     reset_token_repo = PasswordResetTokenRepository(db_path)
     email_verification_token_repo = EmailVerificationTokenRepository(db_path)
-    game_repo = GameRepository(db_path)
-    asset_repo = AssetRepository(db_path)
-    template_repo = MessageTemplateRepository(db_path)
+    customer_game_repo = CustomerGameRepository(db_path)
     sub_repo = SubscriptionRepository(db_path)
-    discovery_run_repo = DiscoveryRunRepository(db_path)
-    draft_repo = DraftItemRepository(db_path)
-    outcome_repo = OutcomeRepository(db_path)
-    prospect_repo = ProspectRepository(db_path)
     metrics_repo = MetricsRepository(db_path)
 
     # Services
@@ -115,16 +102,15 @@ async def lifespan(app: FastAPI):
         email_verification_token_repo,
         metrics_service=metrics_service,
     )
-    game_service = GameService(
-        game_repo,
-        asset_repo,
-        template_repo,
+    # CustomerGameService gets wired with on_game_changed callback below
+    # after the scheduler is created.
+    customer_game_service = CustomerGameService(
+        customer_game_repo,
         metrics_service=metrics_service,
     )
     billing_service = BillingService(
         sub_repo=sub_repo,
-        game_repo=game_repo,
-        discovery_run_repo=discovery_run_repo,
+        customer_game_repo=customer_game_repo,
         metrics_service=metrics_service,
         paddle_api_key=settings.paddle_api_key,
         paddle_client_side_token=settings.paddle_client_side_token,
@@ -132,19 +118,31 @@ async def lifespan(app: FastAPI):
         paddle_environment=settings.paddle_environment,
         base_url=settings.base_url,
     )
-    prospect_service = ProspectService(draft_repo, outcome_repo)
-    discovery_run_service = DiscoveryRunService(
-        template_repo,
-        db_path=db_path,
-        metrics_service=metrics_service,
-        source_runtime=SourceRuntime(
-            youtube_api_key=settings.youtube_api_key,
-            youtube_cache_dir=settings.youtube_cache_dir,
-            twitch_client_id=settings.twitch_client_id,
-            twitch_client_secret=settings.twitch_client_secret,
-        ),
-        anthropic_api_key=settings.anthropic_api_key,
-    )
+    scheduler = None
+    if settings.scheduler_enabled:
+        scope_message = (
+            ", ".join(settings.creator_index_game_names)
+            if settings.creator_index_game_names
+            else "all active games"
+        )
+        logger.info(
+            "Starting creator-index scheduler with games=%s",
+            scope_message,
+        )
+        scheduler = create_scheduler(
+            db_path,
+            source_runtime,
+        )
+        scheduler.start()
+
+        # Wire on-demand discovery: when a game is created/updated,
+        # schedule a one-shot discovery job.
+        def _on_game_changed(customer_game_id: str) -> None:
+            schedule_game_discovery(
+                scheduler, db_path, source_runtime, customer_game_id,
+            )
+
+        customer_game_service.set_on_game_changed(_on_game_changed)
 
     def subscription_for(request: Request) -> Subscription | None:
         """Return the current user's subscription for use in base templates."""
@@ -167,23 +165,20 @@ async def lifespan(app: FastAPI):
     app.state.email_service = email_service
     app.state.auth_service = auth_service
     app.state.email_verification_token_repo = email_verification_token_repo
-    app.state.game_service = game_service
+    app.state.customer_game_service = customer_game_service
     app.state.billing_service = billing_service
-    app.state.prospect_service = prospect_service
-    app.state.discovery_run_service = discovery_run_service
     app.state.metrics_service = metrics_service
     app.state.user_repo = user_repo
     app.state.session_repo = session_repo
     app.state.subscription_repo = sub_repo
-    app.state.discovery_run_repo = discovery_run_repo
-    app.state.game_repo = game_repo
-    app.state.asset_repo = asset_repo
-    app.state.template_repo = template_repo
-    app.state.prospect_repo = prospect_repo
-    app.state.draft_repo = draft_repo
+    app.state.customer_game_repo = customer_game_repo
     app.state.templates = templates
+    app.state.scheduler = scheduler
 
     yield
+
+    if scheduler is not None and scheduler.running:
+        scheduler.shutdown(wait=False)
 
 
 def create_app() -> FastAPI:
@@ -272,8 +267,6 @@ def create_app() -> FastAPI:
     app.include_router(games_router)
     app.include_router(prospects_router)
     app.include_router(billing_router)
-    app.include_router(admin_router)
-
     @app.get("/")
     async def root(
         request: Request,

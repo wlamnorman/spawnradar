@@ -1,6 +1,0 @@
-"""Shared limits for ingestion payloads and recent-content previews."""
-
-YOUTUBE_DISCOVERY_LIMIT = 10
-RECENT_VIDEO_THUMBNAIL_LIMIT = 6
-RECENT_TEXT_SIGNAL_LIMIT = 5
-RECENT_VIDEO_TITLE_LIMIT = RECENT_TEXT_SIGNAL_LIMIT

@@ -8,8 +8,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 TRIAL_DAYS = 3
-DISCOVERY_RUNS_PER_HOUR = 5
-DISCOVERY_RUNS_PER_DAY = 10
 
 
 class Tier(StrEnum):
@@ -21,20 +19,14 @@ class Tier(StrEnum):
 TIER_LIMITS: dict[Tier, dict[str, int]] = {
     Tier.INDIE: {
         "games": 3,
-        "prospects_per_run": 50,
-        "discovery_runs_per_month": 25,
     },
 }
 
 TRIAL_LIMITS: dict[str, int] = {
     "games": 1,
-    "prospects_per_run": 50,
-    "discovery_runs_per_month": 25,
 }
 EXPIRED_LIMITS: dict[str, int] = {
     "games": 0,
-    "prospects_per_run": 0,
-    "discovery_runs_per_month": 0,
 }
 
 TIER_PRICES: dict[Tier, int] = {

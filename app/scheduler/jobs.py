@@ -1,62 +1,168 @@
-"""Scheduled ingestion jobs.
+"""Headless scheduled jobs.
 
-Each job runs the discovery pipeline for all games with a matching schedule.
+A module-level semaphore limits concurrent discovery runs to 2, preventing
+Twitch API rate-limit exhaustion when multiple games are created at once.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from pathlib import Path
 
-from app.billing.repository import (
-    DiscoveryRunRepository,
-    SubscriptionRepository,
-)
-from app.billing.service import BillingService
-from app.games.repository import GameRepository, MessageTemplateRepository
-from app.ingestion.service import DiscoveryRunService
+from app.creator_index.service import CreatorIndexService
+from app.games.repository import CustomerGameRepository
+from app.runtime import SourceRuntime
 
 logger = logging.getLogger(__name__)
 
+# On-demand and background discovery each get their own concurrency slot.
+# This means on-demand jobs never wait for background jobs, and at most
+# 2 discovery runs happen simultaneously (1 on-demand + 1 background).
+_on_demand_semaphore = asyncio.Semaphore(1)
+_background_semaphore = asyncio.Semaphore(1)
 
-async def run_scheduled_ingestion(db_path: str, schedule: str) -> None:
-    """Run discovery for all games whose discovery_schedule matches *schedule*.
 
-    Called by the scheduler — errors are logged, never raised, so one
-    failing game doesn't block others.
+async def run_scheduled_creator_index_sync(
+    db_path: str,
+    source_runtime: SourceRuntime,
+) -> None:
+    """Refresh the reusable creator index in the background.
+
+    This job is intentionally separate from any customer-facing workflow state.
+    It discovers creators for all active customer games using the v2 pipeline.
     """
+    async with _background_semaphore:
+        # Fill in missing LLM suggestions before crawling
+        from app.config import Settings
 
-    game_repo = GameRepository(db_path)
-    template_repo = MessageTemplateRepository(db_path)
-    sub_repo = SubscriptionRepository(db_path)
-    discovery_run_repo = DiscoveryRunRepository(db_path)
-    billing = BillingService(sub_repo, game_repo, discovery_run_repo)
-    discovery_service = DiscoveryRunService(template_repo, db_path=db_path)
+        settings = Settings.from_env()
+        if settings.anthropic_api_key:
+            repo = CustomerGameRepository(db_path)
+            for game in repo.list_active():
+                if not game.llm_similar_game_names:
+                    from app.llm.game_suggestions import (
+                        generate_game_suggestions,
+                    )
 
-    games = game_repo.list_by_schedule(schedule)
-    logger.info("Scheduled ingestion (%s): %d game(s)", schedule, len(games))
-
-    for game in games:
+                    try:
+                        tight, broad = await generate_game_suggestions(
+                            game, api_key=settings.anthropic_api_key,
+                        )
+                        if tight or broad:
+                            repo.set_llm_game_suggestions(
+                                game.customer_game_id, tight, broad,
+                            )
+                    except Exception:
+                        logger.exception(
+                            "LLM backfill failed for game %s",
+                            game.customer_game_id,
+                        )
+        service = CreatorIndexService(
+            db_path=db_path,
+            source_runtime=source_runtime,
+        )
         try:
-            billing.record_discovery_run(game.user_id, game.game_id)
-        except ValueError:
+            summary = await service.sync_active_customer_games()
             logger.info(
-                "Skipping scheduled ingestion for game %s: monthly limit reached",
-                game.game_id,
-            )
-            continue
-
-        try:
-            summary = await discovery_service.run_ingestion(
-                game,
-                limit_per_source=billing.get_prospects_limit(game.user_id),
-            )
-            logger.info(
-                "Game %s (%s): discovered=%d scored=%d imported=%d",
-                game.name,
-                game.game_id,
-                summary["discovered"],
-                summary["scored"],
-                summary["imported"],
+                "Creator index sync: games=%d accounts=%d samples=%d contacts=%d",
+                summary.games_seen,
+                summary.accounts_synced,
+                summary.content_samples_synced,
+                summary.contact_points_synced,
             )
         except Exception:
-            logger.exception("Ingestion failed for game %s", game.game_id)
+            logger.exception("Background creator-index sync failed")
+
+
+async def run_top_categories_crawl(
+    db_path: str,
+    source_runtime: SourceRuntime,
+) -> None:
+    """Scheduled job: crawl top Twitch categories for pre-population."""
+    async with _background_semaphore:
+        service = CreatorIndexService(
+            db_path=db_path,
+            source_runtime=source_runtime,
+        )
+        try:
+            count = await service.run_top_categories_crawl()
+            logger.info("Top categories crawl: %d creators discovered", count)
+        except Exception:
+            logger.exception("Top categories crawl job failed")
+
+
+async def run_catalog_discovery(
+    db_path: str,
+    source_runtime: SourceRuntime,
+    catalog_dir: str,
+) -> None:
+    """Scheduled job: run discovery against catalog definitions."""
+    async with _background_semaphore:
+        service = CreatorIndexService(
+            db_path=db_path,
+            source_runtime=source_runtime,
+        )
+        try:
+            results = await service.run_catalog_discovery(Path(catalog_dir))
+            total = sum(results.values())
+            logger.info(
+                "Catalog discovery: %d creators across %d definitions",
+                total, len(results),
+            )
+        except Exception:
+            logger.exception("Catalog discovery job failed")
+
+
+async def run_game_discovery(
+    db_path: str,
+    source_runtime: SourceRuntime,
+    customer_game_id: str,
+) -> None:
+    """On-demand job: triggered when a customer creates/updates a game."""
+    from app.config import Settings
+
+    repo = CustomerGameRepository(db_path)
+    customer_game = repo.get_by_id(customer_game_id)
+    if customer_game is None:
+        logger.warning(
+            "On-demand discovery: game %s not found", customer_game_id,
+        )
+        return
+
+    # Generate LLM game suggestions if API key available and not yet generated
+    settings = Settings.from_env()
+    if settings.anthropic_api_key and not customer_game.llm_similar_game_names:
+        from app.llm.game_suggestions import generate_game_suggestions
+
+        try:
+            tight, broad = await generate_game_suggestions(
+                customer_game, api_key=settings.anthropic_api_key,
+            )
+            if tight or broad:
+                repo.set_llm_game_suggestions(customer_game_id, tight, broad)
+                refreshed = repo.get_by_id(customer_game_id)
+                if refreshed is None:
+                    return
+                customer_game = refreshed
+        except Exception:
+            logger.exception(
+                "LLM suggestion generation failed for game %s",
+                customer_game_id,
+            )
+
+    async with _on_demand_semaphore:
+        service = CreatorIndexService(
+            db_path=db_path,
+            source_runtime=source_runtime,
+        )
+        try:
+            summary = await service.sync_customer_game(customer_game)
+            logger.info(
+                "On-demand discovery for '%s': accounts=%d",
+                customer_game.name, summary.accounts_synced,
+            )
+        except Exception:
+            logger.exception(
+                "On-demand discovery failed for game %s", customer_game_id,
+            )

@@ -72,7 +72,6 @@ def _make_http_client(monkeypatch, tmp_path) -> tuple[TestClient, str]:
         "PADDLE_INDIE_PRICE_ID",
         "PADDLE_ENVIRONMENT",
         "RESEND_API_KEY",
-        "SMTP_HOST",
     ):
         monkeypatch.setenv(key, "")
     return TestClient(create_app()), db_path
@@ -606,7 +605,6 @@ class TestDevLogin:
             "PADDLE_INDIE_PRICE_ID",
             "PADDLE_ENVIRONMENT",
             "RESEND_API_KEY",
-            "SMTP_HOST",
         ):
             monkeypatch.setenv(key, "")
 
@@ -630,7 +628,6 @@ class TestDevLogin:
             "PADDLE_INDIE_PRICE_ID",
             "PADDLE_ENVIRONMENT",
             "RESEND_API_KEY",
-            "SMTP_HOST",
         ):
             monkeypatch.setenv(key, "")
 

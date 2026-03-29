@@ -12,3 +12,4 @@ data/
 .env*
 *.egg-info
 .worktrees/
+uv.lock

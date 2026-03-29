@@ -1,140 +1,126 @@
-"""Games domain models."""
+"""Customer-game domain models."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.games.tags import TagProfile, TagWeight, WeightedTag
-from app.ingestion.registry import DEFAULT_DISCOVERY_SOURCES, Source
+from app.igdb.platforms import PLATFORM_BY_SLUG
+from app.igdb.taxonomy import (
+    IGDBGameMode,
+    IGDBGenre,
+    IGDBKeywordBucket,
+    IGDBPlayerPerspective,
+    IGDBTheme,
+    keyword_bucket_for_value,
+    keyword_labels_for_values,
+)
+
+
+def _labels_for_keyword_bucket(
+    keyword_ids: list[str],
+    bucket: IGDBKeywordBucket,
+    *,
+    exclude_labels: set[str] | None = None,
+) -> list[str]:
+    values = [
+        keyword
+        for keyword in keyword_ids
+        if keyword_bucket_for_value(keyword) == bucket
+    ]
+    labels = keyword_labels_for_values(values)
+    if exclude_labels is None:
+        return labels
+    return [
+        label for label in labels if label.casefold() not in exclude_labels
+    ]
 
 
 @dataclass(frozen=True)
-class Game:
-    """A registered indie game with tag profiles and metadata."""
+class CustomerGame:
+    """A customer-created game with IGDB taxonomy tags and metadata."""
 
-    game_id: str
+    customer_game_id: str
     user_id: str
     name: str
     summary: str | None
     description: str
-    genre_tags: list[str]  # deserialized from JSON column
-    platform_tags: list[str]  # deserialized from JSON column
     website_url: str | None
     status: str
     slug: str
     created_at: str
     updated_at: str
-    genre_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
-    mechanics_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
-    vibe_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
-    kindred_tag_profile: TagProfile = field(default_factory=TagProfile.empty)
-    discovery_schedule: str = "manual"
-    discovery_sources: list[Source] = field(
-        default_factory=lambda: list(DEFAULT_DISCOVERY_SOURCES)
-    )
+    platforms: list[str] = field(default_factory=list)
+    igdb_genre_ids: list[int] = field(default_factory=list)
+    igdb_theme_ids: list[int] = field(default_factory=list)
+    igdb_game_mode_ids: list[int] = field(default_factory=list)
+    igdb_player_perspective_ids: list[int] = field(default_factory=list)
+    igdb_keyword_ids: list[str] = field(default_factory=list)
+    similar_game_names: list[str] = field(default_factory=list)
+    llm_similar_game_names: list[str] = field(default_factory=list)
+    llm_broad_game_names: list[str] = field(default_factory=list)
 
     @property
-    def genre_primary_tags(self) -> list[str]:
-        return list(self.genre_tag_profile.primary)
-
-    @property
-    def genre_secondary_tags(self) -> list[str]:
-        return list(self.genre_tag_profile.secondary)
-
-    @property
-    def mechanics_primary_tags(self) -> list[str]:
-        return list(self.mechanics_tag_profile.primary)
-
-    @property
-    def vibe_primary_tags(self) -> list[str]:
-        return list(self.vibe_tag_profile.primary)
-
-    @property
-    def kindred_primary_tags(self) -> list[str]:
-        return list(self.kindred_tag_profile.primary)
-
-    def ordered_genre_tags(self) -> list[str]:
-        if self.genre_tag_profile.all_tags:
-            return self.genre_tag_profile.ordered_tags()
-        return list(self.genre_tags)
-
-    def weighted_genre_tags(self) -> list[WeightedTag]:
-        if self.genre_tag_profile.all_tags:
-            return self.genre_tag_profile.weighted_tags()
+    def platform_labels(self) -> list[str]:
+        """Human-readable platform labels in saved order."""
         return [
-            WeightedTag(name=tag, weight=1.0, label=TagWeight.PRIMARY)
-            for tag in self.genre_tags
+            platform.label
+            for slug in self.platforms
+            if (platform := PLATFORM_BY_SLUG.get(slug)) is not None
         ]
 
-    def ordered_mechanics_tags(self) -> list[str]:
-        return self.mechanics_tag_profile.ordered_tags()
-
-    def ordered_vibe_tags(self) -> list[str]:
-        return self.vibe_tag_profile.ordered_tags()
-
-    def ordered_kindred_tags(self) -> list[str]:
-        return self.kindred_tag_profile.ordered_tags()
-
-    def weighted_mechanics_tags(self) -> list[WeightedTag]:
-        return self.mechanics_tag_profile.weighted_tags()
-
-    def weighted_vibe_tags(self) -> list[WeightedTag]:
-        return self.vibe_tag_profile.weighted_tags()
-
-    def weighted_kindred_tags(self) -> list[WeightedTag]:
-        return self.kindred_tag_profile.weighted_tags()
-
-
-def _human_join(parts: tuple[str, ...]) -> str:
-    if not parts:
-        return ""
-    if len(parts) == 1:
-        return parts[0]
-    if len(parts) == 2:
-        return f"{parts[0]} and {parts[1]}"
-    return f"{', '.join(parts[:-1])} and {parts[-1]}"
-
-
-@dataclass(frozen=True)
-class DiscoveryReadiness:
-    """Whether a game has enough structured data for useful discovery."""
-
-    can_run: bool
-    missing_fields: tuple[str, ...] = ()
+    @property
+    def genre_labels(self) -> list[str]:
+        """Human-readable genre labels, including curated subgenres."""
+        official = IGDBGenre.labels_for_ids(self.igdb_genre_ids)
+        return official + _labels_for_keyword_bucket(
+            self.igdb_keyword_ids,
+            IGDBKeywordBucket.GENRE,
+            exclude_labels={label.casefold() for label in official},
+        )
 
     @property
-    def message(self) -> str:
-        if self.can_run:
-            return "Discovery ready."
-        missing = _human_join(self.missing_fields)
-        return f"Finish setup before running discovery. Missing {missing}."
+    def theme_labels(self) -> list[str]:
+        """Human-readable theme labels, including curated theme concepts."""
+        official = IGDBTheme.labels_for_ids(self.igdb_theme_ids)
+        return official + _labels_for_keyword_bucket(
+            self.igdb_keyword_ids,
+            IGDBKeywordBucket.THEME,
+            exclude_labels={label.casefold() for label in official},
+        )
 
+    @property
+    def mechanic_labels(self) -> list[str]:
+        """Human-readable mechanic labels from curated concepts."""
+        return _labels_for_keyword_bucket(
+            self.igdb_keyword_ids,
+            IGDBKeywordBucket.MECHANIC,
+        )
 
-@dataclass(frozen=True)
-class Asset:
-    """A promotional asset associated with a game (screenshot, blurb, etc.)."""
+    @property
+    def game_mode_labels(self) -> list[str]:
+        """Human-readable IGDB game mode names."""
+        return IGDBGameMode.labels_for_ids(self.igdb_game_mode_ids)
 
-    asset_id: str
-    game_id: str
-    asset_type: str  # screenshot | banner | logo | blurb
-    title: str
-    body: str | None
-    url: str | None
-    created_at: str
+    @property
+    def player_perspective_labels(self) -> list[str]:
+        """Human-readable IGDB player perspective names."""
+        return IGDBPlayerPerspective.labels_for_ids(
+            self.igdb_player_perspective_ids
+        )
 
+    @property
+    def keyword_labels(self) -> list[str]:
+        """Human-readable keyword labels (title-cased)."""
+        return keyword_labels_for_values(self.igdb_keyword_ids)
 
-@dataclass(frozen=True)
-class MessageTemplate:
-    """An outreach message template with variable placeholders.
-
-    Supported placeholders: {{creator_name}}, {{game_name}}, {{fit_reason}}
-    """
-
-    template_id: str
-    game_id: str
-    name: str
-    channel: str  # email | youtube_dm | twitch_dm | reddit_dm | twitter
-    subject_template: str | None
-    body_template: str
-    created_at: str
-    updated_at: str
+    @property
+    def all_similar_game_names(self) -> list[str]:
+        """Customer-provided + LLM-suggested similar games, deduplicated."""
+        seen: set[str] = set()
+        result: list[str] = []
+        for name in self.similar_game_names + self.llm_similar_game_names:
+            key = name.lower().strip()
+            if key and key not in seen:
+                seen.add(key)
+                result.append(name)
+        return result

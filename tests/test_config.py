@@ -19,7 +19,9 @@ def test_settings_reject_partial_paddle_configuration(monkeypatch):
         Settings.from_env()
 
 
-def test_settings_reject_default_secret_key_for_non_local_base_url(monkeypatch):
+def test_settings_reject_default_secret_key_for_non_local_base_url(
+    monkeypatch,
+):
     monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
     monkeypatch.setenv("LOG_LEVEL", "INFO")
     monkeypatch.setenv("SECRET_KEY", "dev-secret-key-change-in-production")
@@ -66,7 +68,6 @@ def test_settings_reject_invalid_log_level(monkeypatch):
         Settings.from_env()
 
 
-
 def test_settings_reject_partial_twitch_configuration(monkeypatch):
     monkeypatch.setenv("BASE_URL", "http://localhost:8000")
     monkeypatch.setenv("LOG_LEVEL", "INFO")
@@ -76,3 +77,24 @@ def test_settings_reject_partial_twitch_configuration(monkeypatch):
 
     with pytest.raises(ConfigError, match="TWITCH_CLIENT_ID"):
         Settings.from_env()
+
+
+def test_settings_load_creator_index_scope_options(monkeypatch):
+    monkeypatch.setenv("BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv(
+        "CREATOR_INDEX_GAME_NAMES", "Strife Of Stars, WikiQuests "
+    )
+    monkeypatch.setenv("CREATOR_INDEX_BOOTSTRAP_ENABLED", "0")
+
+    settings = Settings.from_env()
+
+    assert settings.creator_index_game_names == (
+        "Strife Of Stars",
+        "WikiQuests",
+    )
+    assert settings.creator_index_bootstrap_enabled is False
+    assert settings.creator_index_twitch_min_live_viewers == 10
+    assert settings.creator_index_twitch_min_followers == 0
+    assert settings.creator_index_customer_game_twitch_probe_limit == 10

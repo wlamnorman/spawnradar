@@ -1,14 +1,14 @@
 {% extends "base.html" %} {% block title %}Pricing — SpawnRadar{% endblock %} {%
 block meta_description %}<meta
     name="description"
-    content="Simple pricing for creator discovery, queue review and structured outreach workflows."
+    content="Simple pricing for creator discovery and outreach workflow for game developers."
 />{% endblock %} {% block og_title %}Pricing — SpawnRadar{% endblock %} {% block
-og_description %}Simple pricing for creator discovery, queue review and
-structured outreach workflows.{% endblock %} {% block twitter_title %}Pricing —
-SpawnRadar{% endblock %} {% block twitter_description %}Simple pricing for
-creator discovery, queue review and structured outreach workflows.{% endblock %}
-{% block content %} {% set tier = tiers[0] %} {% set limits = tier_limits[tier]
-%} {% set price = tier_prices[tier] %}
+og_description %}Simple pricing for creator discovery and outreach workflow for
+game developers.{% endblock %} {% block twitter_title %}Pricing — SpawnRadar{%
+endblock %} {% block twitter_description %}Simple pricing for creator discovery
+and outreach workflow for game developers.{% endblock %} {% block content %} {%
+set tier = tiers[0] %} {% set limits = tier_limits[tier] %} {% set price =
+tier_prices[tier] %}
 <section class="pricing-header pricing-header-single">
     <h1>One plan for efficient game outreach.</h1>
 </section>
@@ -21,19 +21,12 @@ creator discovery, queue review and structured outreach workflows.{% endblock %}
                     ${{ price }}<span>/month + applicable tax</span>
                 </div>
             </div>
-            <p class="plan-summary">
-                Run discovery, review ranked opportunities and draft targeted
-                outreach in one place.
-            </p>
             <ul class="plan-features">
                 <li>
                     Manage up to <strong>{{ limits.games }}</strong> active
                     games
                 </li>
-                <li>Regular discovery runs each month</li>
-                <li>Over 1,000 targeted, filtered prospects per month</li>
-                <li><strong>3-day free trial</strong>, no card required</li>
-                <li>Unlimited queue review and draft iteration</li>
+                <li>Browse unlimited creator matches</li>
             </ul>
             {% if not user %}
             <a href="/auth/register" class="button button-full">

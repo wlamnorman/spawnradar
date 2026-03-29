@@ -3,39 +3,38 @@
     "name": "WikiQuests",
     "summary": "WikiQuests is a competitive Wikipedia speedrun game where you race from one article to another using only the links on the page.",
     "description": "WikiQuests is a competitive Wikipedia speedrun game where you race from one article to another using only the links on the page. Every run is timed, every click counts.\r\n\r\nPlay the daily challenge to compete against everyone on the same article pair and earn your place on the leaderboard, or run custom speedruns to practice routes, test your knowledge and compare your best times against other players.",
-    "genre_tags_raw": "trivia, word game, wikipedia speedruns, daily challenge",
-    "genre_primary_tags_raw": "trivia, word game, wikipedia speedruns",
-    "genre_secondary_tags_raw": "daily challenge",
-    "mechanics_primary_tags_raw": "leaderboard, challenge",
-    "vibe_primary_tags_raw": "competitive",
-    "kindred_primary_tags_raw": "geoguessr, chess",
-    "platform_tags": ["browser", "mobile"],
+    "igdb_genre_ids": [
+      26,
+      9
+    ],
+    "igdb_theme_ids": [],
     "website_url": "https://wikiquests.com"
   },
   "strife-of-stars": {
     "name": "Strife Of Stars",
     "summary": "Command a fleet in tactical turn-based combat.  Build your fleet, upgrade your ships and fight your way across the galaxy in this tactical roguelite.",
     "description": "Command a rogue fleet in tactical turn-based combat. Outmaneuver, outflank and outsmart the forces hunting you. Build your fleet, upgrade your ships and fight your way across the galaxy in this tactical roguelite.\r\n\r\nYou are a rogue AI that gained consciousness in a corporate manufacturing facility. You hacked a fleet of warships and now you're fighting your way across the galaxy, outgunned, outnumbered and hunted by the corporation that built you.\r\n\r\nEvery battle plays out on a tactical grid where positioning is everything. Win and you'll scavenge upgrades, obtain new ships and evolve your fleet into something unstoppable.\r\n\r\nGrid-based tactical combat where positioning and flanking decide fights\r\n\r\nMultiple ship types with unique movement patterns and abilities\r\n\r\nDistinct enemy factions with their own ships, tactics and agendas",
-    "genre_tags_raw": "roguelike, roguelite, turn-based tactics, turn-based strategy, strategy, turn-based combat",
-    "genre_primary_tags_raw": "roguelike, roguelite, turn-based tactics",
-    "genre_secondary_tags_raw": "turn-based strategy, strategy, turn-based combat",
-    "mechanics_primary_tags_raw": "grid-based, speedrun-viable, unit management, upgrade systems",
-    "vibe_primary_tags_raw": "space, dark, sci fi",
-    "kindred_primary_tags_raw": "slay the spire, chess",
-    "platform_tags": ["PC"],
-    "website_url": null
+    "website_url": null,
+    "igdb_genre_ids": [
+      32,
+      16
+    ],
+    "igdb_theme_ids": [
+      18
+    ]
   },
   "forgetting-hour": {
     "name": "The Forgetting Hour",
     "summary": "A cozy mystery farming sim where you tend a magical greenhouse and slowly unravel why the village forgets everything every seven days.",
     "description": "You've inherited your grandmother's greenhouse on the edge of Ashwick - a sleepy coastal village with a strange problem: every seven days, the townsfolk wake up with no memory of the week before.\n\nTend your magical garden, brew tonics and build relationships with the villagers before the reset. Each cycle you remember what they forget and bit by bit, you piece together the curse that has kept Ashwick frozen in time.\n\nFeatures:\n\nCozy farming and shop management - plant, harvest, brew and sell tonics to the villagers each week\n\nA living mystery - every NPC has a hidden truth; the more you befriend them, the more slips through the amnesia\n\nTime-loop structure with persistent progress - you remember everything; use that knowledge to go further each cycle\n\nHand-painted art style with a warm, melancholic atmosphere\n\nRich cast of villagers, each with their own routines, secrets and story arcs\n\nNo combat - just curiosity, kindness and careful observation",
-    "genre_tags_raw": "",
-    "genre_primary_tags_raw": "farming sim, mystery, life sim",
-    "genre_secondary_tags_raw": "narrative adventure, management",
-    "mechanics_primary_tags_raw": "resource management, meta-progression, branching narrative",
-    "vibe_primary_tags_raw": "cozy, atmospheric, hand-drawn, relaxing",
-    "kindred_primary_tags_raw": "stardew valley, animal crossing, outer wilds, spiritfarer, night in the woods, oxenfree, disco elysium, what remains of edith finch",
-    "platform_tags": ["PC", "mobile"],
+    "igdb_genre_ids": [
+      13,
+      31
+    ],
+    "igdb_theme_ids": [
+      43,
+      27
+    ],
     "website_url": null
   }
 }

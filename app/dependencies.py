@@ -14,16 +14,9 @@ from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.config import Settings
 from app.email.service import EmailService
-from app.games.repository import (
-    AssetRepository,
-    GameRepository,
-    MessageTemplateRepository,
-)
-from app.games.service import GameService
-from app.ingestion.service import DiscoveryRunService
+from app.games.repository import CustomerGameRepository
+from app.games.service import CustomerGameService
 from app.metrics.service import MetricsService
-from app.prospects.repository import DraftItemRepository, ProspectRepository
-from app.prospects.service import ProspectService
 
 
 def get_settings(request: Request) -> Settings:
@@ -42,44 +35,20 @@ def get_email_service(request: Request) -> EmailService:
     return request.app.state.email_service
 
 
-def get_game_service(request: Request) -> GameService:
-    return request.app.state.game_service
+def get_customer_game_service(request: Request) -> CustomerGameService:
+    return request.app.state.customer_game_service
 
 
 def get_billing_service(request: Request) -> BillingService:
     return request.app.state.billing_service
 
 
-def get_prospect_service(request: Request) -> ProspectService:
-    return request.app.state.prospect_service
-
-
-def get_discovery_run_service(request: Request) -> DiscoveryRunService:
-    return request.app.state.discovery_run_service
-
-
 def get_metrics_service(request: Request) -> MetricsService:
     return request.app.state.metrics_service
 
 
-def get_game_repo(request: Request) -> GameRepository:
-    return request.app.state.game_repo
-
-
-def get_asset_repo(request: Request) -> AssetRepository:
-    return request.app.state.asset_repo
-
-
-def get_template_repo(request: Request) -> MessageTemplateRepository:
-    return request.app.state.template_repo
-
-
-def get_prospect_repo(request: Request) -> ProspectRepository:
-    return request.app.state.prospect_repo
-
-
-def get_draft_repo(request: Request) -> DraftItemRepository:
-    return request.app.state.draft_repo
+def get_customer_game_repo(request: Request) -> CustomerGameRepository:
+    return request.app.state.customer_game_repo
 
 
 def get_user_repo(request: Request) -> UserRepository:

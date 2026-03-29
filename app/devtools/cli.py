@@ -3,30 +3,39 @@
 from __future__ import annotations
 
 import argparse
-import json
+import asyncio
+import re
+import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import cast
 
 from app.auth.repository import PasswordResetTokenRepository, UserRepository
 from app.auth.service import AuthService
-from app.billing.repository import (
-    DiscoveryRunRepository,
-    SubscriptionRepository,
-)
+from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.config import Settings
+from app.creator_index.enrichment import TwitchEnrichment
+from app.creator_index.matching import match_creator_tags_to_game
+from app.creator_index.service import CreatorIndexService
+from app.creator_index.stream_discovery import TwitchStreamClient
 from app.database import get_connection, initialize_database
-from app.devtools.bootstrap import DEV_EMAIL, ensure_dev_user
+from app.devtools.bootstrap import (
+    DEV_EMAIL,
+    TEST_EMAIL,
+    ensure_dev_user,
+    ensure_test_user,
+)
 from app.devtools.game_presets import load_game_presets, save_game_presets
 from app.email.service import EmailService
-from app.games.repository import (
-    AssetRepository,
-    GameRepository,
-    MessageTemplateRepository,
-)
-from app.games.service import GameService
+from app.games.repository import CustomerGameRepository
+from app.games.service import CustomerGameService
+from app.igdb.repository import IGDBRepository
+from app.igdb.sync import IGDBSyncService
+from app.runtime import SourceRuntime
 
 PRESET_KEYS = ("wikiquests", "strife-of-stars", "forgetting-hour")
 
@@ -38,6 +47,31 @@ class CommandResult:
     message: str
     created: bool | None = None
     deleted_count: int | None = None
+
+
+def _format_rows_as_table(
+    headers: tuple[str, ...], rows: Sequence[tuple[object | None, ...]]
+) -> str:
+    """Render simple CLI tables without external dependencies."""
+    widths = [len(header) for header in headers]
+    rendered_rows: list[tuple[str, ...]] = []
+    for row in rows:
+        rendered = tuple("" if value is None else str(value) for value in row)
+        rendered_rows.append(rendered)
+        for index, value in enumerate(rendered):
+            widths[index] = max(widths[index], len(value))
+
+    header_line = "  ".join(
+        header.ljust(widths[index]) for index, header in enumerate(headers)
+    )
+    separator_line = "  ".join("-" * width for width in widths)
+    body_lines = [
+        "  ".join(
+            value.ljust(widths[index]) for index, value in enumerate(row)
+        )
+        for row in rendered_rows
+    ]
+    return "\n".join([header_line, separator_line, *body_lines])
 
 
 def _load_preset(
@@ -56,7 +90,7 @@ def _load_preset(
 
 def _find_dev_game(db_path: str, game_ref: str | None, *, fallback_name: str):
     user = ensure_dev_user(db_path)
-    games = GameRepository(db_path).list_by_user(user.user_id)
+    games = CustomerGameRepository(db_path).list_by_user(user.user_id)
     target = (game_ref or fallback_name).strip()
     for game in games:
         if game.slug == target or game.name == target:
@@ -67,28 +101,82 @@ def _find_dev_game(db_path: str, game_ref: str | None, *, fallback_name: str):
 
 
 def _snapshot_payload_for_game(game) -> dict[str, object]:
-    mechanics_tags = (
-        game.mechanics_primary_tags or game.ordered_mechanics_tags()
-    )
-    vibe_tags = game.vibe_primary_tags or game.ordered_vibe_tags()
-    kindred_tags = game.kindred_primary_tags or game.ordered_kindred_tags()
     return {
         "name": game.name,
         "summary": game.summary or "",
         "description": game.description,
-        "genre_tags_raw": ", ".join(game.genre_tags),
-        "genre_primary_tags_raw": ", ".join(game.genre_primary_tags),
-        "genre_secondary_tags_raw": ", ".join(game.genre_secondary_tags),
-        "mechanics_primary_tags_raw": ", ".join(mechanics_tags),
-        "vibe_primary_tags_raw": ", ".join(vibe_tags),
-        "kindred_primary_tags_raw": ", ".join(kindred_tags),
-        "platform_tags": list(game.platform_tags),
         "website_url": game.website_url,
+        "igdb_genre_ids": game.igdb_genre_ids,
+        "igdb_theme_ids": game.igdb_theme_ids,
     }
 
 
+def _normalize_game_ref(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+
+def _resolve_customer_game(db_path: str, game_ref: str):
+    games = CustomerGameRepository(db_path).list_active()
+    target = game_ref.strip()
+    if not target:
+        raise ValueError("Game reference is required.")
+
+    normalized_target = _normalize_game_ref(target)
+    exact_matches = [
+        game
+        for game in games
+        if game.slug == target
+        or game.name == target
+        or _normalize_game_ref(game.slug) == normalized_target
+        or _normalize_game_ref(game.name) == normalized_target
+    ]
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    if len(exact_matches) > 1:
+        choices = ", ".join(
+            f"{game.name} ({game.slug})" for game in exact_matches[:5]
+        )
+        raise ValueError(
+            f"Multiple games matched '{game_ref}': {choices}. Be more specific."
+        )
+
+    ranked = sorted(
+        (
+            (
+                max(
+                    SequenceMatcher(
+                        None, normalized_target, _normalize_game_ref(game.slug)
+                    ).ratio(),
+                    SequenceMatcher(
+                        None, normalized_target, _normalize_game_ref(game.name)
+                    ).ratio(),
+                ),
+                game,
+            )
+            for game in games
+        ),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    if not ranked or ranked[0][0] < 0.55:
+        raise ValueError(f"No customer game matched '{game_ref}'.")
+    if len(ranked) > 1 and abs(ranked[0][0] - ranked[1][0]) < 0.05:
+        choices = ", ".join(
+            f"{game.name} ({game.slug})" for _, game in ranked[:5]
+        )
+        raise ValueError(
+            f"Ambiguous game reference '{game_ref}'. Closest matches: {choices}."
+        )
+    return ranked[0][1]
+
+
 def _seed_preset_game(
-    db_path: str, preset_key: str, preset_path: str | Path | None = None
+    db_path: str,
+    preset_key: str,
+    preset_path: str | Path | None = None,
+    *,
+    user_email: str = DEV_EMAIL,
+    ensure_user: object = ensure_dev_user,
 ) -> CommandResult:
     preset = _load_preset(preset_key, preset_path)
     return _seed_game(
@@ -96,20 +184,17 @@ def _seed_preset_game(
         name=str(preset["name"]),
         summary=str(preset.get("summary", "")),
         description=str(preset["description"]),
-        genre_tags_raw=str(preset.get("genre_tags_raw", "")),
-        genre_primary_tags_raw=str(preset.get("genre_primary_tags_raw", "")),
-        genre_secondary_tags_raw=str(
-            preset.get("genre_secondary_tags_raw", "")
-        ),
-        mechanics_primary_tags_raw=str(
-            preset.get("mechanics_primary_tags_raw", "")
-        ),
-        vibe_primary_tags_raw=str(preset.get("vibe_primary_tags_raw", "")),
-        kindred_primary_tags_raw=str(
-            preset.get("kindred_primary_tags_raw", "")
-        ),
-        platform_tags=list(cast(list[str], preset.get("platform_tags", []))),
         website_url=cast(str | None, preset.get("website_url")),
+        igdb_genre_ids=cast(list[int] | None, preset.get("igdb_genre_ids")),
+        igdb_theme_ids=cast(list[int] | None, preset.get("igdb_theme_ids")),
+        igdb_keyword_ids=cast(
+            list[str] | None, preset.get("igdb_keyword_ids")
+        ),
+        similar_game_names=cast(
+            list[str] | None, preset.get("similar_game_names")
+        ),
+        user_email=user_email,
+        ensure_user=ensure_user,
     )
 
 
@@ -135,6 +220,10 @@ def build_parser() -> argparse.ArgumentParser:
         "forgetting-hour",
         help="Create or update the local The Forgetting Hour game under the dev account.",
     )
+    subparsers.add_parser(
+        "seed-test-user",
+        help="Create a test user (vvilliamnorman@gmail.com) with Strife Of Stars.",
+    )
     snapshot_game_preset = subparsers.add_parser(
         "snapshot-game-preset",
         help="Overwrite a built-in dev game preset from the current local DB state.",
@@ -149,14 +238,6 @@ def build_parser() -> argparse.ArgumentParser:
     snapshot_game_preset.add_argument(
         "--game",
         help="Game slug or exact name to snapshot. Defaults to the preset's game name.",
-    )
-    subparsers.add_parser(
-        "clear-queues",
-        help="Delete all draft queue items and their outcomes from the database.",
-    )
-    subparsers.add_parser(
-        "rm-db",
-        help="Delete the local SQLite database file and related WAL/SHM files.",
     )
     subparsers.add_parser(
         "activate-sub",
@@ -191,33 +272,90 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Send a password reset email so the user can set their password.",
     )
-    reset_discovery_runs = subparsers.add_parser(
-        "reset-discovery-runs",
-        help="Delete recorded discovery runs for a local user so rate limits reset.",
+    subparsers.add_parser(
+        "customer-ids",
+        help="List all active customer game IDs with slug, owner, and name.",
     )
-    reset_discovery_runs.add_argument(
-        "email",
-        nargs="?",
-        default=DEV_EMAIL,
-        help=(
-            "Email address whose recorded discovery runs should be deleted. "
-            f"Defaults to {DEV_EMAIL}."
-        ),
+    get_profiles = subparsers.add_parser(
+        "ccs-for",
+        help="List top creator profiles for a customer game name or slug.",
     )
-    viz_tag_graph = subparsers.add_parser(
-        "viz-tag-graph",
-        help="Open an interactive browser visualisation of app/games/tag_graph.json.",
+    get_profiles.add_argument(
+        "game_ref", help="Customer game name or slug, matched fuzzily."
     )
-    viz_tag_graph.add_argument(
-        "--input",
-        default="app/games/tag_graph.json",
-        help="Path to the tag graph JSON. Default: app/games/tag_graph.json",
+    get_profiles.add_argument(
+        "--limit",
+        type=int,
+        default=5,
+        help="Maximum profiles to show (default: 5).",
     )
-    viz_tag_graph.add_argument(
-        "--output",
-        default=None,
-        help="Write the HTML to this path instead of a temp file.",
+    inspect_twitch = subparsers.add_parser(
+        "inspect-twitch-igdb",
+        help="Inspect the Twitch IGDB discovery path for one IGDB game ID.",
     )
+    inspect_twitch.add_argument("igdb_game_id", type=int)
+    inspect_twitch.add_argument(
+        "--max-pages",
+        type=int,
+        default=3,
+        help="Maximum Twitch stream pages to follow in discovery (default: 3).",
+    )
+    inspect_twitch.add_argument(
+        "--page-size",
+        type=int,
+        default=20,
+        help="Page size for the direct /streams inspection request (default: 20).",
+    )
+    inspect_twitch.add_argument(
+        "--languages",
+        nargs="*",
+        default=["en"],
+        help="Optional Twitch language filters for discovery (default: en).",
+    )
+    inspect_twitch.add_argument(
+        "--persist",
+        action="store_true",
+        help="Also run the full persistence step and inspect DB rows.",
+    )
+    inspect_twitch.add_argument(
+        "--persist-limit",
+        type=int,
+        default=10,
+        help="Maximum discovered broadcasters to persist for debug inspection (default: 10).",
+    )
+    twitch_streams = subparsers.add_parser(
+        "twitch-streams",
+        help="Fetch one raw Twitch /helix/streams page for a Twitch game/category ID.",
+    )
+    twitch_streams.add_argument("twitch_game_id")
+    twitch_streams.add_argument(
+        "--page-size",
+        type=int,
+        default=20,
+        help="Page size for the /streams request (default: 20).",
+    )
+    twitch_streams.add_argument(
+        "--languages",
+        nargs="*",
+        default=["en"],
+        help="Optional Twitch language filters (default: en).",
+    )
+    twitch_search_categories = subparsers.add_parser(
+        "twitch-search-categories",
+        help="Search Twitch categories by name to find the real Twitch category ID.",
+    )
+    twitch_search_categories.add_argument("query")
+    twitch_search_categories.add_argument(
+        "--page-size",
+        type=int,
+        default=20,
+        help="Page size for the category search request (default: 20).",
+    )
+    igdb_fetch = subparsers.add_parser(
+        "igdb-fetch",
+        help="Fetch one IGDB game by ID into the local igdb_games table.",
+    )
+    igdb_fetch.add_argument("igdb_game_id", type=int)
     return parser
 
 
@@ -227,24 +365,19 @@ def _seed_game(
     name: str,
     summary: str = "",
     description: str,
-    genre_tags_raw: str = "",
-    genre_primary_tags_raw: str = "",
-    genre_secondary_tags_raw: str = "",
-    mechanics_primary_tags_raw: str = "",
-    vibe_primary_tags_raw: str = "",
-    kindred_primary_tags_raw: str = "",
-    platform_tags: list[str],
     website_url: str | None,
+    igdb_genre_ids: list[int] | None = None,
+    igdb_theme_ids: list[int] | None = None,
+    igdb_keyword_ids: list[str] | None = None,
+    similar_game_names: list[str] | None = None,
+    user_email: str = DEV_EMAIL,
+    ensure_user: object = ensure_dev_user,
 ) -> CommandResult:
-    """Create or update a game under the local dev account."""
+    """Create or update a game under the specified user account."""
     initialize_database(db_path)
-    user = ensure_dev_user(db_path)
-    game_repo = GameRepository(db_path)
-    service = GameService(
-        game_repo,
-        AssetRepository(db_path),
-        MessageTemplateRepository(db_path),
-    )
+    user = ensure_user(db_path)  # type: ignore[operator]
+    game_repo = CustomerGameRepository(db_path)
+    service = CustomerGameService(game_repo)
 
     existing = next(
         (
@@ -254,39 +387,36 @@ def _seed_game(
         ),
         None,
     )
-    payload = {
+    payload: dict = {
         "name": name,
         "summary": summary,
         "description": description,
-        "genre_tags_raw": genre_tags_raw,
-        "genre_primary_tags_raw": genre_primary_tags_raw,
-        "genre_secondary_tags_raw": genre_secondary_tags_raw,
-        "mechanics_primary_tags_raw": mechanics_primary_tags_raw,
-        "vibe_primary_tags_raw": vibe_primary_tags_raw,
-        "kindred_primary_tags_raw": kindred_primary_tags_raw,
-        "platform_tags": platform_tags,
         "website_url": website_url,
+        "igdb_genre_ids": igdb_genre_ids,
+        "igdb_theme_ids": igdb_theme_ids,
+        "igdb_keyword_ids": igdb_keyword_ids,
+        "similar_game_names": similar_game_names,
     }
 
     if existing is None:
         game = service.create_game(user_id=user.user_id, **payload)
         return CommandResult(
             message=(
-                f"Created {name} for {DEV_EMAIL} "
-                f"({game.game_id}) at {game.website_url or 'no website'}"
+                f"Created {name} for {user_email} "
+                f"({game.customer_game_id}) at {game.website_url or 'no website'}"
             ),
             created=True,
         )
 
     game = service.update_game(
-        game_id=existing.game_id,
+        customer_game_id=existing.customer_game_id,
         user_id=user.user_id,
         **payload,
     )
     return CommandResult(
         message=(
-            f"Updated {name} for {DEV_EMAIL} "
-            f"({game.game_id}) at {game.website_url or 'no website'}"
+            f"Updated {name} for {user_email} "
+            f"({game.customer_game_id}) at {game.website_url or 'no website'}"
         ),
         created=False,
     )
@@ -305,6 +435,16 @@ def run_strife_of_stars(db_path: str) -> CommandResult:
 def run_forgetting_hour(db_path: str) -> CommandResult:
     """Seed or refresh The Forgetting Hour game for the local dev user."""
     return _seed_preset_game(db_path, "forgetting-hour")
+
+
+def run_seed_test_user(db_path: str) -> CommandResult:
+    """Create a test user with Strife Of Stars for non-subscriber testing."""
+    return _seed_preset_game(
+        db_path,
+        "strife-of-stars",
+        user_email=TEST_EMAIL,
+        ensure_user=ensure_test_user,
+    )
 
 
 def run_snapshot_game_preset(
@@ -334,28 +474,12 @@ def run_snapshot_game_preset(
     )
 
 
-def run_clear_queues(db_path: str) -> CommandResult:
-    """Delete all queued draft data from the local database."""
-    initialize_database(db_path)
-    with get_connection(db_path) as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) AS count FROM draft_items"
-        ).fetchone()
-        deleted_count = row["count"] if row is not None else 0
-        conn.execute("DELETE FROM draft_items")
-    suffix = "item" if deleted_count == 1 else "items"
-    return CommandResult(
-        message=f"Cleared {deleted_count} queued draft {suffix}.",
-        deleted_count=deleted_count,
-    )
-
-
 def run_activate_sub(db_path: str) -> CommandResult:
     """Give the dev account a fake active paid subscription."""
     initialize_database(db_path)
     user = ensure_dev_user(db_path)
     sub_repo = SubscriptionRepository(db_path)
-    billing = BillingService(sub_repo, GameRepository(db_path))
+    billing = BillingService(sub_repo, CustomerGameRepository(db_path))
     billing.get_or_create_subscription(user.user_id)
     sub_repo.update_from_paddle(
         user.user_id,
@@ -386,7 +510,7 @@ def run_start_trial(db_path: str) -> CommandResult:
             # No existing subscription — create one
             sub_repo = SubscriptionRepository(db_path)
             BillingService(
-                sub_repo, GameRepository(db_path)
+                sub_repo, CustomerGameRepository(db_path)
             ).get_or_create_subscription(user.user_id)
     return CommandResult(
         message=f"Trial started for {DEV_EMAIL} (expires in 3 days).",
@@ -398,7 +522,7 @@ def run_expire_trial(db_path: str) -> CommandResult:
     initialize_database(db_path)
     user = ensure_dev_user(db_path)
     sub_repo = SubscriptionRepository(db_path)
-    billing = BillingService(sub_repo, GameRepository(db_path))
+    billing = BillingService(sub_repo, CustomerGameRepository(db_path))
     billing.get_or_create_subscription(user.user_id)
     expired_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
     with get_connection(db_path) as conn:
@@ -418,7 +542,7 @@ def run_expire_sub(db_path: str) -> CommandResult:
     initialize_database(db_path)
     user = ensure_dev_user(db_path)
     sub_repo = SubscriptionRepository(db_path)
-    billing = BillingService(sub_repo, GameRepository(db_path))
+    billing = BillingService(sub_repo, CustomerGameRepository(db_path))
     billing.get_or_create_subscription(user.user_id)
     with get_connection(db_path) as conn:
         conn.execute(
@@ -449,7 +573,7 @@ def run_grant_comp(
     )
     billing = BillingService(
         SubscriptionRepository(db_path),
-        GameRepository(db_path),
+        CustomerGameRepository(db_path),
     )
     email_service = EmailService(
         resend_api_key=settings.resend_api_key,
@@ -503,326 +627,671 @@ def run_grant_comp(
     )
 
 
-def run_reset_discovery_runs(
-    db_path: str, email: str = DEV_EMAIL
-) -> CommandResult:
-    """Delete recorded discovery runs for a local user."""
+def run_customer_ids(db_path: str) -> CommandResult:
+    """List active customer games across the product."""
     initialize_database(db_path)
-    user = UserRepository(db_path).get_by_email(email)
-    if user is None:
-        return CommandResult(message=f"No account found for {email}.")
+    games = CustomerGameRepository(db_path).list_active()
+    if not games:
+        return CommandResult(message="No active customer games found.")
 
-    deleted_count = DiscoveryRunRepository(db_path).delete_for_user(
-        user.user_id
+    rows = [
+        (game.customer_game_id, game.slug, game.user_id, game.name)
+        for game in games
+    ]
+    table = _format_rows_as_table(
+        ("customer_game_id", "slug", "user_id", "name"),
+        rows,
     )
-    suffix = "run" if deleted_count == 1 else "runs"
     return CommandResult(
-        message=(
-            f"Reset discovery usage for {email}. "
-            f"Deleted {deleted_count} recorded {suffix}."
-        ),
-        deleted_count=deleted_count,
+        message=f"Active customer games: {len(games)}\n{table}"
     )
 
 
-def run_rm_db(db_path: str) -> CommandResult:
-    """Delete the local SQLite database file and sidecar files."""
-    removed = 0
-    db_file = Path(db_path)
-    for path in (db_file, Path(f"{db_path}-shm"), Path(f"{db_path}-wal")):
-        if path.exists():
-            path.unlink()
-            removed += 1
-    if removed == 0:
-        return CommandResult(message=f"No database files found at {db_path}.")
-    suffix = "file" if removed == 1 else "files"
-    return CommandResult(
-        message=f"Removed {removed} database {suffix} for {db_path}.",
-        deleted_count=removed,
-    )
-
-
-_TAG_GRAPH_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>SpawnRadar Tag Similarity Graph</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0f1117; color: #e2e8f0; font-family: system-ui, sans-serif; overflow: hidden; }
-
-  #canvas { width: 100vw; height: 100vh; }
-
-  .link { stroke-opacity: 0.5; }
-  .node circle { stroke: #0f1117; stroke-width: 1.5px; cursor: pointer; }
-  .node text {
-    font-size: 10px; fill: #cbd5e1; pointer-events: none;
-    text-anchor: middle; dominant-baseline: central;
-    text-shadow: 0 0 3px #0f1117, 0 0 3px #0f1117;
-  }
-  .node.highlighted circle { stroke: #fff; stroke-width: 2.5px; }
-  .node.faded circle { opacity: 0.15; }
-  .node.faded text { opacity: 0.08; }
-  .link.faded { opacity: 0.04; }
-  .link.highlighted { stroke-opacity: 0.9; }
-
-  #panel {
-    position: fixed; top: 16px; left: 16px; width: 220px;
-    background: rgba(15,17,23,0.92); border: 1px solid #2d3748;
-    border-radius: 10px; padding: 14px; backdrop-filter: blur(4px);
-  }
-  #panel h1 { font-size: 13px; font-weight: 600; color: #f8fafc; margin-bottom: 10px; }
-  #stats { font-size: 11px; color: #94a3b8; margin-bottom: 12px; line-height: 1.7; }
-  #legend { margin-bottom: 12px; }
-  .legend-row { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #94a3b8; margin-bottom: 5px; cursor: pointer; user-select: none; }
-  .legend-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
-  .legend-row.dim-off { opacity: 0.35; }
-  #search-wrap { position: relative; }
-  #search { width: 100%; background: #1e2533; border: 1px solid #374151; border-radius: 6px;
-    padding: 6px 8px; font-size: 11px; color: #e2e8f0; outline: none; }
-  #search:focus { border-color: #6366f1; }
-  #search::placeholder { color: #475569; }
-  #tooltip {
-    position: fixed; pointer-events: none; background: rgba(15,17,23,0.95);
-    border: 1px solid #374151; border-radius: 8px; padding: 10px 12px;
-    font-size: 11px; line-height: 1.8; display: none; z-index: 10; max-width: 240px;
-  }
-  #tooltip .tt-tag { font-weight: 600; font-size: 12px; color: #f8fafc; margin-bottom: 4px; }
-  #tooltip .tt-dim { color: #94a3b8; font-size: 10px; margin-bottom: 8px; }
-  #tooltip .tt-neighbor { color: #cbd5e1; }
-  #tooltip .tt-weight { color: #64748b; font-size: 10px; margin-left: 4px; }
-  #hint { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
-    font-size: 10px; color: #475569; pointer-events: none; }
-</style>
-</head>
-<body>
-<svg id="canvas"></svg>
-
-<div id="panel">
-  <h1>Tag Similarity Graph</h1>
-  <div id="stats"></div>
-  <div id="legend"></div>
-  <div id="search-wrap">
-    <input id="search" type="text" placeholder="Search tags…" autocomplete="off">
-  </div>
-</div>
-
-<div id="tooltip"></div>
-<div id="hint">scroll to zoom &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp; click node to focus</div>
-
-<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-<script>
-const GRAPH = /*GRAPH_DATA*/;
-
-const DIM_COLOR = {
-  genre:     "#6366f1",
-  mechanics: "#f59e0b",
-  vibe:      "#ec4899",
-  kindred:   "#f97316",
-};
-const DIM_LABEL = { genre: "Genre", mechanics: "Mechanics", vibe: "Vibe", kindred: "Kindred" };
-
-// Build node index from edges
-const nodeMap = new Map();
-GRAPH.forEach(e => {
-  if (!nodeMap.has(e.from)) nodeMap.set(e.from, { id: e.from, dim: e.from_dim, degree: 0 });
-  if (!nodeMap.has(e.to))   nodeMap.set(e.to,   { id: e.to,   dim: e.to_dim,   degree: 0 });
-  nodeMap.get(e.from).degree++;
-  nodeMap.get(e.to).degree++;
-});
-const nodes = Array.from(nodeMap.values());
-const links = GRAPH.map(e => ({ source: e.from, target: e.to, weight: e.weight, from_dim: e.from_dim, to_dim: e.to_dim }));
-
-// Stats
-const dimCounts = {};
-nodes.forEach(n => { dimCounts[n.dim] = (dimCounts[n.dim] || 0) + 1; });
-
-document.getElementById("stats").innerHTML =
-  `${nodes.length} tags &nbsp;·&nbsp; ${links.length} edges<br>` +
-  Object.entries(dimCounts).map(([d, c]) => `<span style="color:${DIM_COLOR[d]}">${DIM_LABEL[d]}</span>: ${c}`).join(" &nbsp; ");
-
-// Legend with toggle
-const activeDims = new Set(Object.keys(DIM_COLOR));
-const legend = document.getElementById("legend");
-Object.entries(DIM_COLOR).forEach(([dim, color]) => {
-  const row = document.createElement("div");
-  row.className = "legend-row";
-  row.dataset.dim = dim;
-  row.innerHTML = `<span class="legend-swatch" style="background:${color}"></span>${DIM_LABEL[dim]}`;
-  row.addEventListener("click", () => {
-    if (activeDims.has(dim)) activeDims.delete(dim); else activeDims.add(dim);
-    row.classList.toggle("dim-off");
-    applyDimFilter();
-  });
-  legend.appendChild(row);
-});
-
-const svg = d3.select("#canvas");
-const width = window.innerWidth, height = window.innerHeight;
-svg.attr("viewBox", [0, 0, width, height]);
-
-const g = svg.append("g");
-
-// Zoom
-svg.call(d3.zoom().scaleExtent([0.15, 4]).on("zoom", e => g.attr("transform", e.transform)));
-
-const radiusScale = d3.scaleSqrt().domain([1, d3.max(nodes, n => n.degree)]).range([4, 14]);
-
-const simulation = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).id(d => d.id).distance(d => 60 + (1 - d.weight) * 80).strength(d => d.weight * 0.6))
-  .force("charge", d3.forceManyBody().strength(-120))
-  .force("center", d3.forceCenter(width / 2, height / 2))
-  .force("collision", d3.forceCollide().radius(d => radiusScale(d.degree) + 6));
-
-const linkEl = g.append("g").selectAll("line")
-  .data(links).join("line")
-  .attr("class", "link")
-  .attr("stroke", d => DIM_COLOR[d.from_dim] || "#64748b")
-  .attr("stroke-width", d => Math.max(0.5, d.weight * 3));
-
-const nodeEl = g.append("g").selectAll("g.node")
-  .data(nodes).join("g")
-  .attr("class", "node")
-  .call(d3.drag()
-    .on("start", (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-    .on("drag",  (e, d) => { d.fx = e.x; d.fy = e.y; })
-    .on("end",   (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }))
-  .on("click", (e, d) => { e.stopPropagation(); focusNode(d); })
-  .on("mouseover", (e, d) => showTooltip(e, d))
-  .on("mousemove", moveTooltip)
-  .on("mouseout",  hideTooltip);
-
-nodeEl.append("circle")
-  .attr("r", d => radiusScale(d.degree))
-  .attr("fill", d => DIM_COLOR[d.dim] || "#64748b");
-
-nodeEl.append("text")
-  .text(d => d.id)
-  .attr("dy", d => radiusScale(d.degree) + 9)
-  .style("font-size", d => Math.max(8, Math.min(11, radiusScale(d.degree) * 0.9)) + "px");
-
-svg.on("click", clearFocus);
-
-simulation.on("tick", () => {
-  linkEl.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-  nodeEl.attr("transform", d => `translate(${d.x},${d.y})`);
-});
-
-// Neighbour map for focus
-const neighborMap = new Map();
-nodes.forEach(n => neighborMap.set(n.id, new Set()));
-links.forEach(l => {
-  neighborMap.get(l.source.id || l.source).add(l.target.id || l.target);
-  neighborMap.get(l.target.id || l.target).add(l.source.id || l.source);
-});
-
-let focused = null;
-
-function focusNode(d) {
-  if (focused === d.id) { clearFocus(); return; }
-  focused = d.id;
-  const neighbors = neighborMap.get(d.id) || new Set();
-  nodeEl.classed("highlighted", n => n.id === d.id || neighbors.has(n.id))
-        .classed("faded", n => n.id !== d.id && !neighbors.has(n.id));
-  linkEl.classed("highlighted", l => (l.source.id||l.source) === d.id || (l.target.id||l.target) === d.id)
-        .classed("faded", l => (l.source.id||l.source) !== d.id && (l.target.id||l.target) !== d.id);
-}
-
-function clearFocus() {
-  focused = null;
-  nodeEl.classed("highlighted", false).classed("faded", false);
-  linkEl.classed("highlighted", false).classed("faded", false);
-}
-
-function applyDimFilter() {
-  nodeEl.classed("faded", n => !activeDims.has(n.dim));
-  linkEl.classed("faded", l => !activeDims.has(l.from_dim) && !activeDims.has(l.to_dim));
-}
-
-// Search
-document.getElementById("search").addEventListener("input", function() {
-  const q = this.value.trim().toLowerCase();
-  if (!q) { clearFocus(); return; }
-  const match = nodes.find(n => n.id.toLowerCase().includes(q));
-  if (match) focusNode(match);
-});
-
-// Tooltip
-const tip = document.getElementById("tooltip");
-function showTooltip(e, d) {
-  const neighbors = neighborMap.get(d.id) || new Set();
-  const nearby = links
-    .filter(l => (l.source.id||l.source) === d.id || (l.target.id||l.target) === d.id)
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, 8)
-    .map(l => {
-      const other = (l.source.id||l.source) === d.id ? (l.target.id||l.target) : (l.source.id||l.source);
-      return `<div class="tt-neighbor">→ ${other}<span class="tt-weight">${l.weight.toFixed(2)}</span></div>`;
-    }).join("");
-  tip.innerHTML = `<div class="tt-tag">${d.id}</div><div class="tt-dim">${DIM_LABEL[d.dim]} · ${neighbors.size} connections</div>${nearby}`;
-  tip.style.display = "block";
-  moveTooltip(e);
-}
-function moveTooltip(e) {
-  const x = e.clientX + 14, y = e.clientY - 10;
-  tip.style.left = Math.min(x, window.innerWidth - 260) + "px";
-  tip.style.top  = Math.max(y, 8) + "px";
-}
-function hideTooltip() { tip.style.display = "none"; }
-
-window.addEventListener("resize", () => {
-  const w = window.innerWidth, h = window.innerHeight;
-  svg.attr("viewBox", [0, 0, w, h]);
-  simulation.force("center", d3.forceCenter(w / 2, h / 2)).alpha(0.2).restart();
-});
-</script>
-</body>
-</html>
-"""
-
-
-def run_viz_tag_graph(
-    input: str = "app/games/tag_graph.json",
-    output: str | None = None,
+def run_get_profiles(
+    db_path: str, game_ref: str, *, limit: int = 5
 ) -> CommandResult:
-    """Render tag_graph.json as an interactive D3 force graph and open it."""
-    import tempfile
-    import webbrowser
+    """List top creator profiles for one customer game."""
+    initialize_database(db_path)
+    if limit <= 0:
+        raise ValueError("--limit must be greater than 0.")
 
-    graph_path = Path(input)
-    if not graph_path.exists():
-        raise FileNotFoundError(
-            f"{input} not found. Run `./sr gen-tag-graph` first."
+    game = _resolve_customer_game(db_path, game_ref)
+
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            """
+            WITH creator_tag_counts AS (
+                SELECT
+                    cgp.account_id AS account_id,
+                    igt.tag_type AS tag_type,
+                    igt.tag_id AS tag_id,
+                    COUNT(DISTINCT cgp.igdb_game_id) AS tag_count
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt
+                  ON igt.igdb_id = cgp.igdb_game_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+                GROUP BY cgp.account_id, igt.tag_type, igt.tag_id
+            )
+            SELECT
+                sa.account_id AS account_id,
+                sa.platform AS platform,
+                COALESCE(
+                    sa.display_name_current,
+                    tp.display_name,
+                    yc.display_name
+                ) AS display_name,
+                sa.handle_current AS handle,
+                sa.canonical_url AS url,
+                cpf.summary_text AS summary_text,
+                COALESCE(
+                    tp.recent_avg_live_viewers,
+                    tp.viewer_count,
+                    tp.recent_avg_vod_views,
+                    yc.recent_avg_views,
+                    0
+                ) AS recent_audience,
+                COALESCE(
+                    tp.followers_count,
+                    yc.subscriber_count,
+                    0
+                ) AS reach,
+                cpf.last_activity_at AS last_active_at,
+                ctc.tag_type AS tag_type,
+                ctc.tag_id AS tag_id,
+                ctc.tag_count AS tag_count
+            FROM source_accounts sa
+            JOIN creator_tag_counts ctc
+              ON ctc.account_id = sa.account_id
+            LEFT JOIN creator_profile_facets_latest cpf
+              ON cpf.account_id = sa.account_id
+            LEFT JOIN twitch_profiles_latest tp
+              ON tp.account_id = sa.account_id
+             AND sa.platform = 'twitch'
+            LEFT JOIN youtube_channels_latest yc
+              ON yc.account_id = sa.account_id
+             AND sa.platform = 'youtube'
+            WHERE cpf.platform = sa.platform OR cpf.platform IS NULL
+            """,
+        ).fetchall()
+
+    accounts: dict[str, dict[str, object]] = {}
+    for row in rows:
+        account_id = str(row["account_id"])
+        if account_id not in accounts:
+            accounts[account_id] = {
+                "row": row,
+                "tag_counts": {},
+            }
+        tag_counts = accounts[account_id]["tag_counts"]
+        assert isinstance(tag_counts, dict)
+        tag_counts[(str(row["tag_type"]), int(row["tag_id"]))] = int(
+            row["tag_count"]
         )
 
-    edges = json.loads(graph_path.read_text())
-    graph_json = json.dumps(edges)
-    html = _TAG_GRAPH_HTML.replace("/*GRAPH_DATA*/", graph_json)
+    scored_rows: list[
+        tuple[float, tuple[tuple[str, int | str], ...], sqlite3.Row]
+    ] = []
+    for payload in accounts.values():
+        row = payload["row"]
+        assert isinstance(row, sqlite3.Row)
+        tag_counts = payload["tag_counts"]
+        assert isinstance(tag_counts, dict)
+        match = match_creator_tags_to_game(
+            game,
+            creator_tag_counts=tag_counts,
+        )
+        if match.coverage_score <= 0:
+            continue
+        scored_rows.append((match.coverage_score, match.overlap_tags, row))
 
-    if output:
-        html_path = Path(output)
-        html_path.write_text(html)
-    else:
-        fd, tmp = tempfile.mkstemp(suffix=".html", prefix="sr_tag_graph_")
-        import os as _os
+    scored_rows.sort(
+        key=lambda item: (
+            item[0],
+            int(item[2]["recent_audience"] or 0),
+            int(item[2]["reach"] or 0),
+            str(item[2]["last_active_at"] or ""),
+        ),
+        reverse=True,
+    )
+    scored_rows = scored_rows[:limit]
 
-        _os.close(fd)
-        Path(tmp).write_text(html)
-        html_path = Path(tmp)
+    if not scored_rows:
+        return CommandResult(
+            message=(
+                f"No matched creator profiles found for {game.name} "
+                f"({game.customer_game_id})."
+            )
+        )
 
-    webbrowser.open(html_path.as_uri())
-
-    node_ids: set[str] = set()
-    for e in edges:
-        node_ids.add(e["from"])
-        node_ids.add(e["to"])
-
+    table = _format_rows_as_table(
+        (
+            "coverage",
+            "overlap_tags",
+            "platform",
+            "display_name",
+            "handle",
+            "recent_audience",
+            "reach",
+            "last_active_at",
+            "url",
+        ),
+        [
+            (
+                f"{score:.3f}",
+                ", ".join(
+                    f"{tag_type}:{tag_id}"
+                    for tag_type, tag_id in overlap_labels
+                ),
+                row["platform"],
+                row["display_name"],
+                row["handle"],
+                row["recent_audience"],
+                row["reach"],
+                row["last_active_at"],
+                row["url"],
+            )
+            for score, overlap_labels, row in scored_rows
+        ],
+    )
     return CommandResult(
         message=(
-            f"Opened visualisation: {len(node_ids)} nodes, {len(edges)} edges"
-            + (f" — saved to {html_path}" if output else "")
+            f"Top matched creator profiles for {game.name} ({game.customer_game_id}):\n"
+            f"{table}"
+        )
+    )
+
+
+async def _run_inspect_twitch_igdb_async(
+    db_path: str,
+    *,
+    igdb_game_id: int,
+    max_pages: int,
+    page_size: int,
+    languages: Sequence[str],
+    persist: bool,
+    persist_limit: int,
+) -> CommandResult:
+    initialize_database(db_path)
+    settings = Settings.from_env()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        raise ValueError(
+            "TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET are required."
+        )
+
+    normalized_languages = tuple(
+        language.strip() for language in languages if language.strip()
+    )
+    runtime = SourceRuntime(
+        youtube_api_key=settings.youtube_api_key,
+        youtube_cache_dir=settings.youtube_cache_dir,
+        twitch_client_id=settings.twitch_client_id,
+        twitch_client_secret=settings.twitch_client_secret,
+    )
+    client = TwitchStreamClient.from_runtime(runtime)
+    enrichment = TwitchEnrichment(
+        settings.twitch_client_id, settings.twitch_client_secret
+    )
+    service = CreatorIndexService(db_path=db_path, source_runtime=runtime)
+    igdb_repo = IGDBRepository(db_path)
+    igdb_game = igdb_repo.get(igdb_game_id)
+    parts: list[str] = []
+    if igdb_game is None:
+        await IGDBSyncService(
+            db_path=db_path,
+            client_id=settings.twitch_client_id,
+            client_secret=settings.twitch_client_secret,
+        ).fetch_game(igdb_game_id)
+        igdb_game = igdb_repo.get(igdb_game_id)
+    if igdb_game is None:
+        return CommandResult(
+            message=(
+                "Stage 0: Twitch category resolution\n"
+                f"igdb_game_id={igdb_game_id} local_igdb_game=no\n"
+                "resolved_category=<none>"
+            )
+        )
+
+    game_name = igdb_game["name"]
+    page0 = await client.get_games(igdb_game_ids=(igdb_game_id,))
+    twitch_category = page0.data[0] if page0.data else None
+    if twitch_category is None:
+        return CommandResult(
+            message=(
+                "Stage 0: Twitch category resolution\n"
+                f"igdb_game_id={igdb_game_id} local_igdb_game=yes "
+                f"igdb_name={game_name!r} twitch_get_games_returned={len(page0.data)}\n"
+                "resolved_category=<none>"
+            )
+        )
+
+    page = await client.get_streams(
+        game_ids=(twitch_category.twitch_game_id,),
+        languages=normalized_languages,
+        first=page_size,
+    )
+    channels = await client.get_channel_info(
+        [stream.user_id for stream in page.data]
+    )
+    # Collect broadcaster IDs from streams
+    batch_broadcaster_ids: list[str] = []
+    cursor: str | None = None
+    for _ in range(max_pages):
+        streams_page = await client.get_streams(
+            game_ids=(twitch_category.twitch_game_id,),
+            languages=normalized_languages,
+            first=100,
+            after=cursor,
+        )
+        if not streams_page.data:
+            break
+        for stream in streams_page.data:
+            if stream.user_id not in batch_broadcaster_ids:
+                batch_broadcaster_ids.append(stream.user_id)
+        cursor = streams_page.pagination.cursor
+        if not cursor:
+            break
+
+    parts.append(
+        "Stage 0: Twitch category resolution\n"
+        f"igdb_game_id={igdb_game_id} local_igdb_game=yes "
+        f"igdb_name={game_name!r} "
+        f"twitch_get_games_returned={len(page0.data)} "
+        f"twitch_category_id={twitch_category.twitch_game_id} "
+        f"name={twitch_category.name!r}\n"
+        f"box_art_url={twitch_category.box_art_url or '<none>'}"
+    )
+    stream_rows = [
+        (
+            stream.user_id,
+            stream.user_login,
+            stream.user_name,
+            stream.twitch_game_id,
+            stream.language,
+            stream.viewer_count,
+            stream.stream_title,
+        )
+        for stream in page.data
+    ]
+    stream_table = _format_rows_as_table(
+        (
+            "user_id",
+            "user_login",
+            "user_name",
+            "twitch_game_id",
+            "language",
+            "viewer_count",
+            "stream_title",
+        ),
+        stream_rows,
+    )
+    parts.append(
+        "Stage 1: /helix/streams\n"
+        f"filters: twitch_game_id={twitch_category.twitch_game_id} languages={list(normalized_languages) or ['<none>']} first={page_size}\n"
+        f"returned_streams={len(page.data)} next_cursor={page.pagination.cursor or '<none>'}\n"
+        f"{stream_table}"
+    )
+
+    channel_rows = [
+        (
+            channel.broadcaster_id,
+            channel.broadcaster_login,
+            channel.broadcaster_name,
+            channel.broadcaster_language,
+            channel.twitch_game_id,
+            channel.game_name,
+            ", ".join(channel.tags[:4]) if channel.tags else None,
+            channel.title,
+            channel.description,
+        )
+        for channel in channels.data
+    ]
+    channel_table = _format_rows_as_table(
+        (
+            "broadcaster_id",
+            "login",
+            "name",
+            "language",
+            "twitch_game_id",
+            "game_name",
+            "tags",
+            "title",
+            "description",
+        ),
+        channel_rows,
+    )
+    parts.append(
+        "Stage 2: /helix/channels\n"
+        f"requested_broadcasters={len(page.data)} returned_channels={len(channels.data)}\n"
+        f"{channel_table}"
+    )
+
+    parts.append(
+        "Stage 3: stream crawl\n"
+        f"max_pages={max_pages} collected_broadcasters={len(batch_broadcaster_ids)}"
+    )
+
+    if persist:
+        selected_broadcaster_ids = list(
+            dict.fromkeys(batch_broadcaster_ids[: max(0, persist_limit)])
+        )
+        bundles_list = []
+        for bid in selected_broadcaster_ids:
+            bundle = await enrichment.enrich_broadcaster(bid)
+            if bundle is not None:
+                bundles_list.append(bundle)
+        (
+            persisted_accounts,
+            _persisted_samples,
+            _persisted_contacts,
+        ) = await service._persist_bundles("twitch", bundles_list)
+        with get_connection(db_path) as conn:
+            if not selected_broadcaster_ids:
+                rows: list[sqlite3.Row] = []
+                linked_rows: list[sqlite3.Row] = []
+            else:
+                placeholders = ",".join("?" for _ in selected_broadcaster_ids)
+                rows = conn.execute(
+                    f"""
+                    SELECT
+                        sa.account_id,
+                        sa.external_id,
+                        sa.handle_current,
+                        tp.display_name,
+                        tp.followers_count,
+                        COUNT(DISTINCT cgp.game_name_key) AS creator_games_played,
+                        COUNT(DISTINCT cs.sample_id) AS content_samples,
+                        COUNT(DISTINCT cp.contact_point_id) AS contact_points
+                    FROM source_accounts sa
+                    LEFT JOIN twitch_profiles_latest tp
+                      ON tp.account_id = sa.account_id
+                    LEFT JOIN creator_games_played cgp
+                      ON cgp.account_id = sa.account_id
+                    LEFT JOIN content_samples_latest cs
+                      ON cs.account_id = sa.account_id
+                    LEFT JOIN contact_points cp
+                      ON cp.account_id = sa.account_id
+                    WHERE sa.platform = 'twitch'
+                      AND sa.external_id IN ({placeholders})
+                    GROUP BY
+                        sa.account_id,
+                        sa.external_id,
+                        sa.handle_current,
+                        tp.display_name,
+                        tp.followers_count
+                    ORDER BY tp.followers_count DESC, sa.external_id ASC
+                    LIMIT 20
+                    """,
+                    tuple(selected_broadcaster_ids),
+                ).fetchall()
+                linked_rows = conn.execute(
+                    f"""
+                    SELECT
+                        sa.external_id,
+                        sa.handle_current,
+                        cgp.game_name_raw,
+                        cgp.igdb_game_id,
+                        cgp.observation_count
+                    FROM creator_games_played cgp
+                    JOIN source_accounts sa
+                      ON sa.account_id = cgp.account_id
+                    WHERE sa.platform = 'twitch'
+                      AND sa.external_id IN ({placeholders})
+                    ORDER BY sa.external_id ASC, cgp.game_name_key ASC
+                    LIMIT 50
+                    """,
+                    tuple(selected_broadcaster_ids),
+                ).fetchall()
+        persisted_table = _format_rows_as_table(
+            (
+                "account_id",
+                "external_id",
+                "handle",
+                "display_name",
+                "followers",
+                "creator_games_played",
+                "content_samples",
+                "contact_points",
+            ),
+            [
+                (
+                    row["account_id"],
+                    row["external_id"],
+                    row["handle_current"],
+                    row["display_name"],
+                    row["followers_count"],
+                    row["creator_games_played"],
+                    row["content_samples"],
+                    row["contact_points"],
+                )
+                for row in rows
+            ],
+        )
+        parts.append(
+            "Stage 4: persisted rows\n"
+            f"requested_persist_broadcasters={len(selected_broadcaster_ids)} persisted_accounts={persisted_accounts}\n"
+            f"{persisted_table}"
+        )
+        linked_table = _format_rows_as_table(
+            (
+                "external_id",
+                "handle",
+                "game_name_raw",
+                "igdb_game_id",
+                "observation_count",
+            ),
+            [
+                (
+                    row["external_id"],
+                    row["handle_current"],
+                    row["game_name_raw"],
+                    row["igdb_game_id"],
+                    row["observation_count"],
+                )
+                for row in linked_rows
+            ],
+        )
+        parts.append(f"Stage 5: linked creator games\n{linked_table}")
+
+    return CommandResult(message="\n\n".join(parts))
+
+
+def run_inspect_twitch_igdb(
+    db_path: str,
+    *,
+    igdb_game_id: int,
+    max_pages: int = 3,
+    page_size: int = 20,
+    languages: Sequence[str] = ("en",),
+    persist: bool = False,
+    persist_limit: int = 10,
+) -> CommandResult:
+    return asyncio.run(
+        _run_inspect_twitch_igdb_async(
+            db_path,
+            igdb_game_id=igdb_game_id,
+            max_pages=max_pages,
+            page_size=page_size,
+            languages=languages,
+            persist=persist,
+            persist_limit=persist_limit,
+        )
+    )
+
+
+async def _run_twitch_streams_async(
+    *,
+    twitch_game_id: str,
+    page_size: int,
+    languages: Sequence[str],
+) -> CommandResult:
+    settings = Settings.from_env()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        raise ValueError(
+            "TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET are required."
+        )
+
+    normalized_languages = tuple(
+        language.strip() for language in languages if language.strip()
+    )
+    runtime = SourceRuntime(
+        youtube_api_key=settings.youtube_api_key,
+        youtube_cache_dir=settings.youtube_cache_dir,
+        twitch_client_id=settings.twitch_client_id,
+        twitch_client_secret=settings.twitch_client_secret,
+    )
+    client = TwitchStreamClient.from_runtime(runtime)
+    page = await client.get_streams(
+        game_ids=(twitch_game_id,),
+        languages=normalized_languages,
+        first=page_size,
+    )
+    rows = [
+        (
+            stream.user_id,
+            stream.user_login,
+            stream.user_name,
+            stream.twitch_game_id,
+            stream.language,
+            stream.viewer_count,
+            stream.stream_title,
+        )
+        for stream in page.data
+    ]
+    table = _format_rows_as_table(
+        (
+            "user_id",
+            "user_login",
+            "user_name",
+            "twitch_game_id",
+            "language",
+            "viewer_count",
+            "stream_title",
+        ),
+        rows,
+    )
+    return CommandResult(
+        message=(
+            f"Twitch /helix/streams for game_id={twitch_game_id} "
+            f"languages={list(normalized_languages) or ['<none>']} "
+            f"first={page_size}\n"
+            f"returned_streams={len(page.data)} "
+            f"next_cursor={page.pagination.cursor or '<none>'}\n"
+            f"{table}"
+        )
+    )
+
+
+def run_twitch_streams(
+    *,
+    twitch_game_id: str,
+    page_size: int = 20,
+    languages: Sequence[str] = ("en",),
+) -> CommandResult:
+    return asyncio.run(
+        _run_twitch_streams_async(
+            twitch_game_id=twitch_game_id,
+            page_size=page_size,
+            languages=languages,
+        )
+    )
+
+
+async def _run_twitch_search_categories_async(
+    *,
+    query: str,
+    page_size: int,
+) -> CommandResult:
+    settings = Settings.from_env()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        raise ValueError(
+            "TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET are required."
+        )
+
+    runtime = SourceRuntime(
+        youtube_api_key=settings.youtube_api_key,
+        youtube_cache_dir=settings.youtube_cache_dir,
+        twitch_client_id=settings.twitch_client_id,
+        twitch_client_secret=settings.twitch_client_secret,
+    )
+    client = TwitchStreamClient.from_runtime(runtime)
+    page = await client.search_categories(query=query, first=page_size)
+    rows = [
+        (category.category_id, category.name, category.box_art_url)
+        for category in page.data
+    ]
+    table = _format_rows_as_table(
+        ("category_id", "name", "box_art_url"),
+        rows,
+    )
+    return CommandResult(
+        message=(
+            f"Twitch /helix/search/categories for query={query!r} "
+            f"first={page_size}\n"
+            f"returned_categories={len(page.data)} "
+            f"next_cursor={page.pagination.cursor or '<none>'}\n"
+            f"{table}"
+        )
+    )
+
+
+def run_twitch_search_categories(
+    *,
+    query: str,
+    page_size: int = 20,
+) -> CommandResult:
+    return asyncio.run(
+        _run_twitch_search_categories_async(
+            query=query,
+            page_size=page_size,
+        )
+    )
+
+
+async def _run_igdb_fetch_async(
+    db_path: str,
+    *,
+    igdb_game_id: int,
+) -> CommandResult:
+    initialize_database(db_path)
+    settings = Settings.from_env()
+    if not settings.twitch_client_id or not settings.twitch_client_secret:
+        raise ValueError(
+            "TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET are required."
+        )
+
+    service = IGDBSyncService(
+        db_path=db_path,
+        client_id=settings.twitch_client_id,
+        client_secret=settings.twitch_client_secret,
+    )
+    fetched = await service.fetch_game(igdb_game_id)
+    if not fetched:
+        return CommandResult(
+            message=f"No IGDB game found for id={igdb_game_id}.",
+            created=False,
+        )
+
+    row = IGDBRepository(db_path).get(igdb_game_id)
+    if row is None:
+        raise ValueError("Fetched IGDB game was not persisted.")
+    return CommandResult(
+        message=(
+            f"Fetched IGDB game {row['name']} ({row['igdb_id']}) "
+            f"slug={row['slug']}"
+        ),
+        created=True,
+    )
+
+
+def run_igdb_fetch(
+    db_path: str,
+    *,
+    igdb_game_id: int,
+) -> CommandResult:
+    return asyncio.run(
+        _run_igdb_fetch_async(
+            db_path,
+            igdb_game_id=igdb_game_id,
         )
     )
 
@@ -836,14 +1305,12 @@ def main(argv: list[str] | None = None) -> int:
         result = run_strife_of_stars(args.db_path)
     elif args.command == "forgetting-hour":
         result = run_forgetting_hour(args.db_path)
+    elif args.command == "seed-test-user":
+        result = run_seed_test_user(args.db_path)
     elif args.command == "snapshot-game-preset":
         result = run_snapshot_game_preset(
             args.db_path, args.preset_key, game_ref=args.game
         )
-    elif args.command == "clear-queues":
-        result = run_clear_queues(args.db_path)
-    elif args.command == "rm-db":
-        result = run_rm_db(args.db_path)
     elif args.command == "activate-sub":
         result = run_activate_sub(args.db_path)
     elif args.command == "activate-trial":
@@ -859,10 +1326,38 @@ def main(argv: list[str] | None = None) -> int:
             create_missing=args.create_missing,
             send_reset=args.send_reset,
         )
-    elif args.command == "reset-discovery-runs":
-        result = run_reset_discovery_runs(args.db_path, args.email)
-    elif args.command == "viz-tag-graph":
-        result = run_viz_tag_graph(args.input, args.output)
+    elif args.command == "customer-ids":
+        result = run_customer_ids(args.db_path)
+    elif args.command == "ccs-for":
+        result = run_get_profiles(
+            args.db_path, args.game_ref, limit=args.limit
+        )
+    elif args.command == "inspect-twitch-igdb":
+        result = run_inspect_twitch_igdb(
+            args.db_path,
+            igdb_game_id=args.igdb_game_id,
+            max_pages=args.max_pages,
+            page_size=args.page_size,
+            languages=tuple(args.languages),
+            persist=args.persist,
+            persist_limit=args.persist_limit,
+        )
+    elif args.command == "twitch-streams":
+        result = run_twitch_streams(
+            twitch_game_id=args.twitch_game_id,
+            page_size=args.page_size,
+            languages=tuple(args.languages),
+        )
+    elif args.command == "twitch-search-categories":
+        result = run_twitch_search_categories(
+            query=args.query,
+            page_size=args.page_size,
+        )
+    elif args.command == "igdb-fetch":
+        result = run_igdb_fetch(
+            args.db_path,
+            igdb_game_id=args.igdb_game_id,
+        )
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 

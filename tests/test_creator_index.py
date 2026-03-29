@@ -6,65 +6,34 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import httpx
+import pytest
 
-from app.creator_index.account_discovery import (
-    CrawlPlatform,
-    DiscoveredAccountBatch,
-)
 from app.creator_index.adapters.base import (
-    AccountSeedAdapter,
     AccountSeedBundle,
     ContactPointSeed,
+    ContactType,
     ContentSampleSeed,
+    ObservedGameSeed,
     SourceAccountSeed,
     TwitchProfileSeed,
     YouTubeChannelSeed,
 )
-from app.creator_index.adapters.twitch import TwitchAccountAdapter, _build_queries
 from app.creator_index.adapters.youtube import YouTubeChannelAdapter
-from app.creator_index.bootstrap import DEFAULT_CRAWL_SEEDS
+from app.creator_index.enrichment import TwitchEnrichment
 from app.creator_index.facets import build_creator_profile_facets
-from app.creator_index.models import PlatformSyncSummary
 from app.creator_index.repository import CreatorIndexRepository
 from app.creator_index.service import CreatorIndexService
 from app.database import get_connection
 from app.runtime import SourceRuntime
 from app.scheduler.setup import create_scheduler
 
-
-def test_twitch_query_builder_prefers_broad_game_and_genre_queries(
-    db_path, registered_user
-):
-    from app.games.service import CustomerGameService
-    from app.games.repository import CustomerGameRepository
-
-    service = CustomerGameService(CustomerGameRepository(db_path))
-    game = service.create_game(
-        user_id=registered_user.user_id,
-        name="Strife Of Stars",
-        description="Space tactics game.",
-        website_url=None,
-        summary="Space tactics.",
-        igdb_genre_ids=[12, 15],
-        igdb_theme_ids=[18],
-    )
-
-    queries = _build_queries(game)
-
-    assert "Strife Of Stars" in queries
-    assert "Role-playing (RPG)" in queries
-    assert "Strategy" in queries
-    assert "Role-playing (RPG) Strategy" not in queries
-    assert all(
-        "streamer" not in query.casefold()
-        and "playthrough" not in query.casefold()
-        and " live" not in query.casefold()
-        for query in queries
-    )
+# ---------------------------------------------------------------------------
+# Clip record parsing
+# ---------------------------------------------------------------------------
 
 
 def test_parse_clip_record_extracts_game_id_and_view_count():
-    from app.creator_index.adapters.twitch import _parse_clip_record
+    from app.creator_index.enrichment import _parse_clip_record
 
     raw = {
         "id": "clip123",
@@ -89,24 +58,21 @@ def test_parse_clip_record_extracts_game_id_and_view_count():
 
 
 def test_parse_clip_record_returns_none_for_missing_id():
-    from app.creator_index.adapters.twitch import _parse_clip_record
+    from app.creator_index.enrichment import _parse_clip_record
 
     assert _parse_clip_record({"title": "no id"}) is None
 
 
 def test_parse_clip_record_returns_none_for_missing_game_id():
-    from app.creator_index.adapters.twitch import _parse_clip_record
+    from app.creator_index.enrichment import _parse_clip_record
 
     assert _parse_clip_record({"id": "c1", "title": "t"}) is None
 
 
-import pytest
-
-
 @pytest.mark.anyio
 async def test_fetch_clips_returns_clip_records(monkeypatch):
-    """Adapter fetches clips for each broadcaster, returning TwitchClipRecords."""
-    from app.creator_index.adapters.twitch import TwitchAccountAdapter, TwitchClipRecord
+    """Enrichment fetches clips for each broadcaster, returning TwitchClipRecords."""
+    from app.creator_index.enrichment import TwitchClipRecord
 
     clip_data = {
         "data": [
@@ -126,19 +92,27 @@ async def test_fetch_clips_returns_clip_records(monkeypatch):
         "pagination": {},
     }
 
-    async def fake_request(client, method, url, *, params=None, headers=None):
+    async def fake_request(
+        client,
+        method,
+        url,
+        *,
+        params=None,
+        headers=None,
+        refresh_headers=None,
+    ):
         return clip_data
 
     monkeypatch.setattr(
-        "app.creator_index.adapters.twitch.twitch_request_json", fake_request
+        "app.creator_index.enrichment.twitch_request_json", fake_request
     )
 
-    adapter = TwitchAccountAdapter("cid", "csecret")
-    import httpx
+    enrichment = TwitchEnrichment("cid", "csecret")
+
     async with httpx.AsyncClient() as client:
         headers = {"Authorization": "Bearer fake", "Client-Id": "cid"}
-        result = await adapter._fetch_clips_for_users(
-            client, headers, ["111"]
+        result = await enrichment.fetch_clips_for_users(
+            ["111"], client=client, headers=headers
         )
 
     assert "111" in result
@@ -149,7 +123,6 @@ async def test_fetch_clips_returns_clip_records(monkeypatch):
 
 @pytest.mark.anyio
 async def test_resolve_game_names_maps_twitch_ids_to_names(monkeypatch):
-    from app.creator_index.adapters.twitch import TwitchAccountAdapter
 
     games_response = {
         "data": [
@@ -158,36 +131,36 @@ async def test_resolve_game_names_maps_twitch_ids_to_names(monkeypatch):
         ]
     }
 
-    async def fake_request(client, method, url, *, params=None, headers=None):
+    async def fake_request(
+        client,
+        method,
+        url,
+        *,
+        params=None,
+        headers=None,
+        refresh_headers=None,
+    ):
         return games_response
 
     monkeypatch.setattr(
-        "app.creator_index.adapters.twitch.twitch_request_json", fake_request
+        "app.creator_index.enrichment.twitch_request_json", fake_request
     )
 
-    adapter = TwitchAccountAdapter("cid", "csecret")
-    import httpx
+    enrichment = TwitchEnrichment("cid", "csecret")
+
     async with httpx.AsyncClient() as client:
         headers = {"Authorization": "Bearer fake", "Client-Id": "cid"}
-        result = await adapter._resolve_game_names(
-            client, headers, {"33214", "21779"}
+        result = await enrichment.resolve_game_names(
+            {"33214", "21779"}, client=client, headers=headers
         )
 
     assert result["33214"] == "Fortnite"
     assert result["21779"] == "League of Legends"
 
 
-def _record_call(
-    calls: list[tuple[str, int, dict[str, str]]],
-    *,
-    scope_key: str,
-    limit: int,
-    page_cursors: dict[str, str] | None,
-    cursor_key: str,
-) -> None:
-    cursors = page_cursors if page_cursors is not None else {}
-    calls.append((scope_key, limit, dict(cursors)))
-    cursors[cursor_key] = f"cursor:{scope_key}"
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _fake_twitch_bundle_for_game(
@@ -238,7 +211,7 @@ def _fake_twitch_bundle_for_game(
         ),
         contact_points=(
             ContactPointSeed(
-                contact_type="email",
+                contact_type=ContactType.EMAIL,
                 contact_value="creator@example.com",
                 source_kind="profile_description",
                 source_url="https://www.twitch.tv/example/about",
@@ -254,8 +227,8 @@ def _insert_test_igdb_game(db_path: str, igdb_game_id: int, name: str) -> None:
             INSERT INTO igdb_games (
                 igdb_id, name, slug, summary, first_release_date,
                 platform_ids_json, platform_names_json,
-                raw_payload_json, last_synced_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                last_synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 igdb_game_id,
@@ -265,713 +238,14 @@ def _insert_test_igdb_game(db_path: str, igdb_game_id: int, name: str) -> None:
                 None,
                 "[]",
                 "[]",
-                "{}",
                 "2026-01-01T00:00:00+00:00",
             ),
         )
 
 
-class _FakeTwitchAdapter(AccountSeedAdapter):
-    platform = "twitch"
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, int, dict[str, str]]] = []
-
-    @classmethod
-    def build(cls, runtime: SourceRuntime) -> _FakeTwitchAdapter:
-        del runtime
-        return cls()
-
-    async def discover_game_accounts(
-        self,
-        customer_game,
-        limit: int,
-        *,
-        page_cursors: dict[str, str] | None = None,
-        skip_external_ids: frozenset[str] = frozenset(),
-    ):
-        del skip_external_ids
-        _record_call(
-            self.calls,
-            scope_key=customer_game.customer_game_id,
-            limit=limit,
-            page_cursors=page_cursors,
-            cursor_key="search:twitch",
-        )
-        return [
-            AccountSeedBundle(
-                account=SourceAccountSeed(
-                    external_id=f"tw-{customer_game.customer_game_id}",
-                    handle_current=f"{customer_game.slug}-tv",
-                    display_name_current=f"{customer_game.name} TV",
-                    canonical_url=f"https://www.twitch.tv/{customer_game.slug}-tv",
-                ),
-                platform_profile=TwitchProfileSeed(
-                    broadcaster_id=f"tw-{customer_game.customer_game_id}",
-                    login=f"{customer_game.slug}-tv",
-                    display_name=f"{customer_game.name} TV",
-                    description="Email me at creator@example.com",
-                    followers_count=1200,
-                    viewer_count=88,
-                    recent_avg_live_viewers=None,
-                    recent_median_live_viewers=None,
-                    recent_avg_vod_views=250,
-                    recent_median_vod_views=250,
-                    streams_last_30d=1,
-                    language="en",
-                    games_played=(customer_game.name, "Another Game"),
-                    avatar_url="https://static.example/avatar.png",
-                    last_live_at="2026-03-24T10:00:00+00:00",
-                    fetched_at="2026-03-24T10:05:00+00:00",
-                    expires_at="2026-03-24T16:05:00+00:00",
-                ),
-                content_samples=(
-                    ContentSampleSeed(
-                        external_content_id=f"vod-{customer_game.customer_game_id}",
-                        content_type="vod",
-                        title_or_text=f"{customer_game.name} first look",
-                        body_text="Recent VOD about the game",
-                        url="https://www.twitch.tv/videos/1",
-                        thumbnail_url="https://static.example/thumb.jpg",
-                        published_at="2026-03-24T09:00:00+00:00",
-                        engagement_count=250,
-                        language="en",
-                        position_rank=0,
-                        fetched_at="2026-03-24T10:05:00+00:00",
-                        expires_at="2026-03-24T16:05:00+00:00",
-                    ),
-                ),
-                contact_points=(
-                    ContactPointSeed(
-                        contact_type="email",
-                        contact_value="creator@example.com",
-                        source_kind="profile_description",
-                        source_url="https://www.twitch.tv/example/about",
-                    ),
-                ),
-            )
-        ]
-
-    async def discover_seed_accounts(
-        self,
-        query_text: str,
-        limit: int,
-        *,
-        page_cursors: dict[str, str] | None = None,
-        skip_external_ids: frozenset[str] = frozenset(),
-    ):
-        del skip_external_ids
-        _record_call(
-            self.calls,
-            scope_key=query_text,
-            limit=limit,
-            page_cursors=page_cursors,
-            cursor_key=f"search:{query_text}",
-        )
-        return [
-            AccountSeedBundle(
-                account=SourceAccountSeed(
-                    external_id=f"tw-seed-{query_text}",
-                    handle_current=f"seed-{query_text}",
-                    display_name_current=f"Seed {query_text}",
-                    canonical_url="https://www.twitch.tv/seed",
-                ),
-                platform_profile=TwitchProfileSeed(
-                    broadcaster_id=f"tw-seed-{query_text}",
-                    login=f"seed-{query_text}",
-                    display_name=f"Seed {query_text}",
-                    description=None,
-                    followers_count=500,
-                    viewer_count=25,
-                    recent_avg_live_viewers=None,
-                    recent_median_live_viewers=None,
-                    recent_avg_vod_views=None,
-                    recent_median_vod_views=None,
-                    streams_last_30d=0,
-                    language="en",
-                    games_played=(),
-                    avatar_url=None,
-                    last_live_at="2026-03-24T11:00:00+00:00",
-                    fetched_at="2026-03-24T11:05:00+00:00",
-                    expires_at="2026-03-24T17:05:00+00:00",
-                ),
-            )
-        ]
-
-
-class _FakeYouTubeAdapter(AccountSeedAdapter):
-    platform = "youtube"
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, int, dict[str, str]]] = []
-
-    @classmethod
-    def build(cls, runtime: SourceRuntime) -> _FakeYouTubeAdapter:
-        del runtime
-        return cls()
-
-    async def discover_game_accounts(
-        self,
-        customer_game,
-        limit: int,
-        *,
-        page_cursors: dict[str, str] | None = None,
-        skip_external_ids: frozenset[str] = frozenset(),
-    ):
-        del skip_external_ids
-        _record_call(
-            self.calls,
-            scope_key=customer_game.customer_game_id,
-            limit=limit,
-            page_cursors=page_cursors,
-            cursor_key="search:youtube",
-        )
-        return [
-            AccountSeedBundle(
-                account=SourceAccountSeed(
-                    external_id=f"yt-{customer_game.customer_game_id}",
-                    handle_current=f"{customer_game.slug}-yt",
-                    display_name_current=f"{customer_game.name} Plays",
-                    canonical_url=f"https://www.youtube.com/channel/yt-{customer_game.customer_game_id}",
-                ),
-                platform_profile=YouTubeChannelSeed(
-                    channel_id=f"yt-{customer_game.customer_game_id}",
-                    handle=f"@{customer_game.slug}",
-                    display_name=f"{customer_game.name} Plays",
-                    description="Videos about tactics indies",
-                    subscriber_count=3400,
-                    video_count=128,
-                    recent_avg_views=4200,
-                    recent_median_views=3800,
-                    uploads_last_30d=6,
-                    default_language="en",
-                    country=None,
-                    channel_created_at=None,
-                    avatar_url="https://img.example/avatar.jpg",
-                    uploads_playlist_id=f"uu-{customer_game.customer_game_id}",
-                    last_upload_at="2026-03-23T12:00:00+00:00",
-                    fetched_at="2026-03-24T10:15:00+00:00",
-                    expires_at="2026-03-25T10:15:00+00:00",
-                ),
-                content_samples=(
-                    ContentSampleSeed(
-                        external_content_id=f"video-a-{customer_game.customer_game_id}",
-                        content_type="video",
-                        title_or_text=f"{customer_game.name} review",
-                        body_text="Long-form review",
-                        url="https://www.youtube.com/watch?v=a",
-                        thumbnail_url="https://img.example/a.jpg",
-                        published_at="2026-03-22T12:00:00+00:00",
-                        engagement_count=None,
-                        language=None,
-                        position_rank=0,
-                        fetched_at="2026-03-24T10:15:00+00:00",
-                        expires_at="2026-03-25T10:15:00+00:00",
-                    ),
-                    ContentSampleSeed(
-                        external_content_id=f"video-b-{customer_game.customer_game_id}",
-                        content_type="video",
-                        title_or_text=f"{customer_game.name} gameplay",
-                        body_text="Gameplay preview",
-                        url="https://www.youtube.com/watch?v=b",
-                        thumbnail_url="https://img.example/b.jpg",
-                        published_at="2026-03-21T12:00:00+00:00",
-                        engagement_count=None,
-                        language=None,
-                        position_rank=1,
-                        fetched_at="2026-03-24T10:15:00+00:00",
-                        expires_at="2026-03-25T10:15:00+00:00",
-                    ),
-                ),
-            )
-        ]
-
-    async def discover_seed_accounts(
-        self,
-        query_text: str,
-        limit: int,
-        *,
-        page_cursors: dict[str, str] | None = None,
-        skip_external_ids: frozenset[str] = frozenset(),
-    ):
-        del skip_external_ids
-        _record_call(
-            self.calls,
-            scope_key=query_text,
-            limit=limit,
-            page_cursors=page_cursors,
-            cursor_key=f"search:{query_text}",
-        )
-        return [
-            AccountSeedBundle(
-                account=SourceAccountSeed(
-                    external_id=f"yt-seed-{query_text}",
-                    handle_current=f"seed-{query_text}",
-                    display_name_current=f"Seed {query_text}",
-                    canonical_url="https://www.youtube.com/channel/seed",
-                ),
-                platform_profile=YouTubeChannelSeed(
-                    channel_id=f"yt-seed-{query_text}",
-                    handle="@seed",
-                    display_name=f"Seed {query_text}",
-                    description=None,
-                    subscriber_count=1500,
-                    video_count=64,
-                    recent_avg_views=2100,
-                    recent_median_views=1800,
-                    uploads_last_30d=4,
-                    default_language=None,
-                    country=None,
-                    channel_created_at=None,
-                    avatar_url=None,
-                    uploads_playlist_id="uu-seed",
-                    last_upload_at="2026-03-23T12:00:00+00:00",
-                    fetched_at="2026-03-24T10:15:00+00:00",
-                    expires_at="2026-03-25T10:15:00+00:00",
-                ),
-            )
-        ]
-
-
-class _FailingYouTubeAdapter(AccountSeedAdapter):
-    platform = "youtube"
-
-    @classmethod
-    def build(cls, runtime: SourceRuntime) -> _FailingYouTubeAdapter:
-        del runtime
-        return cls()
-
-    async def discover_game_accounts(
-        self,
-        customer_game,
-        limit: int,
-        *,
-        page_cursors: dict[str, str] | None = None,
-        skip_external_ids: frozenset[str] = frozenset(),
-    ):
-        del customer_game, limit, page_cursors, skip_external_ids
-        raise RuntimeError("youtube adapter boom")
-
-    async def discover_seed_accounts(
-        self,
-        query_text: str,
-        limit: int,
-        *,
-        page_cursors: dict[str, str] | None = None,
-        skip_external_ids: frozenset[str] = frozenset(),
-    ):
-        del query_text, limit, page_cursors, skip_external_ids
-        raise RuntimeError("youtube adapter boom")
-
-
-def test_creator_index_sync_persists_platform_rows_and_cursors(
-    db_path, game_service, registered_user
-):
-    game = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Fleet Tactics",
-        summary="Turn-based fleet combat.",
-        description="Turn-based fleet combat.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
-    )
-    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
-    youtube = _FakeYouTubeAdapter()
-    service = CreatorIndexService(
-        db_path=db_path,
-        adapters={
-            "youtube": youtube,
-        },
-    )
-    twitch_batch = DiscoveredAccountBatch(
-        platform=CrawlPlatform.TWITCH,
-        bundles=(
-            _fake_twitch_bundle_for_game(
-                f"tw-{game.customer_game_id}", game.name
-            ),
-        ),
-        igdb_game_id=296831,
-    )
-
-    with patch.object(
-        service,
-        "_select_igdb_game_for_customer_game",
-        return_value=296831,
-    ), patch.object(
-        service,
-        "discover_account_bundles",
-        new=AsyncMock(return_value=twitch_batch),
-    ):
-        summary = asyncio.run(
-            service.sync_customer_game(
-                game,
-                platforms=("twitch", "youtube"),
-                limit_per_platform=5,
-            )
-        )
-
-    assert summary.accounts_synced == 2
-    assert summary.content_samples_synced == 3
-    assert summary.contact_points_synced == 1
-
-    with get_connection(db_path) as conn:
-        source_accounts = conn.execute(
-            """
-            SELECT platform, external_id, display_name_current, canonical_url
-            FROM source_accounts
-            ORDER BY platform
-            """
-        ).fetchall()
-        twitch_row = conn.execute(
-            """
-            SELECT followers_count, viewer_count, recent_avg_live_viewers,
-                   recent_median_live_viewers, recent_avg_vod_views,
-                   recent_median_vod_views, streams_last_30d
-            FROM twitch_profiles_latest
-            """
-        ).fetchone()
-        youtube_row = conn.execute(
-            """
-            SELECT subscriber_count, video_count, recent_avg_views,
-                   recent_median_views, uploads_last_30d
-            FROM youtube_channels_latest
-            """
-        ).fetchone()
-        samples_count = conn.execute(
-            "SELECT COUNT(*) AS count FROM content_samples_latest"
-        ).fetchone()["count"]
-        contacts_count = conn.execute(
-            "SELECT COUNT(*) AS count FROM contact_points"
-        ).fetchone()["count"]
-        facet_rows = conn.execute(
-            """
-            SELECT platform, summary_text, genre_tags_json, interest_tags_json,
-                   language, last_activity_at
-            FROM creator_profile_facets_latest
-            ORDER BY platform
-            """
-        ).fetchall()
-        game_play_rows = conn.execute(
-            """
-            SELECT game_name_raw, game_name_key, platform, observation_count
-            FROM creator_games_played
-            ORDER BY game_name_key
-            """
-        ).fetchall()
-        jobs = conn.execute(
-            "SELECT platform, status FROM crawl_jobs ORDER BY platform"
-        ).fetchall()
-        cursors = conn.execute(
-            """
-            SELECT platform, cursor_scope, cursor_key, cursor_value
-            FROM crawl_cursors
-            ORDER BY platform
-            """
-        ).fetchall()
-
-    assert [
-        (
-            row["platform"],
-            row["external_id"],
-            row["display_name_current"],
-            row["canonical_url"],
-        )
-        for row in source_accounts
-    ] == [
-        (
-            "twitch",
-            f"tw-{game.customer_game_id}",
-            f"{game.name} TV",
-            f"https://www.twitch.tv/tw-{game.customer_game_id}-tv",
-        ),
-        (
-            "youtube",
-            f"yt-{game.customer_game_id}",
-            f"{game.name} Plays",
-            f"https://www.youtube.com/channel/yt-{game.customer_game_id}",
-        ),
-    ]
-    assert twitch_row["followers_count"] == 1200
-    assert twitch_row["viewer_count"] == 88
-    assert twitch_row["recent_avg_live_viewers"] == 88
-    assert twitch_row["recent_median_live_viewers"] == 88
-    assert twitch_row["recent_avg_vod_views"] == 250
-    assert twitch_row["recent_median_vod_views"] == 250
-    assert twitch_row["streams_last_30d"] == 1
-    assert youtube_row["subscriber_count"] == 3400
-    assert youtube_row["video_count"] == 128
-    assert youtube_row["recent_avg_views"] == 4200
-    assert youtube_row["recent_median_views"] == 3800
-    assert youtube_row["uploads_last_30d"] == 6
-    assert samples_count == 3
-    assert contacts_count == 1
-    assert [row["platform"] for row in facet_rows] == ["twitch", "youtube"]
-    assert all(row["summary_text"] for row in facet_rows)
-    assert [row["language"] for row in facet_rows] == ["en", "en"]
-    assert [row["last_activity_at"] for row in facet_rows] == [
-        "2026-03-24T10:00:00+00:00",
-        "2026-03-23T12:00:00+00:00",
-    ]
-    # Games played: Twitch fake returns (game.name, "Another Game") for the creator.
-    assert len(game_play_rows) == 2
-    assert {row["platform"] for row in game_play_rows} == {"twitch"}
-    assert {row["game_name_raw"] for row in game_play_rows} == {
-        game.name,
-        "Another Game",
-    }
-    assert all(
-        row["observation_count"] == 1 for row in game_play_rows
-    )
-    assert [(row["platform"], row["status"]) for row in jobs] == [
-        ("youtube", "completed"),
-    ]
-    assert [(row["platform"], row["cursor_key"]) for row in cursors] == [
-        ("youtube", "search:youtube"),
-    ]
-    assert {row["cursor_scope"] for row in cursors} == {
-        f"customer_game:{game.customer_game_id}"
-    }
-
-
-def test_creator_index_sync_active_customer_games_uses_all_active_games(
-    db_path, game_service, registered_user
-):
-    game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Fleet Tactics",
-        summary="Turn-based fleet combat.",
-        description="Turn-based fleet combat.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
-    )
-    game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Dungeon Garden",
-        summary="Gardening roguelite.",
-        description="Gardening roguelite.",
-        website_url=None,
-        igdb_genre_ids=[12],  # Strategy (placeholder)
-    )
-    service = CreatorIndexService(db_path=db_path)
-
-    with patch.object(
-        service,
-        "_select_igdb_game_for_customer_game",
-        side_effect=[296831, 119133],
-    ), patch.object(
-        service,
-        "run_entrypoint",
-        new=AsyncMock(
-            return_value=PlatformSyncSummary(
-                platform="twitch",
-                accounts_synced=1,
-                content_samples_synced=0,
-                contact_points_synced=0,
-            )
-        ),
-    ) as mock_run_entrypoint:
-        summary = asyncio.run(
-            service.sync_active_customer_games(
-                platforms=("twitch",), limit_per_platform=2
-            )
-        )
-
-    assert summary.games_seen == 2
-    assert summary.accounts_synced == 2
-    assert mock_run_entrypoint.await_count == 2
-
-
-def test_creator_index_sync_active_customer_games_can_filter_by_name(
-    db_path, game_service, registered_user
-):
-    game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Fleet Tactics",
-        summary="Turn-based fleet combat.",
-        description="Turn-based fleet combat.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
-    )
-    strife = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Strife Of Stars",
-        summary="Squad tactics in deep space.",
-        description="Squad tactics in deep space.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
-        igdb_theme_ids=[18],      # Sci-fi
-    )
-    service = CreatorIndexService(
-        db_path=db_path,
-        active_game_names=("Strife Of Stars",),
-    )
-
-    with patch.object(
-        service,
-        "_select_igdb_game_for_customer_game",
-        side_effect=lambda game: 296831
-        if game.customer_game_id == strife.customer_game_id
-        else None,
-    ), patch.object(
-        service,
-        "run_entrypoint",
-        new=AsyncMock(
-            return_value=PlatformSyncSummary(
-                platform="twitch",
-                accounts_synced=1,
-                content_samples_synced=0,
-                contact_points_synced=0,
-            )
-        ),
-    ) as mock_run_entrypoint:
-        summary = asyncio.run(
-            service.sync_active_customer_games(
-                platforms=("twitch",), limit_per_platform=2
-            )
-        )
-
-    assert summary.games_seen == 1
-    assert summary.accounts_synced == 1
-    assert mock_run_entrypoint.await_count == 1
-
-
-def test_creator_index_sync_customer_game_keeps_other_platforms_when_one_fails(
-    db_path, game_service, registered_user
-):
-    game = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Fleet Tactics",
-        summary="Turn-based fleet combat.",
-        description="Turn-based fleet combat.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
-    )
-    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
-    service = CreatorIndexService(
-        db_path=db_path,
-        adapters={
-            "youtube": _FailingYouTubeAdapter(),
-        },
-    )
-
-    with patch.object(
-        service,
-        "_select_igdb_game_for_customer_game",
-        return_value=296831,
-    ), patch.object(
-        service,
-        "run_entrypoint",
-        new=AsyncMock(
-            return_value=PlatformSyncSummary(
-                platform="twitch",
-                accounts_synced=1,
-                content_samples_synced=1,
-                contact_points_synced=1,
-            )
-        ),
-    ):
-        summary = asyncio.run(
-            service.sync_customer_game(
-                game,
-                platforms=("twitch", "youtube"),
-                limit_per_platform=5,
-            )
-        )
-
-    assert summary.accounts_synced == 1
-    assert summary.content_samples_synced == 1
-    assert summary.contact_points_synced == 1
-    assert [
-        (item.platform, item.skipped_reason)
-        for item in summary.platform_summaries
-    ] == [
-        ("twitch", None),
-        ("youtube", "sync_failed"),
-    ]
-
-    with get_connection(db_path) as conn:
-        jobs = conn.execute(
-            "SELECT platform, status FROM crawl_jobs ORDER BY platform"
-        ).fetchall()
-
-    assert [(row["platform"], row["status"]) for row in jobs] == [
-        ("youtube", "failed"),
-    ]
-
-
-def test_creator_index_sync_bootstrap_seeds_works_without_games(db_path):
-    twitch = _FakeTwitchAdapter()
-    service = CreatorIndexService(
-        db_path=db_path,
-        adapters={"twitch": twitch},
-    )
-
-    from unittest.mock import AsyncMock, patch
-
-    fake_summary = PlatformSyncSummary(
-        platform="twitch",
-        accounts_synced=1,
-        content_samples_synced=0,
-        contact_points_synced=0,
-    )
-    with patch.object(
-        service, "sync_crawl_seed", new=AsyncMock(return_value=fake_summary)
-    ) as mock_sync_crawl_seed:
-        summary = asyncio.run(
-            service.sync_bootstrap_seeds(
-                platforms=("twitch",),
-                limit_per_platform=2,
-            )
-        )
-
-    expected_seed_count = sum(
-        1
-        for platform, _query_text, _weight in DEFAULT_CRAWL_SEEDS
-        if platform == "twitch"
-    )
-    assert summary.seeds_seen == expected_seed_count
-    assert summary.accounts_synced == expected_seed_count
-    assert twitch.calls == []
-    assert mock_sync_crawl_seed.await_count == expected_seed_count
-
-    with get_connection(db_path) as conn:
-        seed_rows = conn.execute(
-            "SELECT platform, query_text, last_synced_at FROM crawl_seeds ORDER BY weight DESC"
-        ).fetchall()
-
-    assert len(seed_rows) == len(DEFAULT_CRAWL_SEEDS)
-    assert all(
-        row["last_synced_at"]
-        for row in seed_rows
-        if row["platform"] == "twitch"
-    )
-
-
-def test_creator_index_sync_bootstrap_seeds_can_be_disabled(db_path):
-    twitch = _FakeTwitchAdapter()
-    service = CreatorIndexService(
-        db_path=db_path,
-        adapters={"twitch": twitch},
-        bootstrap_seeds_enabled=False,
-    )
-
-    summary = asyncio.run(
-        service.sync_bootstrap_seeds(
-            platforms=("twitch",),
-            limit_per_platform=2,
-        )
-    )
-
-    assert summary.seeds_seen == 0
-    assert summary.accounts_synced == 0
-    assert twitch.calls == []
-
-    with get_connection(db_path) as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) AS count FROM crawl_seeds"
-        ).fetchone()["count"]
-
-    assert count == 0
+# ---------------------------------------------------------------------------
+# Scheduler
+# ---------------------------------------------------------------------------
 
 
 def test_create_scheduler_registers_creator_index_jobs(db_path):
@@ -982,12 +256,23 @@ def test_create_scheduler_registers_creator_index_jobs(db_path):
     assert set(jobs) == {
         "creator_index_startup_sync",
         "creator_index_twitch_sync",
+        "top_categories_crawl",
     }
     assert (
         jobs["creator_index_twitch_sync"].trigger.__class__.__name__
         == "IntervalTrigger"
     )
-    assert jobs["creator_index_twitch_sync"].trigger.jitter == 120
+    assert jobs["creator_index_twitch_sync"].trigger.jitter == 60
+    assert (
+        jobs["top_categories_crawl"].trigger.__class__.__name__
+        == "IntervalTrigger"
+    )
+    assert jobs["top_categories_crawl"].trigger.jitter == 60
+
+
+# ---------------------------------------------------------------------------
+# YouTube adapter error handling
+# ---------------------------------------------------------------------------
 
 
 def test_youtube_adapter_skips_missing_upload_playlist_items():
@@ -1042,264 +327,249 @@ def test_youtube_adapter_skips_failed_query_search():
     assert bundles == []
 
 
-def test_twitch_adapter_skips_failed_query_search():
-    adapter = TwitchAccountAdapter("client-id", "client-secret")
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.host == "id.twitch.tv":
-            return httpx.Response(
-                200,
-                request=request,
-                json={"access_token": "token"},
-            )
-        return httpx.Response(
-            500,
-            request=request,
-            json={"error": "server error"},
-        )
-
-    async def run() -> list[AccountSeedBundle]:
-        transport = httpx.MockTransport(handler)
-        original_client = httpx.AsyncClient
-
-        def build_client(*args, **kwargs):
-            kwargs["transport"] = transport
-            return original_client(*args, **kwargs)
-
-        httpx.AsyncClient = build_client  # type: ignore[assignment]
-        try:
-            return list(await adapter.discover_seed_accounts("strife", 5))
-        finally:
-            httpx.AsyncClient = original_client  # type: ignore[assignment]
-
-    bundles = asyncio.run(run())
-
-    assert bundles == []
-
-
 # ---------------------------------------------------------------------------
-# Game plays: observation_count increments on repeated syncs
+# Persistence: _persist_bundles
 # ---------------------------------------------------------------------------
 
 
-def test_game_plays_observation_count_increments_on_repeated_sync(
-    db_path, game_service, registered_user
-):
-    game = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Fleet Tactics",
-        summary="Turn-based fleet combat.",
-        description="Turn-based fleet combat.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
-    )
-    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
+def test_game_plays_observation_count_increments_on_repeated_sync(db_path):
     service = CreatorIndexService(db_path=db_path)
-    batch = DiscoveredAccountBatch(
-        platform=CrawlPlatform.TWITCH,
-        bundles=(
-            _fake_twitch_bundle_for_game("tw-fleet-tactics", game.name),
-        ),
-        igdb_game_id=296831,
-    )
+    bundle = _fake_twitch_bundle_for_game("tw-fleet-tactics", "Fleet Tactics")
 
-    with patch.object(
-        service,
-        "_select_igdb_game_for_customer_game",
-        return_value=296831,
-    ), patch.object(
-        service,
-        "discover_account_bundles",
-        new=AsyncMock(return_value=batch),
-    ):
-        asyncio.run(
-            service.sync_customer_game(
-                game, platforms=("twitch",), limit_per_platform=5
-            )
-        )
-        asyncio.run(
-            service.sync_customer_game(
-                game, platforms=("twitch",), limit_per_platform=5
-            )
-        )
+    asyncio.run(service._persist_bundles("twitch", (bundle,)))
+    asyncio.run(service._persist_bundles("twitch", (bundle,)))
 
     repo = CreatorIndexRepository(db_path)
     accounts = repo.list_source_accounts()
     assert len(accounts) == 1
     plays = repo.list_creator_games_played(accounts[0].account_id)
 
-    assert {p.game_name_raw for p in plays} == {game.name, "Another Game"}
+    assert {p.game_name_raw for p in plays} == {
+        "Fleet Tactics",
+        "Another Game",
+    }
     assert all(p.observation_count == 2 for p in plays)
     assert len(plays) == 2
 
 
-# ---------------------------------------------------------------------------
-# Language: persisted in creator_profile_facets_latest
-# ---------------------------------------------------------------------------
-
-
-def test_language_persisted_from_twitch_profile(
-    db_path, game_service, registered_user
-):
-    game = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Fleet Tactics",
-        summary="Turn-based fleet combat.",
-        description="Turn-based fleet combat.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
-    )
-    _insert_test_igdb_game(db_path, 296831, "Slay the Spire II")
+def test_language_persisted_from_twitch_profile(db_path):
     service = CreatorIndexService(db_path=db_path)
-    batch = DiscoveredAccountBatch(
-        platform=CrawlPlatform.TWITCH,
-        bundles=(
-            _fake_twitch_bundle_for_game("tw-fleet-tactics", game.name),
-        ),
-        igdb_game_id=296831,
-    )
-    with patch.object(
-        service,
-        "_select_igdb_game_for_customer_game",
-        return_value=296831,
-    ), patch.object(
-        service,
-        "discover_account_bundles",
-        new=AsyncMock(return_value=batch),
-    ):
-        asyncio.run(
-            service.sync_customer_game(
-                game, platforms=("twitch",), limit_per_platform=5
-            )
-        )
+    bundle = _fake_twitch_bundle_for_game("tw-lang-test", "Lang Test")
+
+    asyncio.run(service._persist_bundles("twitch", (bundle,)))
 
     with get_connection(db_path) as conn:
         row = conn.execute(
             "SELECT language FROM creator_profile_facets_latest"
         ).fetchone()
 
-    # Fake Twitch adapter returns language="en" in the profile.
     assert row["language"] == "en"
 
 
-def test_language_derived_from_video_samples_when_channel_has_none(
-    db_path, game_service, registered_user
+def test_twitch_persists_compact_content_samples_but_keeps_observed_games(
+    db_path,
 ):
-    """YouTube channels rarely set defaultLanguage; fall back to video audio languages."""
-    game = game_service.create_game(
-        user_id=registered_user.user_id,
-        name="Fleet Tactics",
-        summary="Turn-based fleet combat.",
-        description="Turn-based fleet combat.",
-        website_url=None,
-        igdb_genre_ids=[12, 24],  # Strategy, Tactical
+    service = CreatorIndexService(db_path=db_path)
+    bundle = AccountSeedBundle(
+        account=SourceAccountSeed(
+            external_id="tw-compact",
+            handle_current="compact-tv",
+            display_name_current="Compact TV",
+            canonical_url="https://www.twitch.tv/compact-tv",
+        ),
+        platform_profile=TwitchProfileSeed(
+            broadcaster_id="tw-compact",
+            login="compact-tv",
+            display_name="Compact TV",
+            description=None,
+            followers_count=100,
+            viewer_count=25,
+            recent_avg_live_viewers=None,
+            recent_median_live_viewers=None,
+            recent_avg_vod_views=200,
+            recent_median_vod_views=200,
+            streams_last_30d=2,
+            language="en",
+            games_played=("Live Game",),
+            avatar_url=None,
+            last_live_at="2026-03-24T10:00:00+00:00",
+            fetched_at="2026-03-24T10:05:00+00:00",
+            expires_at="2026-03-24T16:05:00+00:00",
+        ),
+        content_samples=(
+            ContentSampleSeed(
+                external_content_id="vod-1",
+                content_type="vod",
+                title_or_text="First VOD",
+                body_text=None,
+                url="https://www.twitch.tv/videos/1",
+                thumbnail_url=None,
+                published_at="2026-03-24T09:00:00+00:00",
+                engagement_count=200,
+                language="en",
+                position_rank=0,
+                fetched_at="2026-03-24T10:05:00+00:00",
+                expires_at="2026-03-24T16:05:00+00:00",
+            ),
+            ContentSampleSeed(
+                external_content_id="vod-2",
+                content_type="vod",
+                title_or_text="Second VOD",
+                body_text=None,
+                url="https://www.twitch.tv/videos/2",
+                thumbnail_url=None,
+                published_at="2026-03-24T08:00:00+00:00",
+                engagement_count=100,
+                language="en",
+                position_rank=1,
+                fetched_at="2026-03-24T10:05:00+00:00",
+                expires_at="2026-03-24T16:05:00+00:00",
+            ),
+        ),
+        observed_games=(
+            ObservedGameSeed(game_name="Live Game"),
+            ObservedGameSeed(game_name="Clip Game"),
+            ObservedGameSeed(game_name="Archive Game"),
+        ),
     )
 
-    class _YouTubeWithVideoLanguages(AccountSeedAdapter):
-        platform = "youtube"
-
-        @classmethod
-        def build(cls, runtime: SourceRuntime) -> _YouTubeWithVideoLanguages:
-            del runtime
-            return cls()
-
-        async def discover_game_accounts(
-            self,
-            customer_game,
-            limit,
-            *,
-            page_cursors=None,
-            skip_external_ids: frozenset[str] = frozenset(),
-        ):
-            del customer_game, limit, page_cursors, skip_external_ids
-            return [
-                AccountSeedBundle(
-                    account=SourceAccountSeed(
-                        external_id="yt-lang-test",
-                        handle_current="lang-test",
-                        display_name_current="Lang Test",
-                        canonical_url="https://www.youtube.com/channel/yt-lang-test",
-                    ),
-                    platform_profile=YouTubeChannelSeed(
-                        channel_id="yt-lang-test",
-                        handle=None,
-                        display_name="Lang Test",
-                        description=None,
-                        subscriber_count=500,
-                        video_count=10,
-                        recent_avg_views=None,
-                        recent_median_views=None,
-                        uploads_last_30d=2,
-                        default_language=None,  # channel has no explicit language
-                        country=None,
-                        channel_created_at=None,
-                        avatar_url=None,
-                        uploads_playlist_id=None,
-                        last_upload_at="2026-03-20T10:00:00+00:00",
-                        fetched_at="2026-03-24T10:00:00+00:00",
-                        expires_at="2026-03-25T10:00:00+00:00",
-                    ),
-                    content_samples=(
-                        ContentSampleSeed(
-                            external_content_id="v1",
-                            content_type="video",
-                            title_or_text="Video one",
-                            body_text=None,
-                            url=None,
-                            thumbnail_url=None,
-                            published_at="2026-03-20T10:00:00+00:00",
-                            engagement_count=None,
-                            language="de",
-                            position_rank=0,
-                            fetched_at="2026-03-24T10:00:00+00:00",
-                            expires_at="2026-03-25T10:00:00+00:00",
-                        ),
-                        ContentSampleSeed(
-                            external_content_id="v2",
-                            content_type="video",
-                            title_or_text="Video two",
-                            body_text=None,
-                            url=None,
-                            thumbnail_url=None,
-                            published_at="2026-03-19T10:00:00+00:00",
-                            engagement_count=None,
-                            language="de",
-                            position_rank=1,
-                            fetched_at="2026-03-24T10:00:00+00:00",
-                            expires_at="2026-03-25T10:00:00+00:00",
-                        ),
-                    ),
-                )
-            ]
-
-        async def discover_seed_accounts(
-            self,
-            query_text,
-            limit,
-            *,
-            page_cursors=None,
-            skip_external_ids: frozenset[str] = frozenset(),
-        ):
-            del query_text, limit, page_cursors, skip_external_ids
-            return []
-
-    service = CreatorIndexService(
-        db_path=db_path,
-        adapters={"youtube": _YouTubeWithVideoLanguages()},
-    )
-    asyncio.run(
-        service.sync_customer_game(
-            game, platforms=("youtube",), limit_per_platform=5
-        )
-    )
+    asyncio.run(service._persist_bundles("twitch", (bundle,)))
 
     with get_connection(db_path) as conn:
-        row = conn.execute(
-            "SELECT language FROM creator_profile_facets_latest"
-        ).fetchone()
+        sample_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM content_samples_latest"
+        ).fetchone()["count"]
+        game_rows = conn.execute(
+            """
+            SELECT game_name_raw
+            FROM creator_games_played
+            ORDER BY game_name_raw
+            """
+        ).fetchall()
 
-    # Both videos are "de", so dominant language should be "de".
-    assert row["language"] == "de"
+    assert sample_count == 1
+    assert [row["game_name_raw"] for row in game_rows] == [
+        "Archive Game",
+        "Clip Game",
+        "Live Game",
+    ]
+
+
+def test_async_persisted_creator_becomes_rankable_prospect(db_path):
+    from app.creator_index.discovery import EnrichedCreator
+    from app.creator_index.stream_discovery import TwitchGame
+    from app.games.models import CustomerGame
+    from app.igdb.models import IGDBGame
+    from app.igdb.repository import IGDBRepository
+    from app.igdb.taxonomy import IGDBGenre
+    from app.prospects.service import ProspectRankingService
+
+    service = CreatorIndexService(db_path=db_path)
+    creator = EnrichedCreator(
+        bundle=AccountSeedBundle(
+            account=SourceAccountSeed(
+                external_id="tw-prospect",
+                handle_current="prospect-tv",
+                display_name_current="Prospect TV",
+                canonical_url="https://www.twitch.tv/prospect-tv",
+            ),
+            platform_profile=TwitchProfileSeed(
+                broadcaster_id="tw-prospect",
+                login="prospect-tv",
+                display_name="Prospect TV",
+                description=None,
+                followers_count=2500,
+                viewer_count=150,
+                recent_avg_live_viewers=None,
+                recent_median_live_viewers=None,
+                recent_avg_vod_views=400,
+                recent_median_vod_views=400,
+                streams_last_30d=3,
+                language="en",
+                games_played=(),
+                avatar_url=None,
+                last_live_at="2026-03-24T10:00:00+00:00",
+                fetched_at="2026-03-24T10:05:00+00:00",
+                expires_at="2026-03-24T16:05:00+00:00",
+            ),
+            content_samples=(),
+            contact_points=(),
+            observed_games=(
+                ObservedGameSeed(
+                    game_name="Slay the Spire",
+                    platform_game_id="game-40477",
+                ),
+            ),
+        ),
+        source_game_name="Slay the Spire",
+        source_igdb_game_id=40477,
+    )
+
+    async def fake_fetch_game(igdb_game_id: int) -> bool:
+        IGDBRepository(db_path).upsert(
+            IGDBGame(
+                igdb_id=igdb_game_id,
+                name="Slay the Spire",
+                slug="slay-the-spire",
+                summary=None,
+                genre_ids=[IGDBGenre.STRATEGY],
+                theme_ids=[],
+                first_release_date=None,
+                cover_url=None,
+                platform_ids=[],
+                platform_names=[],
+                keyword_names=[],
+            )
+        )
+        return True
+
+    with (
+        patch.object(
+            service,
+            "_fetch_twitch_games_by_ids",
+            new=AsyncMock(
+                return_value={
+                    "game-40477": TwitchGame(
+                        twitch_game_id="game-40477",
+                        name="Slay the Spire",
+                        box_art_url=None,
+                        igdb_game_id="40477",
+                    )
+                }
+            ),
+        ),
+        patch(
+            "app.creator_index.service.IGDBSyncService.fetch_game",
+            new=AsyncMock(side_effect=fake_fetch_game),
+        ),
+    ):
+        asyncio.run(service._persist_enriched_creator(creator))
+
+    game = CustomerGame(
+        customer_game_id="cg-1",
+        user_id="u-1",
+        name="Test Strategy Game",
+        summary=None,
+        description="Test strategy game",
+        website_url=None,
+        status="active",
+        slug="test-strategy-game",
+        created_at="2026-03-24T10:00:00+00:00",
+        updated_at="2026-03-24T10:00:00+00:00",
+        igdb_genre_ids=[IGDBGenre.STRATEGY],
+        igdb_theme_ids=[],
+        igdb_game_mode_ids=[],
+        igdb_player_perspective_ids=[],
+        igdb_keyword_ids=[],
+        similar_game_names=[],
+        llm_similar_game_names=[],
+    )
+
+    prospects, total = ProspectRankingService(db_path).rank_prospects(game)
+
+    assert len(prospects) == 1
+    assert prospects[0].profile.handle == "prospect-tv"
+    assert prospects[0].overlap_score > 0
 
 
 # ---------------------------------------------------------------------------
@@ -1349,26 +619,12 @@ def test_facets_games_played_passed_through():
 
 
 def test_bundle_from_records_extracts_games_from_clips():
-    from app.creator_index.adapters.twitch import (
-        TwitchSearchChannel,
-        TwitchUser,
+    from app.creator_index.enrichment import (
         TwitchClipRecord,
-        _bundle_from_records,
+        TwitchUser,
+        bundle_from_records,
     )
 
-    channel = TwitchSearchChannel(
-        broadcaster_id="111",
-        broadcaster_login="streamer",
-        display_name="Streamer",
-        title=None,
-        thumbnail_url=None,
-        broadcaster_language="en",
-        game_id=None,
-        game_name=None,
-        tags=(),
-        is_live=False,
-        started_at=None,
-    )
     user = TwitchUser(
         user_id="111",
         login="streamer",
@@ -1402,8 +658,7 @@ def test_bundle_from_records_extracts_games_from_clips():
     ]
     game_names = {"33214": "Fortnite", "21779": "League of Legends"}
 
-    bundle = _bundle_from_records(
-        channel=channel,
+    bundle = bundle_from_records(
         user=user,
         channel_info=None,
         stream=None,
@@ -1423,27 +678,13 @@ def test_bundle_from_records_extracts_games_from_clips():
 
 def test_bundle_from_records_deduplicates_clip_and_stream_games():
     """If a game appears in both the live stream and clips, it's deduplicated."""
-    from app.creator_index.adapters.twitch import (
-        TwitchSearchChannel,
-        TwitchUser,
-        TwitchStreamRecord,
+    from app.creator_index.enrichment import (
         TwitchClipRecord,
-        _bundle_from_records,
+        TwitchStreamRecord,
+        TwitchUser,
+        bundle_from_records,
     )
 
-    channel = TwitchSearchChannel(
-        broadcaster_id="111",
-        broadcaster_login="streamer",
-        display_name="Streamer",
-        title=None,
-        thumbnail_url=None,
-        broadcaster_language="en",
-        game_id=None,
-        game_name=None,
-        tags=(),
-        is_live=True,
-        started_at="2025-06-15T10:00:00Z",
-    )
     user = TwitchUser(
         user_id="111",
         login="streamer",
@@ -1476,8 +717,7 @@ def test_bundle_from_records_deduplicates_clip_and_stream_games():
     ]
     game_names = {"33214": "Fortnite"}
 
-    bundle = _bundle_from_records(
-        channel=channel,
+    bundle = bundle_from_records(
         user=user,
         channel_info=None,
         stream=stream,
@@ -1494,77 +734,163 @@ def test_bundle_from_records_deduplicates_clip_and_stream_games():
     assert len(fortnite_obs) == 1
 
 
-@pytest.mark.anyio
-async def test_adapter_discover_queries_fetches_clips(monkeypatch):
-    """Verify the adapter calls the clips endpoint during discovery."""
-    from app.creator_index.adapters.twitch import TwitchAccountAdapter
-
-    calls = []
-
-    async def fake_request(client, method, url, *, params=None, headers=None):
-        calls.append(url)
-        if "/oauth2/token" in url:
-            return {"access_token": "tok"}
-        if "/search/channels" in url:
-            return {
-                "data": [
-                    {
-                        "id": "111",
-                        "broadcaster_login": "test",
-                        "display_name": "Test",
-                        "is_live": False,
-                        "tags": [],
-                    }
-                ],
-                "pagination": {},
-            }
-        if "/users" in url:
-            return {
-                "data": [
-                    {"id": "111", "login": "test", "display_name": "Test"}
-                ]
-            }
-        if "/channels" in url and "/followers" not in url:
-            return {"data": [{"broadcaster_id": "111", "tags": []}]}
-        if "/streams" in url:
-            return {"data": []}
-        if "/videos" in url:
-            return {"data": []}
-        if "/clips" in url:
-            return {
-                "data": [
-                    {
-                        "id": "c1",
-                        "broadcaster_id": "111",
-                        "broadcaster_name": "Test",
-                        "game_id": "33214",
-                        "title": "Nice",
-                        "view_count": 50,
-                        "created_at": "2025-06-01T00:00:00Z",
-                    }
-                ],
-                "pagination": {},
-            }
-        if "/games" in url:
-            return {"data": [{"id": "33214", "name": "Fortnite"}]}
-        if "/followers" in url:
-            return {"total": 500}
-        return {"data": []}
-
-    monkeypatch.setattr(
-        "app.creator_index.adapters.twitch.twitch_request_json", fake_request
+def test_bundle_extracts_discord_from_profile_description():
+    from app.creator_index.enrichment import (
+        TwitchUser,
+        bundle_from_records,
     )
 
-    adapter = TwitchAccountAdapter("cid", "csecret")
-    bundles = await adapter.discover_seed_accounts("test", 5)
+    user = TwitchUser(
+        user_id="111",
+        login="streamer",
+        display_name="Streamer",
+        description="Business: biz@example.com | Discord: https://discord.gg/myserver",
+        profile_image_url=None,
+    )
 
-    # Verify clips endpoint was called
-    assert any("/clips" in c for c in calls), f"clips not called: {calls}"
-    assert any("/games" in c for c in calls), f"games not called for resolution: {calls}"
+    bundle = bundle_from_records(
+        user=user,
+        channel_info=None,
+        stream=None,
+        videos=[],
+        follower_total=100,
+    )
 
-    assert len(bundles) >= 1
-    observed_names = {og.game_name for og in bundles[0].observed_games}
-    assert "Fortnite" in observed_names
+    assert bundle is not None
+    types = {cp.contact_type for cp in bundle.contact_points}
+    assert ContactType.EMAIL in types
+    assert ContactType.DISCORD in types
+    emails = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.EMAIL
+    ]
+    assert emails[0].contact_value == "biz@example.com"
+    discords = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.DISCORD
+    ]
+    assert discords[0].contact_value == "https://discord.gg/myserver"
+    assert discords[0].source_kind == "profile_description"
+
+
+def test_bundle_extracts_contacts_from_vod_descriptions():
+    from app.creator_index.enrichment import (
+        TwitchUser,
+        TwitchVideoRecord,
+        bundle_from_records,
+    )
+
+    user = TwitchUser(
+        user_id="111",
+        login="streamer",
+        display_name="Streamer",
+        description=None,
+        profile_image_url=None,
+    )
+    videos = [
+        TwitchVideoRecord(
+            video_id="v1",
+            title="Stream VOD",
+            description="Join my Discord https://discord.gg/vodserver and email me at vod@example.com",
+            thumbnail_url=None,
+            created_at="2025-06-01T00:00:00Z",
+            view_count=100,
+            url="https://www.twitch.tv/videos/v1",
+            stream_id=None,
+            language="en",
+            game_id=None,
+            game_name=None,
+            video_type="archive",
+            duration="1h30m",
+        ),
+    ]
+
+    bundle = bundle_from_records(
+        user=user,
+        channel_info=None,
+        stream=None,
+        videos=videos,
+        follower_total=100,
+    )
+
+    assert bundle is not None
+    emails = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.EMAIL
+    ]
+    discords = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.DISCORD
+    ]
+    assert len(emails) == 1
+    assert emails[0].contact_value == "vod@example.com"
+    assert emails[0].source_kind == "video_description"
+    assert len(discords) == 1
+    assert discords[0].contact_value == "https://discord.gg/vodserver"
+    assert discords[0].source_kind == "video_description"
+
+
+def test_bundle_deduplicates_contacts_across_profile_and_vods():
+    from app.creator_index.enrichment import (
+        TwitchUser,
+        TwitchVideoRecord,
+        bundle_from_records,
+    )
+
+    user = TwitchUser(
+        user_id="111",
+        login="streamer",
+        display_name="Streamer",
+        description="biz@example.com https://discord.gg/myserver",
+        profile_image_url=None,
+    )
+    videos = [
+        TwitchVideoRecord(
+            video_id="v1",
+            title="VOD",
+            description="biz@example.com https://discord.gg/myserver",
+            thumbnail_url=None,
+            created_at="2025-06-01T00:00:00Z",
+            view_count=50,
+            url="https://www.twitch.tv/videos/v1",
+            stream_id=None,
+            language="en",
+            game_id=None,
+            game_name=None,
+            video_type="archive",
+            duration="2h",
+        ),
+    ]
+
+    bundle = bundle_from_records(
+        user=user,
+        channel_info=None,
+        stream=None,
+        videos=videos,
+        follower_total=100,
+    )
+
+    assert bundle is not None
+    emails = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.EMAIL
+    ]
+    discords = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.DISCORD
+    ]
+    # Each should appear only once despite being in both profile and VOD
+    assert len(emails) == 1
+    assert len(discords) == 1
+    # Profile description takes priority
+    assert emails[0].source_kind == "profile_description"
+    assert discords[0].source_kind == "profile_description"
 
 
 def test_facets_games_played_empty_for_youtube():
@@ -1590,3 +916,126 @@ def test_facets_games_played_empty_for_youtube():
     facets = build_creator_profile_facets("youtube", profile, ())
     assert facets.games_played == ()
     assert facets.language == "en"
+
+
+# ---------------------------------------------------------------------------
+# _extract_panel_contacts
+# ---------------------------------------------------------------------------
+
+
+def test_extract_panel_contacts_finds_email_in_description():
+    from app.creator_index.enrichment import _extract_panel_contacts
+
+    panels = [
+        {
+            "id": "1",
+            "description": "Business Inquiries: biz@example.com",
+            "linkURL": None,
+        }
+    ]
+    contacts = _extract_panel_contacts(panels, "testuser", set(), set())
+    emails = [c for c in contacts if c.contact_type == ContactType.EMAIL]
+    assert len(emails) == 1
+    assert emails[0].contact_value == "biz@example.com"
+    assert emails[0].source_kind == "channel_panel"
+
+
+def test_extract_panel_contacts_finds_discord_in_linkurl():
+    from app.creator_index.enrichment import _extract_panel_contacts
+
+    panels = [
+        {
+            "id": "2",
+            "description": None,
+            "linkURL": "https://discord.gg/mycommunity",
+        }
+    ]
+    contacts = _extract_panel_contacts(panels, "testuser", set(), set())
+    discords = [c for c in contacts if c.contact_type == ContactType.DISCORD]
+    assert len(discords) == 1
+    assert discords[0].contact_value == "https://discord.gg/mycommunity"
+
+
+def test_extract_panel_contacts_deduplicates_across_panels():
+    from app.creator_index.enrichment import _extract_panel_contacts
+
+    panels = [
+        {"id": "1", "description": "Email: same@example.com", "linkURL": None},
+        {
+            "id": "2",
+            "description": "Contact: same@example.com",
+            "linkURL": None,
+        },
+    ]
+    contacts = _extract_panel_contacts(panels, "testuser", set(), set())
+    emails = [c for c in contacts if c.contact_type == ContactType.EMAIL]
+    assert len(emails) == 1
+
+
+def test_extract_panel_contacts_handles_empty_panels():
+    from app.creator_index.enrichment import _extract_panel_contacts
+
+    assert _extract_panel_contacts([], "testuser", set(), set()) == []
+
+
+def test_extract_panel_contacts_finds_both_email_and_discord():
+    """GQL panels have description (markdown) and linkURL at top level."""
+    from app.creator_index.enrichment import _extract_panel_contacts
+
+    panels = [
+        {
+            "id": "1",
+            "description": "Reach me at contact@streamer.tv",
+            "linkURL": "https://discord.gg/streamer",
+        }
+    ]
+    contacts = _extract_panel_contacts(panels, "testuser", set(), set())
+    assert len(contacts) == 2
+
+
+def test_bundle_from_records_includes_panel_contacts():
+    from app.creator_index.enrichment import (
+        TwitchUser,
+        bundle_from_records,
+    )
+
+    user = TwitchUser(
+        user_id="222",
+        login="paneluser",
+        display_name="PanelUser",
+        description="No email in description",
+        profile_image_url=None,
+    )
+    panels = [
+        {
+            "id": "1",
+            "description": "Business: panel@example.com",
+            "linkURL": "https://discord.gg/panelserver",
+        }
+    ]
+
+    bundle = bundle_from_records(
+        user=user,
+        channel_info=None,
+        stream=None,
+        videos=[],
+        follower_total=500,
+        panels=panels,
+    )
+
+    assert bundle is not None
+    emails = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.EMAIL
+    ]
+    discords = [
+        cp
+        for cp in bundle.contact_points
+        if cp.contact_type == ContactType.DISCORD
+    ]
+    assert len(emails) == 1
+    assert emails[0].contact_value == "panel@example.com"
+    assert emails[0].source_kind == "channel_panel"
+    assert len(discords) == 1
+    assert discords[0].source_kind == "channel_panel"

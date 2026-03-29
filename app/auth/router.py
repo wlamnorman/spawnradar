@@ -227,20 +227,19 @@ async def verify_pending_page(
 
 @router.get("/verify-email")
 async def verify_email_get(
-    request: Request,
     token: str = "",
     auth: AuthService = Depends(get_auth_service),
-    settings: Settings = Depends(get_settings),
 ) -> RedirectResponse:
     """Handle email verification link click."""
     if not token or not auth.verify_email(token):
-        return RedirectResponse(url="/auth/verify-pending?error=invalid", status_code=303)
+        return RedirectResponse(
+            url="/auth/verify-pending?error=invalid", status_code=303
+        )
     return RedirectResponse(url="/games", status_code=303)
 
 
 @router.get("/resend-verification")
 async def resend_verification(
-    request: Request,
     user: User = Depends(require_user),
     auth: AuthService = Depends(get_auth_service),
     email_service: EmailService = Depends(get_email_service),
@@ -255,7 +254,6 @@ async def resend_verification(
 
 @router.get("/dev-login")
 async def dev_login(
-    request: Request,
     settings: Settings = Depends(get_settings),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> RedirectResponse:
@@ -278,7 +276,7 @@ async def dev_login(
 @router.post("/logout")
 async def logout_post(
     request: Request,
-    user: User = Depends(require_user),
+    _user: User = Depends(require_user),
     auth: AuthService = Depends(get_auth_service),
     settings: Settings = Depends(get_settings),
     _csrf: None = Depends(require_csrf_form),

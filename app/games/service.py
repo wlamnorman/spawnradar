@@ -1,26 +1,20 @@
-"""Business logic for game creation and tag management."""
+"""Business logic for customer game creation and tag management."""
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from app.games.models import (
-    Asset,
-    DiscoveryReadiness,
-    Game,
-    MessageTemplate,
-)
-from app.games.repository import (
-    AssetRepository,
-    GameRepository,
-    MessageTemplateRepository,
-)
-from app.games.tags import build_tag_profile
+from app.games.models import CustomerGame
+from app.games.repository import CustomerGameRepository
 
 if TYPE_CHECKING:
     from app.metrics.service import MetricsService
+
+log = logging.getLogger(__name__)
 
 MAX_SUMMARY_LENGTH = 150
 MAX_DESCRIPTION_LENGTH = 1000
@@ -61,261 +55,166 @@ def _validate_game_text_fields(
     return normalized_name, normalized_summary, normalized_description
 
 
-class GameService:
-    """Handles game creation, updates and tag management."""
+class CustomerGameService:
+    """Handles customer game creation, updates and tag management."""
 
     def __init__(
         self,
-        game_repo: GameRepository,
-        asset_repo: AssetRepository,
-        template_repo: MessageTemplateRepository,
+        customer_game_repo: CustomerGameRepository,
         metrics_service: MetricsService | None = None,
+        on_game_changed: Callable[[str], None] | None = None,
     ) -> None:
-        self._games = game_repo
-        self._assets = asset_repo
-        self._templates = template_repo
+        self._customer_games = customer_game_repo
         self._metrics = metrics_service
+        self._on_game_changed = on_game_changed
 
-    def get_discovery_readiness(self, game: Game) -> DiscoveryReadiness:
-        """Return whether a game has enough setup data for discovery."""
-        missing_fields: list[str] = []
-        if not game.name.strip():
-            missing_fields.append("game name")
-        if not (game.summary or "").strip():
-            missing_fields.append("summary")
-        if not game.description.strip():
-            missing_fields.append("description")
-        if not game.genre_primary_tags:
-            missing_fields.append("primary genre tags")
-        return DiscoveryReadiness(
-            can_run=not missing_fields,
-            missing_fields=tuple(missing_fields),
-        )
+    def set_on_game_changed(self, callback: Callable[[str], None]) -> None:
+        """Set the callback fired after a game is created or updated.
 
-    def require_discovery_ready(self, game: Game) -> None:
-        """Raise when a game is too incomplete for useful discovery."""
-        readiness = self.get_discovery_readiness(game)
-        if not readiness.can_run:
-            raise ValueError(readiness.message)
+        Used by ``main.py`` to wire the scheduler after the service is
+        already constructed.
+        """
+        self._on_game_changed = callback
 
     def create_game(
         self,
         user_id: str,
         name: str,
         description: str,
-        genre_tags_raw: str,
-        platform_tags: list[str],
         website_url: str | None,
         summary: str = "",
-        genre_primary_tags_raw: str = "",
-        genre_secondary_tags_raw: str = "",
-        mechanics_primary_tags_raw: str = "",
-        vibe_primary_tags_raw: str = "",
-        kindred_primary_tags_raw: str = "",
-    ) -> Game:
-        """Create and persist a new game."""
+        platforms: list[str] | None = None,
+        igdb_genre_ids: list[int] | None = None,
+        igdb_theme_ids: list[int] | None = None,
+        igdb_game_mode_ids: list[int] | None = None,
+        igdb_player_perspective_ids: list[int] | None = None,
+        igdb_keyword_ids: list[str] | None = None,
+        similar_game_names: list[str] | None = None,
+    ) -> CustomerGame:
+        """Create and persist a new customer game."""
         normalized_name, normalized_summary, normalized_description = (
             _validate_game_text_fields(name, summary, description)
         )
 
-        game_id = str(uuid.uuid4())
-        genre_profile = build_tag_profile(
-            "genre",
-            primary_raw=genre_primary_tags_raw,
-            secondary_raw=genre_secondary_tags_raw,
-            legacy_raw=genre_tags_raw,
-        )
-        mechanics_profile = build_tag_profile(
-            "mechanics",
-            primary_raw=mechanics_primary_tags_raw,
-        )
-        vibe_profile = build_tag_profile(
-            "vibe",
-            primary_raw=vibe_primary_tags_raw,
-        )
-        kindred_profile = build_tag_profile(
-            "kindred",
-            primary_raw=kindred_primary_tags_raw,
-        )
-        if not genre_profile.primary:
-            raise ValueError("At least one primary genre tag is required.")
-        game = self._games.create(
-            game_id=game_id,
+        if not igdb_genre_ids:
+            raise ValueError("At least one IGDB genre is required.")
+        if similar_game_names and len(similar_game_names) > 8:
+            raise ValueError("At most 8 similar games can be provided.")
+
+        customer_game_id = str(uuid.uuid4())
+        customer_game = self._customer_games.create(
+            customer_game_id=customer_game_id,
             user_id=user_id,
             name=normalized_name,
             summary=normalized_summary,
             description=normalized_description,
-            genre_tags=genre_profile.all_tags,
-            genre_tag_profile=genre_profile,
-            mechanics_tag_profile=mechanics_profile,
-            vibe_tag_profile=vibe_profile,
-            kindred_tag_profile=kindred_profile,
-            platform_tags=platform_tags,
             website_url=_normalize_url(website_url),
+            platforms=platforms,
+            igdb_genre_ids=igdb_genre_ids,
+            igdb_theme_ids=igdb_theme_ids,
+            igdb_game_mode_ids=igdb_game_mode_ids,
+            igdb_player_perspective_ids=igdb_player_perspective_ids,
+            igdb_keyword_ids=igdb_keyword_ids,
+            similar_game_names=similar_game_names,
         )
         if self._metrics is not None:
             self._metrics.record_game_created(
                 user_id=user_id,
-                game_id=game.game_id,
-                occurred_at=game.created_at,
+                customer_game_id=customer_game.customer_game_id,
+                occurred_at=customer_game.created_at,
             )
-        return game
+        self._notify_game_changed(customer_game.customer_game_id)
+        return customer_game
 
     def update_game(
         self,
-        game_id: str,
+        customer_game_id: str,
         user_id: str,
         name: str,
         description: str,
-        genre_tags_raw: str,
-        platform_tags: list[str],
         website_url: str | None,
         summary: str = "",
-        genre_primary_tags_raw: str = "",
-        genre_secondary_tags_raw: str = "",
-        mechanics_primary_tags_raw: str = "",
-        vibe_primary_tags_raw: str = "",
-        kindred_primary_tags_raw: str = "",
-    ) -> Game:
-        """Update game fields, verifying ownership."""
-        game = self._games.get_by_id(game_id)
-        if game is None or game.user_id != user_id:
-            raise ValueError("Game not found or access denied.")
+        platforms: list[str] | None = None,
+        igdb_genre_ids: list[int] | None = None,
+        igdb_theme_ids: list[int] | None = None,
+        igdb_game_mode_ids: list[int] | None = None,
+        igdb_player_perspective_ids: list[int] | None = None,
+        igdb_keyword_ids: list[str] | None = None,
+        similar_game_names: list[str] | None = None,
+    ) -> CustomerGame:
+        """Update customer game fields, verifying ownership."""
+        customer_game = self._customer_games.get_by_id(customer_game_id)
+        if customer_game is None or customer_game.user_id != user_id:
+            raise ValueError("Customer game not found or access denied.")
 
         normalized_name, normalized_summary, normalized_description = (
             _validate_game_text_fields(name, summary, description)
         )
 
-        genre_profile = build_tag_profile(
-            "genre",
-            primary_raw=genre_primary_tags_raw,
-            secondary_raw=genre_secondary_tags_raw,
-            legacy_raw=genre_tags_raw,
-        )
-        mechanics_profile = build_tag_profile(
-            "mechanics",
-            primary_raw=mechanics_primary_tags_raw,
-        )
-        vibe_profile = build_tag_profile(
-            "vibe",
-            primary_raw=vibe_primary_tags_raw,
-        )
-        kindred_profile = build_tag_profile(
-            "kindred",
-            primary_raw=kindred_primary_tags_raw,
-        )
-        if not genre_profile.primary:
-            raise ValueError("At least one primary genre tag is required.")
-        return self._games.update(
-            game_id,
+        if not igdb_genre_ids:
+            raise ValueError("At least one IGDB genre is required.")
+        if similar_game_names and len(similar_game_names) > 8:
+            raise ValueError("At most 8 similar games can be provided.")
+
+        updated = self._customer_games.update(
+            customer_game_id,
             name=normalized_name,
             summary=normalized_summary,
             description=normalized_description,
-            genre_tags=genre_profile.all_tags,
-            genre_tag_profile=genre_profile,
-            mechanics_tag_profile=mechanics_profile,
-            vibe_tag_profile=vibe_profile,
-            kindred_tag_profile=kindred_profile,
-            platform_tags=platform_tags,
             website_url=_normalize_url(website_url),
+            platforms=platforms,
+            igdb_genre_ids=igdb_genre_ids,
+            igdb_theme_ids=igdb_theme_ids,
+            igdb_game_mode_ids=igdb_game_mode_ids,
+            igdb_player_perspective_ids=igdb_player_perspective_ids,
+            igdb_keyword_ids=igdb_keyword_ids,
+            similar_game_names=similar_game_names,
         )
+        self._notify_game_changed(customer_game_id)
+        return updated
 
-    def add_template(
-        self,
-        game_id: str,
-        user_id: str,
-        name: str,
-        channel: str,
-        subject_template: str | None,
-        body_template: str,
-    ) -> MessageTemplate:
-        """Add a message template to a game."""
-        game = self._games.get_by_id(game_id)
-        if game is None or game.user_id != user_id:
-            raise ValueError("Game not found or access denied.")
-
-        template_id = str(uuid.uuid4())
-        template = self._templates.create(
-            template_id=template_id,
-            game_id=game_id,
-            name=name.strip(),
-            channel=channel,
-            subject_template=subject_template or None,
-            body_template=body_template,
-        )
-        if self._metrics is not None:
-            self._metrics.record_message_template_created(
-                user_id=user_id,
-                game_id=game_id,
-                occurred_at=template.created_at,
-            )
-        return template
-
-    def delete_template(
-        self, template_id: str, game_id: str, user_id: str
-    ) -> None:
-        """Delete a template, verifying game ownership."""
-        game = self._games.get_by_id(game_id)
-        if game is None or game.user_id != user_id:
-            raise ValueError("Game not found or access denied.")
-        self._templates.delete(template_id)
-
-    def add_asset(
-        self,
-        game_id: str,
-        user_id: str,
-        asset_type: str,
-        title: str,
-        body: str | None,
-        url: str | None,
-    ) -> Asset:
-        """Add a promotional asset to a game."""
-        game = self._games.get_by_id(game_id)
-        if game is None or game.user_id != user_id:
-            raise ValueError("Game not found or access denied.")
-
-        asset_id = str(uuid.uuid4())
-        return self._assets.create(
-            asset_id=asset_id,
-            game_id=game_id,
-            asset_type=asset_type,
-            title=title.strip(),
-            body=body or None,
-            url=url or None,
-        )
-
-    def delete_game(self, game_id: str, user_id: str) -> None:
-        """Permanently delete a game and all its associated data."""
-        game = self._games.get_by_id(game_id)
-        if game is None or game.user_id != user_id:
-            raise ValueError("Game not found or access denied.")
+    def delete_game(self, customer_game_id: str, user_id: str) -> None:
+        """Permanently delete a customer game and all its associated data."""
+        customer_game = self._customer_games.get_by_id(customer_game_id)
+        if customer_game is None or customer_game.user_id != user_id:
+            raise ValueError("Customer game not found or access denied.")
         if self._metrics is not None:
             self._metrics.record_game_deleted(
                 user_id=user_id,
-                game_id=game.game_id,
+                customer_game_id=customer_game.customer_game_id,
                 occurred_at=datetime.now(UTC).isoformat(),
             )
-        self._games.delete(game_id)
+        self._customer_games.delete(customer_game_id)
 
-    def duplicate_game(self, game_id: str, user_id: str) -> Game:
-        """Create a copy of a game with all its metadata but an empty queue."""
-        game = self._games.get_by_id(game_id)
-        if game is None or game.user_id != user_id:
-            raise ValueError("Game not found or access denied.")
-        new_game_id = str(uuid.uuid4())
-        new_name = f"Copy of {game.name}"
-        new_game = self._games.duplicate(game_id, new_game_id, new_name)
+    def duplicate_game(
+        self, customer_game_id: str, user_id: str
+    ) -> CustomerGame:
+        """Create a copy of a customer game with all its metadata and no child records."""
+        customer_game = self._customer_games.get_by_id(customer_game_id)
+        if customer_game is None or customer_game.user_id != user_id:
+            raise ValueError("Customer game not found or access denied.")
+        new_customer_game_id = str(uuid.uuid4())
+        new_name = f"Copy of {customer_game.name}"
+        new_customer_game = self._customer_games.duplicate(
+            source_customer_game_id=customer_game_id,
+            new_customer_game_id=new_customer_game_id,
+            new_name=new_name,
+        )
         if self._metrics is not None:
             self._metrics.record_game_duplicated(
                 user_id=user_id,
-                game_id=new_game.game_id,
-                occurred_at=new_game.created_at,
+                customer_game_id=new_customer_game.customer_game_id,
+                occurred_at=new_customer_game.created_at,
             )
-        return new_game
+        return new_customer_game
 
-    def delete_asset(self, asset_id: str, game_id: str, user_id: str) -> None:
-        """Delete an asset, verifying game ownership."""
-        game = self._games.get_by_id(game_id)
-        if game is None or game.user_id != user_id:
-            raise ValueError("Game not found or access denied.")
-        self._assets.delete(asset_id)
+    def _notify_game_changed(self, customer_game_id: str) -> None:
+        """Fire the on_game_changed callback if configured."""
+        if self._on_game_changed is not None:
+            try:
+                self._on_game_changed(customer_game_id)
+            except Exception:
+                log.exception(
+                    "on_game_changed callback failed for %s",
+                    customer_game_id,
+                )

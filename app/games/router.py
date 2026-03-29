@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     Form,
     HTTPException,
@@ -12,7 +11,6 @@ from fastapi import (
 )
 from fastapi.responses import (
     HTMLResponse,
-    JSONResponse,
     RedirectResponse,
     Response,
 )
@@ -23,69 +21,132 @@ from app.auth.models import User
 from app.billing.models import TIER_LIMITS, TRIAL_LIMITS
 from app.billing.service import BillingService
 from app.dependencies import (
-    get_asset_repo,
     get_billing_service,
-    get_discovery_run_service,
-    get_draft_repo,
-    get_game_repo,
-    get_game_service,
-    get_template_repo,
+    get_customer_game_repo,
+    get_customer_game_service,
     get_templates,
 )
-from app.games.repository import (
-    AssetRepository,
-    GameRepository,
-    MessageTemplateRepository,
+from app.games.repository import CustomerGameRepository
+from app.games.service import CustomerGameService
+from app.igdb.platforms import PLATFORM_OPTIONS
+from app.igdb.taxonomy import (
+    IGDB_GENRE_KEYWORDS,
+    IGDB_MECHANIC_KEYWORDS,
+    IGDB_THEME_KEYWORDS,
+    IGDBGameMode,
+    IGDBGenre,
+    IGDBPlayerPerspective,
+    IGDBTheme,
+    keyword_label_for_value,
 )
-from app.games.service import GameService
-from app.games.tags import catalog_for, featured_tags_for
-from app.ingestion.service import DiscoveryRunService
-from app.prospects.repository import DraftItemRepository
-from app.security import require_csrf_form, require_csrf_header
+from app.security import require_csrf_form
 
 router = APIRouter(tags=["games"])
 
+_CURATED_IGDB_KEYWORDS = (
+    *IGDB_GENRE_KEYWORDS,
+    *IGDB_THEME_KEYWORDS,
+    *IGDB_MECHANIC_KEYWORDS,
+)
+_ALLOWED_IGDB_KEYWORD_IDS = frozenset(
+    keyword.canonical for keyword in _CURATED_IGDB_KEYWORDS
+)
+_PLATFORM_OPTIONS = PLATFORM_OPTIONS
+_ALLOWED_PLATFORM_VALUES = frozenset(value for value, _ in _PLATFORM_OPTIONS)
 
-def _platform_tags_from_form(request_form: object) -> list[str]:
-    """Return only checkbox string values from a submitted Starlette form."""
+
+def _keyword_option_label(canonical: str) -> str:
+    """Render a canonical keyword into a readable checkbox label."""
+    return keyword_label_for_value(canonical) or canonical.title()
+
+
+def _igdb_form_context() -> dict[str, object]:
+    """Return IGDB genre/theme picker context for create and setup forms."""
+    igdb_genres = sorted(
+        [(g.value, g.label) for g in IGDBGenre.gaming()], key=lambda x: x[1]
+    )
+    official_genre_labels = {label.casefold() for _, label in igdb_genres}
+    igdb_themes = sorted(
+        [(t.value, t.label) for t in IGDBTheme.gaming()], key=lambda x: x[1]
+    )
+    official_theme_labels = {label.casefold() for _, label in igdb_themes}
+    igdb_game_modes = sorted(
+        [(m.value, m.label) for m in IGDBGameMode], key=lambda x: x[1]
+    )
+    igdb_player_perspectives = sorted(
+        [(p.value, p.label) for p in IGDBPlayerPerspective],
+        key=lambda x: x[1],
+    )
+    igdb_genre_keywords = sorted(
+        [
+            (keyword.canonical, _keyword_option_label(keyword.canonical))
+            for keyword in IGDB_GENRE_KEYWORDS
+            if _keyword_option_label(keyword.canonical).casefold()
+            not in official_genre_labels
+        ],
+        key=lambda item: item[1],
+    )
+    igdb_theme_keywords = sorted(
+        [
+            (keyword.canonical, _keyword_option_label(keyword.canonical))
+            for keyword in IGDB_THEME_KEYWORDS
+            if _keyword_option_label(keyword.canonical).casefold()
+            not in official_theme_labels
+        ],
+        key=lambda item: item[1],
+    )
+    igdb_mechanic_keywords = sorted(
+        [
+            (keyword.canonical, _keyword_option_label(keyword.canonical))
+            for keyword in IGDB_MECHANIC_KEYWORDS
+        ],
+        key=lambda item: item[1],
+    )
+    return {
+        "platform_options": _PLATFORM_OPTIONS,
+        "igdb_genres": igdb_genres,
+        "igdb_themes": igdb_themes,
+        "igdb_game_modes": igdb_game_modes,
+        "igdb_player_perspectives": igdb_player_perspectives,
+        "igdb_genre_keywords": igdb_genre_keywords,
+        "igdb_theme_keywords": igdb_theme_keywords,
+        "igdb_mechanic_keywords": igdb_mechanic_keywords,
+    }
+
+
+def _int_form_values(request_form: object, field_name: str) -> list[int]:
+    """Return integer values from a Starlette form list field."""
     getlist = getattr(request_form, "getlist", None)
     if getlist is None:
         return []
-    return [
-        value for value in getlist("platform_tags") if isinstance(value, str)
-    ]
+    values = getlist(field_name)
+    return [int(value) for value in values if isinstance(value, str) and value]
 
 
-def _tag_form_context(game: object | None = None) -> dict[str, object]:
-    """Return shared tag picker context for create and setup forms."""
-    genre_primary: list[str] = []
-    genre_secondary: list[str] = []
-    mechanics_tags: list[str] = []
-    vibe_tags: list[str] = []
-    kindred_tags: list[str] = []
-
-    if game is not None:
-        genre_primary = getattr(game, "genre_primary_tags", [])
-        genre_secondary = getattr(game, "genre_secondary_tags", [])
-        mechanics_tags = getattr(game, "mechanics_primary_tags", [])
-        vibe_tags = getattr(game, "vibe_primary_tags", [])
-        kindred_tags = getattr(game, "kindred_primary_tags", [])
-
-    return {
-        "featured_genre_tags": featured_tags_for("genre"),
-        "featured_mechanics_tags": featured_tags_for("mechanics"),
-        "featured_vibe_tags": featured_tags_for("vibe"),
-        "featured_kindred_tags": featured_tags_for("kindred"),
-        "genre_tag_catalog": catalog_for("genre"),
-        "mechanics_tag_catalog": catalog_for("mechanics"),
-        "vibe_tag_catalog": catalog_for("vibe"),
-        "kindred_tag_catalog": catalog_for("kindred"),
-        "genre_primary_tags_value": ", ".join(genre_primary),
-        "genre_secondary_tags_value": ", ".join(genre_secondary),
-        "mechanics_tags_value": ", ".join(mechanics_tags),
-        "vibe_tags_value": ", ".join(vibe_tags),
-        "kindred_tags_value": ", ".join(kindred_tags),
-    }
+def _string_form_values(
+    request_form: object,
+    field_name: str,
+    *,
+    allowed_values: frozenset[str] | None = None,
+) -> list[str]:
+    """Return unique non-empty string values from a Starlette form list field."""
+    getlist = getattr(request_form, "getlist", None)
+    if getlist is None:
+        return []
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in getlist(field_name):
+        if not isinstance(value, str):
+            continue
+        normalized = value.strip()
+        if (
+            normalized
+            and normalized not in seen
+            and (allowed_values is None or normalized in allowed_values)
+        ):
+            seen.add(normalized)
+            result.append(normalized)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -94,28 +155,17 @@ def _tag_form_context(game: object | None = None) -> dict[str, object]:
 
 
 @router.get("/games", response_class=HTMLResponse)
-async def list_games(
+def list_games(
     request: Request,
     user: User = Depends(require_product_access),
-    game_repo: GameRepository = Depends(get_game_repo),
-    draft_repo: DraftItemRepository = Depends(get_draft_repo),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     billing_service: BillingService = Depends(get_billing_service),
-    game_service: GameService = Depends(get_game_service),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the dashboard showing all of the user's games."""
     games = game_repo.list_by_user(user.user_id)
 
-    # Get queue counts for each game
-    queue_counts = {
-        g.game_id: draft_repo.count_queued(g.game_id) for g in games
-    }
-    game_discovery_readiness = {
-        g.game_id: game_service.get_discovery_readiness(g) for g in games
-    }
-
     subscription = billing_service.get_or_create_subscription(user.user_id)
-    discovery_status = billing_service.get_discovery_run_status(user.user_id)
     can_add_game = billing_service.check_game_limit(user.user_id)
     max_game_slots = max(limit["games"] for limit in TIER_LIMITS.values())
     current_game_limit = (
@@ -132,10 +182,7 @@ async def list_games(
         {
             "user": user,
             "games": games,
-            "queue_counts": queue_counts,
-            "game_discovery_readiness": game_discovery_readiness,
             "subscription": subscription,
-            "discovery_status": discovery_status,
             "can_add_game": can_add_game,
             "placeholder_slots": placeholder_slots,
             "unlocked_placeholder_slots": unlocked_placeholder_slots,
@@ -149,7 +196,7 @@ async def list_games(
 
 
 @router.get("/games/new", response_class=HTMLResponse)
-async def new_game_page(
+def new_game_page(
     request: Request,
     user: User = Depends(require_product_access),
     templates: Jinja2Templates = Depends(get_templates),
@@ -158,7 +205,7 @@ async def new_game_page(
     return templates.TemplateResponse(
         request,
         "games/create.html",
-        {"user": user, "error": None, **_tag_form_context()},
+        {"user": user, "error": None, **_igdb_form_context()},
     )
 
 
@@ -169,21 +216,28 @@ async def create_game_post(
     name: str = Form(...),
     summary: str = Form(default=""),
     description: str = Form(...),
-    genre_primary_tags: str = Form(default=""),
-    genre_secondary_tags: str = Form(default=""),
-    mechanics_tags: str = Form(default=""),
-    vibe_tags: str = Form(default=""),
-    kindred_tags: str = Form(default=""),
     website_url: str = Form(default=""),
     billing_service: BillingService = Depends(get_billing_service),
-    game_service: GameService = Depends(get_game_service),
+    game_service: CustomerGameService = Depends(get_customer_game_service),
     templates: Jinja2Templates = Depends(get_templates),
     _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Handle game creation form submission."""
     form = await request.form()
-    platform_tags = _platform_tags_from_form(form)
-    genre_tags_raw = str(form.get("genre_tags", "")).strip()
+    igdb_genre_ids = _int_form_values(form, "igdb_genre_ids")
+    igdb_theme_ids = _int_form_values(form, "igdb_theme_ids")
+    igdb_game_mode_ids = _int_form_values(form, "igdb_game_mode_ids")
+    igdb_player_perspective_ids = _int_form_values(
+        form, "igdb_player_perspective_ids"
+    )
+    igdb_keyword_ids = _string_form_values(
+        form,
+        "igdb_keyword_ids",
+        allowed_values=_ALLOWED_IGDB_KEYWORD_IDS,
+    )
+    platforms = _string_form_values(
+        form, "platforms", allowed_values=_ALLOWED_PLATFORM_VALUES
+    )
 
     # Check subscription limit
     if not billing_service.check_game_limit(user.user_id):
@@ -193,7 +247,7 @@ async def create_game_post(
             {
                 "user": user,
                 "error": "You've reached your game limit. Upgrade your plan to add more games.",
-                **_tag_form_context(),
+                **_igdb_form_context(),
             },
             status_code=400,
         )  # type: ignore[return-value]
@@ -203,21 +257,20 @@ async def create_game_post(
             user_id=user.user_id,
             name=name,
             description=description,
-            genre_tags_raw=genre_tags_raw,
-            summary=summary,
-            platform_tags=platform_tags,
             website_url=website_url or None,
-            genre_primary_tags_raw=genre_primary_tags,
-            genre_secondary_tags_raw=genre_secondary_tags,
-            mechanics_primary_tags_raw=mechanics_tags,
-            vibe_primary_tags_raw=vibe_tags,
-            kindred_primary_tags_raw=kindred_tags,
+            summary=summary,
+            platforms=platforms or None,
+            igdb_genre_ids=igdb_genre_ids or None,
+            igdb_theme_ids=igdb_theme_ids or None,
+            igdb_game_mode_ids=igdb_game_mode_ids or None,
+            igdb_player_perspective_ids=igdb_player_perspective_ids or None,
+            igdb_keyword_ids=igdb_keyword_ids or None,
         )
     except ValueError as exc:
         return templates.TemplateResponse(
             request,
             "games/create.html",
-            {"user": user, "error": str(exc), **_tag_form_context()},
+            {"user": user, "error": str(exc), **_igdb_form_context()},
             status_code=400,
         )  # type: ignore[return-value]
 
@@ -230,24 +283,18 @@ async def create_game_post(
 
 
 @router.get("/games/{slug}/setup", response_class=HTMLResponse)
-async def game_setup_page(
+def game_setup_page(
     slug: str,
     request: Request,
     user: User = Depends(require_product_access),
-    game_repo: GameRepository = Depends(get_game_repo),
-    template_repo: MessageTemplateRepository = Depends(get_template_repo),
-    asset_repo: AssetRepository = Depends(get_asset_repo),
-    game_service: GameService = Depends(get_game_service),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    game_service: CustomerGameService = Depends(get_customer_game_service),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
-    """Render the game setup page with tags, templates and assets."""
+    """Render the game setup page."""
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
-
-    templates_list = template_repo.list_by_game(game.game_id)
-    assets = asset_repo.list_by_game(game.game_id)
-    discovery_readiness = game_service.get_discovery_readiness(game)
 
     return templates.TemplateResponse(
         request,
@@ -255,11 +302,8 @@ async def game_setup_page(
         {
             "user": user,
             "game": game,
-            "message_templates": templates_list,
-            "assets": assets,
             "error": None,
-            "discovery_readiness": discovery_readiness,
-            **_tag_form_context(game),
+            **_igdb_form_context(),
         },
     )
 
@@ -272,23 +316,28 @@ async def update_game_post(
     name: str = Form(...),
     summary: str = Form(default=""),
     description: str = Form(...),
-    genre_primary_tags: str = Form(default=""),
-    genre_secondary_tags: str = Form(default=""),
-    mechanics_tags: str = Form(default=""),
-    vibe_tags: str = Form(default=""),
-    kindred_tags: str = Form(default=""),
     website_url: str = Form(default=""),
-    game_repo: GameRepository = Depends(get_game_repo),
-    template_repo: MessageTemplateRepository = Depends(get_template_repo),
-    asset_repo: AssetRepository = Depends(get_asset_repo),
-    game_service: GameService = Depends(get_game_service),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    game_service: CustomerGameService = Depends(get_customer_game_service),
     templates: Jinja2Templates = Depends(get_templates),
     _csrf: None = Depends(require_csrf_form),
 ) -> Response:
     """Handle game info update form submission."""
     form = await request.form()
-    platform_tags = _platform_tags_from_form(form)
-    genre_tags_raw = str(form.get("genre_tags", "")).strip()
+    igdb_genre_ids = _int_form_values(form, "igdb_genre_ids")
+    igdb_theme_ids = _int_form_values(form, "igdb_theme_ids")
+    igdb_game_mode_ids = _int_form_values(form, "igdb_game_mode_ids")
+    igdb_player_perspective_ids = _int_form_values(
+        form, "igdb_player_perspective_ids"
+    )
+    igdb_keyword_ids = _string_form_values(
+        form,
+        "igdb_keyword_ids",
+        allowed_values=_ALLOWED_IGDB_KEYWORD_IDS,
+    )
+    platforms = _string_form_values(
+        form, "platforms", allowed_values=_ALLOWED_PLATFORM_VALUES
+    )
 
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
@@ -296,161 +345,31 @@ async def update_game_post(
 
     try:
         game_service.update_game(
-            game_id=game.game_id,
+            customer_game_id=game.customer_game_id,
             user_id=user.user_id,
             name=name,
             description=description,
-            genre_tags_raw=genre_tags_raw,
-            summary=summary,
-            platform_tags=platform_tags,
             website_url=website_url or None,
-            genre_primary_tags_raw=genre_primary_tags,
-            genre_secondary_tags_raw=genre_secondary_tags,
-            mechanics_primary_tags_raw=mechanics_tags,
-            vibe_primary_tags_raw=vibe_tags,
-            kindred_primary_tags_raw=kindred_tags,
+            summary=summary,
+            platforms=platforms or None,
+            igdb_genre_ids=igdb_genre_ids or None,
+            igdb_theme_ids=igdb_theme_ids or None,
+            igdb_game_mode_ids=igdb_game_mode_ids or None,
+            igdb_player_perspective_ids=igdb_player_perspective_ids or None,
+            igdb_keyword_ids=igdb_keyword_ids or None,
         )
     except ValueError as exc:
-        templates_list = template_repo.list_by_game(game.game_id)
-        assets = asset_repo.list_by_game(game.game_id)
         return templates.TemplateResponse(
             request,
             "games/setup.html",
             {
                 "user": user,
                 "game": game,
-                "message_templates": templates_list,
-                "assets": assets,
                 "error": str(exc),
-                "discovery_readiness": game_service.get_discovery_readiness(
-                    game
-                ),
-                **_tag_form_context(game),
+                **_igdb_form_context(),
             },
             status_code=400,
         )
-
-    return RedirectResponse(url=f"/games/{slug}/setup", status_code=303)
-
-
-# ---------------------------------------------------------------------------
-# Templates
-# ---------------------------------------------------------------------------
-
-
-@router.post("/games/{slug}/templates")
-async def create_template_post(
-    slug: str,
-    request: Request,
-    user: User = Depends(require_product_access),
-    name: str = Form(...),
-    channel: str = Form(...),
-    subject_template: str = Form(default=""),
-    body_template: str = Form(...),
-    game_repo: GameRepository = Depends(get_game_repo),
-    game_service: GameService = Depends(get_game_service),
-    _csrf: None = Depends(require_csrf_form),
-) -> RedirectResponse:
-    """Add a new message template to the game."""
-    game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
-        raise HTTPException(status_code=404, detail="Game not found.")
-
-    try:
-        game_service.add_template(
-            game_id=game.game_id,
-            user_id=user.user_id,
-            name=name,
-            channel=channel,
-            subject_template=subject_template or None,
-            body_template=body_template,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return RedirectResponse(url=f"/games/{slug}/setup", status_code=303)
-
-
-@router.post("/games/{slug}/templates/{template_id}/delete")
-async def delete_template_post(
-    slug: str,
-    template_id: str,
-    request: Request,
-    user: User = Depends(require_product_access),
-    game_repo: GameRepository = Depends(get_game_repo),
-    game_service: GameService = Depends(get_game_service),
-    _csrf: None = Depends(require_csrf_form),
-) -> RedirectResponse:
-    """Delete a message template."""
-    game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
-        raise HTTPException(status_code=404, detail="Game not found.")
-
-    try:
-        game_service.delete_template(template_id, game.game_id, user.user_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return RedirectResponse(url=f"/games/{slug}/setup", status_code=303)
-
-
-# ---------------------------------------------------------------------------
-# Assets
-# ---------------------------------------------------------------------------
-
-
-@router.post("/games/{slug}/assets")
-async def create_asset_post(
-    slug: str,
-    request: Request,
-    user: User = Depends(require_product_access),
-    asset_type: str = Form(...),
-    title: str = Form(...),
-    body: str = Form(default=""),
-    url: str = Form(default=""),
-    game_repo: GameRepository = Depends(get_game_repo),
-    game_service: GameService = Depends(get_game_service),
-    _csrf: None = Depends(require_csrf_form),
-) -> RedirectResponse:
-    """Add a promotional asset to the game."""
-    game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
-        raise HTTPException(status_code=404, detail="Game not found.")
-
-    try:
-        game_service.add_asset(
-            game_id=game.game_id,
-            user_id=user.user_id,
-            asset_type=asset_type,
-            title=title,
-            body=body or None,
-            url=url or None,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return RedirectResponse(url=f"/games/{slug}/setup", status_code=303)
-
-
-@router.post("/games/{slug}/assets/{asset_id}/delete")
-async def delete_asset_post(
-    slug: str,
-    asset_id: str,
-    request: Request,
-    user: User = Depends(require_product_access),
-    game_repo: GameRepository = Depends(get_game_repo),
-    game_service: GameService = Depends(get_game_service),
-    _csrf: None = Depends(require_csrf_form),
-) -> RedirectResponse:
-    """Delete an asset."""
-    game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
-        raise HTTPException(status_code=404, detail="Game not found.")
-
-    try:
-        game_service.delete_asset(asset_id, game.game_id, user.user_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return RedirectResponse(url=f"/games/{slug}/setup", status_code=303)
 
@@ -461,12 +380,12 @@ async def delete_asset_post(
 
 
 @router.post("/games/{slug}/duplicate")
-async def duplicate_game_post(
+def duplicate_game_post(
     slug: str,
     request: Request,
     user: User = Depends(require_product_access),
-    game_repo: GameRepository = Depends(get_game_repo),
-    game_service: GameService = Depends(get_game_service),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    game_service: CustomerGameService = Depends(get_customer_game_service),
     billing_service: BillingService = Depends(get_billing_service),
     _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
@@ -479,85 +398,22 @@ async def duplicate_game_post(
             status_code=400,
             detail="Game limit reached. Upgrade your plan to add more games.",
         )
-    game_service.duplicate_game(game.game_id, user.user_id)
+    game_service.duplicate_game(game.customer_game_id, user.user_id)
     return RedirectResponse(url="/games", status_code=303)
 
 
 @router.post("/games/{slug}/delete")
-async def delete_game_post(
+def delete_game_post(
     slug: str,
     request: Request,
     user: User = Depends(require_product_access),
-    game_repo: GameRepository = Depends(get_game_repo),
-    game_service: GameService = Depends(get_game_service),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    game_service: CustomerGameService = Depends(get_customer_game_service),
     _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Permanently delete a game and all its data."""
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
         raise HTTPException(status_code=404, detail="Game not found.")
-    game_service.delete_game(game.game_id, user.user_id)
+    game_service.delete_game(game.customer_game_id, user.user_id)
     return RedirectResponse(url="/games", status_code=303)
-
-
-# ---------------------------------------------------------------------------
-# Ingestion trigger
-# ---------------------------------------------------------------------------
-
-
-@router.post("/api/games/{game_id}/run-ingestion")
-async def run_ingestion_api(
-    game_id: str,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    user: User = Depends(require_product_access),
-    game_repo: GameRepository = Depends(get_game_repo),
-    billing_service: BillingService = Depends(get_billing_service),
-    game_service: GameService = Depends(get_game_service),
-    discovery_run_service: DiscoveryRunService = Depends(
-        get_discovery_run_service
-    ),
-    _csrf: None = Depends(require_csrf_header),
-) -> JSONResponse:
-    """Trigger the discovery + scoring pipeline for a game (runs in background)."""
-    game = game_repo.get_by_id(game_id)
-    if game is None or game.user_id != user.user_id:
-        raise HTTPException(status_code=404, detail="Game not found.")
-
-    readiness = game_service.get_discovery_readiness(game)
-    if not readiness.can_run:
-        raise HTTPException(status_code=409, detail=readiness.message)
-
-    try:
-        discovery_status = billing_service.record_discovery_run(
-            user.user_id, game.game_id
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
-
-    limit = billing_service.get_prospects_limit(user.user_id)
-
-    sources_override: list[str] | None = None
-    try:
-        body = await request.json()
-        if isinstance(body, dict) and body.get("sources"):
-            sources_override = [str(s) for s in body["sources"]]
-    except Exception:
-        pass
-
-    background_tasks.add_task(
-        discovery_run_service.run_ingestion,
-        game,
-        limit_per_source=limit,
-        run_id=discovery_status.run_id,
-        sources_override=sources_override,
-    )
-
-    return JSONResponse(
-        {
-            "ok": True,
-            "message": "Discovery pipeline started in the background.",
-            "run_id": discovery_status.run_id,
-            "usage": discovery_status.as_payload(),
-        }
-    )

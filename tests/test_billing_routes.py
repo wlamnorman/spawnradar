@@ -41,7 +41,6 @@ def _make_client(monkeypatch, tmp_path) -> tuple[TestClient, str]:
     monkeypatch.setenv("PADDLE_ENVIRONMENT", "sandbox")
     monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
     monkeypatch.setenv("RESEND_API_KEY", "")
-    monkeypatch.setenv("SMTP_HOST", "")
     return TestClient(create_app()), db_path
 
 
@@ -242,7 +241,6 @@ class TestWebhookSignatureVerification:
             "PADDLE_INDIE_PRICE_ID",
             "PADDLE_ENVIRONMENT",
             "RESEND_API_KEY",
-            "SMTP_HOST",
         ):
             monkeypatch.setenv(key, "")
         monkeypatch.delenv("DEV_AUTO_LOGIN", raising=False)
@@ -484,7 +482,7 @@ class TestCheckoutSuccessPage:
             response = client.get("/billing/success")
         assert response.status_code == 200
         assert "Activating" in response.text
-        assert "/billing/status" in response.text
+        assert "billing-success.js" in response.text
 
     def test_polling_page_contains_fallback_link_to_billing(
         self, monkeypatch, tmp_path
