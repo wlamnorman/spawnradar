@@ -8,6 +8,12 @@ from datetime import UTC, datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.runtime import SourceRuntime
+from app.scheduler.jobs import (
+    run_catalog_discovery,
+    run_game_discovery,
+    run_scheduled_creator_index_sync,
+    run_top_categories_crawl,
+)
 
 log = logging.getLogger(__name__)
 
@@ -19,11 +25,6 @@ def create_scheduler(
     catalog_dir: str | None = None,
 ) -> AsyncIOScheduler:
     """Create a scheduler with the active creator-index jobs."""
-    from app.scheduler.jobs import (
-        run_catalog_discovery,
-        run_scheduled_creator_index_sync,
-        run_top_categories_crawl,
-    )
 
     scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -104,7 +105,6 @@ def schedule_game_discovery(
     The job runs once, shortly after being scheduled.  It is non-blocking
     for the caller.
     """
-    from app.scheduler.jobs import run_game_discovery
 
     job_id = f"on_demand_discovery_{customer_game_id}"
     scheduler.add_job(
@@ -120,5 +120,6 @@ def schedule_game_discovery(
         replace_existing=True,
     )
     log.info(
-        "Scheduled on-demand discovery for game %s", customer_game_id,
+        "Scheduled on-demand discovery for game %s",
+        customer_game_id,
     )

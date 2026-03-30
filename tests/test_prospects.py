@@ -140,6 +140,31 @@ def _insert_game_play(
         )
 
 
+def _insert_contact_point(
+    db_path: str,
+    account_id: str,
+    contact_type: str,
+    contact_value: str,
+) -> None:
+    """Insert a public contact point for a creator."""
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO contact_points (
+                contact_point_id, account_id, contact_type, contact_value,
+                source_kind, is_public, first_seen_at, last_seen_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'test', 1, datetime('now'), datetime('now'),
+                      datetime('now'))
+            """,
+            (
+                f"{account_id}-{contact_type}",
+                account_id,
+                contact_type,
+                contact_value,
+            ),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Scoring formula tests
 # ---------------------------------------------------------------------------
@@ -689,3 +714,131 @@ class TestProspectRankingService:
         assert total == 1
         assert len(prospects) == 1
         assert prospects[0].profile.account_id == "mid-reach"
+
+    def test_rank_prospects_applies_min_relevant_games_filter(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Relevant Count Game",
+            summary="Sci-fi tactics",
+            description="Sci-fi tactics",
+            website_url=None,
+            igdb_genre_ids=[12],
+            igdb_theme_ids=[18],
+        )
+        _insert_igdb_game(
+            db_path,
+            300,
+            "Match One",
+            "match-one",
+            genre_tags=[(12, "Role-playing (RPG)")],
+        )
+        _insert_igdb_game(
+            db_path,
+            301,
+            "Match Two",
+            "match-two",
+            theme_tags=[(18, "Science fiction")],
+        )
+        _insert_creator(db_path, "one-game", "twitch", "OneGame")
+        _insert_creator(db_path, "two-games", "twitch", "TwoGames")
+        _insert_game_play(db_path, "one-game", "Match One", 300)
+        _insert_game_play(db_path, "two-games", "Match One", 300)
+        _insert_game_play(db_path, "two-games", "Match Two", 301)
+
+        prospects, total = ProspectRankingService(db_path).rank_prospects(
+            game,
+            min_relevant_games=2,
+        )
+
+        assert total == 1
+        assert len(prospects) == 1
+        assert prospects[0].profile.account_id == "two-games"
+        assert prospects[0].relevant_game_count == 2
+
+    def test_rank_prospects_applies_contact_method_filter(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Contact Filter Game",
+            summary="Sci-fi tactics",
+            description="Sci-fi tactics",
+            website_url=None,
+            igdb_genre_ids=[12],
+        )
+        _insert_igdb_game(
+            db_path,
+            400,
+            "Shared Match",
+            "shared-match",
+            genre_tags=[(12, "Role-playing (RPG)")],
+        )
+        _insert_creator(db_path, "email-creator", "twitch", "EmailCreator")
+        _insert_creator(db_path, "discord-creator", "twitch", "DiscordCreator")
+        _insert_game_play(db_path, "email-creator", "Shared Match", 400)
+        _insert_game_play(db_path, "discord-creator", "Shared Match", 400)
+        _insert_contact_point(
+            db_path,
+            "email-creator",
+            "email",
+            "creator@example.com",
+        )
+        _insert_contact_point(
+            db_path,
+            "discord-creator",
+            "discord",
+            "https://discord.gg/example",
+        )
+
+        prospects, total = ProspectRankingService(db_path).rank_prospects(
+            game,
+            contact_method="email",
+        )
+
+        assert total == 1
+        assert len(prospects) == 1
+        assert prospects[0].profile.account_id == "email-creator"
+
+    def test_rank_prospects_applies_max_relevant_games_filter(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Max Relevant Count Game",
+            summary="Sci-fi tactics",
+            description="Sci-fi tactics",
+            website_url=None,
+            igdb_genre_ids=[12],
+            igdb_theme_ids=[18],
+        )
+        _insert_igdb_game(
+            db_path,
+            500,
+            "Relevant One",
+            "relevant-one",
+            genre_tags=[(12, "Role-playing (RPG)")],
+        )
+        _insert_igdb_game(
+            db_path,
+            501,
+            "Relevant Two",
+            "relevant-two",
+            theme_tags=[(18, "Science fiction")],
+        )
+        _insert_creator(db_path, "one-game-max", "twitch", "OneGameMax")
+        _insert_creator(db_path, "two-games-max", "twitch", "TwoGamesMax")
+        _insert_game_play(db_path, "one-game-max", "Relevant One", 500)
+        _insert_game_play(db_path, "two-games-max", "Relevant One", 500)
+        _insert_game_play(db_path, "two-games-max", "Relevant Two", 501)
+
+        prospects, total = ProspectRankingService(db_path).rank_prospects(
+            game,
+            max_relevant_games=1,
+        )
+
+        assert total == 1
+        assert len(prospects) == 1
+        assert prospects[0].profile.account_id == "one-game-max"
+        assert prospects[0].relevant_game_count == 1

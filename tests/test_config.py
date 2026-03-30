@@ -96,5 +96,5 @@ def test_settings_load_creator_index_scope_options(monkeypatch):
     )
     assert settings.creator_index_bootstrap_enabled is False
     assert settings.creator_index_twitch_min_live_viewers == 10
-    assert settings.creator_index_twitch_min_followers == 0
+    assert settings.creator_index_twitch_min_followers == 50
     assert settings.creator_index_customer_game_twitch_probe_limit == 10

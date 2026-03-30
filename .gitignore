@@ -9,6 +9,7 @@ data/
 .ruff_cache
 .env.production
 .env.staging
+.DS_Store
 .env*
 *.egg-info
 .worktrees/

@@ -73,11 +73,20 @@ class CreatorIndexService:
     # Public entry points
     # ------------------------------------------------------------------
 
+    _MAX_GAMES_PER_SWEEP = 3
+
     async def sync_active_customer_games(self) -> SweepSyncSummary:
-        """Discover and persist creators for every active customer game."""
-        customer_games = self._list_active_customer_games()
+        """Discover creators for the most-needy active games.
+
+        Instead of crawling every game every run, picks up to
+        ``_MAX_GAMES_PER_SWEEP`` games prioritised by need:
+        lowest existing good-match count first, never-crawled first.
+        """
+        all_games = self._list_active_customer_games()
+        prioritised = self._prioritise_games(all_games)
         game_summaries = [
-            await self.sync_customer_game(cg) for cg in customer_games
+            await self.sync_customer_game(cg)
+            for cg in prioritised[: self._MAX_GAMES_PER_SWEEP]
         ]
         return self._summarize_customer_game_syncs(game_summaries)
 
@@ -439,6 +448,72 @@ class CreatorIndexService:
     # Helpers
     # ------------------------------------------------------------------
 
+    def _prioritise_games(
+        self, games: list[CustomerGame]
+    ) -> list[CustomerGame]:
+        """Sort games by discovery urgency for the scheduled sweep.
+
+        Priority:
+        1. Active customers first — games whose owner viewed prospects
+           or updated the definition in the last 7 days.
+        2. Within each tier, most stale first (oldest updated_at).
+
+        Inactive customers' games still get crawled, just less often.
+        """
+        if not games:
+            return []
+
+        game_ids = [g.customer_game_id for g in games]
+        active_ids = self._get_recently_active_game_ids(game_ids)
+
+        def priority_key(game: CustomerGame) -> tuple[int, str]:
+            is_active = game.customer_game_id in active_ids
+            # Active first (0 < 1), then oldest updated_at first
+            return (0 if is_active else 1, game.updated_at)
+
+        return sorted(games, key=priority_key)
+
+    def _get_recently_active_game_ids(
+        self, game_ids: list[str],
+    ) -> set[str]:
+        """Return game IDs whose owner has been active in the last 7 days.
+
+        Activity = prospect page view or game definition update.
+        """
+        if not game_ids:
+            return set()
+
+        placeholders = ",".join("?" for _ in game_ids)
+        active: set[str] = set()
+
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT customer_game_id
+                FROM metric_events
+                WHERE metric_key = 'prospect_pages_viewed'
+                  AND customer_game_id IN ({placeholders})
+                  AND occurred_at > datetime('now', '-7 days')
+                """,
+                game_ids,
+            ).fetchall()
+            for row in rows:
+                active.add(row[0])
+
+            rows2 = conn.execute(
+                f"""
+                SELECT customer_game_id
+                FROM customer_games
+                WHERE customer_game_id IN ({placeholders})
+                  AND updated_at > datetime('now', '-7 days')
+                """,
+                game_ids,
+            ).fetchall()
+            for row in rows2:
+                active.add(row[0])
+
+        return active
+
     def _list_active_customer_games(self) -> list[CustomerGame]:
         return CustomerGameRepository(self._db_path).list_active()
 
@@ -469,4 +544,5 @@ class CreatorIndexService:
             contact_points_synced=sum(
                 item.contact_points_synced for item in game_summaries
             ),
+            game_summaries=tuple(game_summaries),
         )

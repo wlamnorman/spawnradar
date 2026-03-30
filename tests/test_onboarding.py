@@ -111,7 +111,9 @@ def test_dashboard_game_cards_include_run_discovery_action(
                 "name": "Orbit Drift",
                 "summary": "Arcade racing across collapsing star lanes.",
                 "description": "A longer internal description that should not appear on the dashboard card.",
+                "platforms": "pc",
                 "igdb_genre_ids": "10",
+                "similar_game_names": "Slay the Spire",
                 "website_url": "",
             },
             follow_redirects=False,
@@ -119,9 +121,11 @@ def test_dashboard_game_cards_include_run_discovery_action(
         response = client.get("/games")
 
     assert response.status_code == 200
-    assert "Find creators" in response.text
+    assert "Discover creators" in response.text
     assert "/prospects" in response.text
     assert "Arcade racing across collapsing star lanes." in response.text
+    assert "PC / Steam" in response.text
+    assert "Slay the Spire" in response.text
     assert (
         "A longer internal description that should not appear on the dashboard card."
         not in response.text

@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Colony Builder",
+  "baseline_summary": "A colony management sim with base building and automation.",
+  "broad_igdb_genres": [
+    {"id": 15, "label": "Strategy"},
+    {"id": 13, "label": "Simulator"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 18, "label": "Science fiction"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["colony simulator", "base building", "automation"],
+  "anchor_games": [
+    "RimWorld",
+    "Factorio",
+    "Oxygen Not Included",
+    "Against the Storm",
+    "Frostpunk"
+  ]
+}

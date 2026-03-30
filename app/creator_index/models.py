@@ -223,6 +223,7 @@ class SweepSyncSummary:
     accounts_synced: int
     content_samples_synced: int
     contact_points_synced: int
+    game_summaries: tuple[CustomerGameSyncSummary, ...] = ()
 
 
 @dataclass(frozen=True)

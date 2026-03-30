@@ -197,7 +197,7 @@ class Settings:
                 "CREATOR_INDEX_TWITCH_MIN_LIVE_VIEWERS", 10
             ),
             creator_index_twitch_min_followers=_env_int(
-                "CREATOR_INDEX_TWITCH_MIN_FOLLOWERS", 0
+                "CREATOR_INDEX_TWITCH_MIN_FOLLOWERS", 50
             ),
             creator_index_customer_game_twitch_probe_limit=_env_int(
                 "CREATOR_INDEX_CUSTOMER_GAME_TWITCH_PROBE_LIMIT", 10

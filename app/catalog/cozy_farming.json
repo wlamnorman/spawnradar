@@ -1,0 +1,18 @@
+{
+  "customer_game_name": "Catalog: Cozy Farming Sim",
+  "baseline_summary": "A cozy farming and life sim with crafting and friendships.",
+  "broad_igdb_genres": [
+    { "id": 13, "label": "Simulator" },
+    { "id": 32, "label": "Indie" }
+  ],
+  "broad_igdb_themes": [{ "id": 27, "label": "Comedy" }],
+  "required_game_modes": [{ "id": 1, "label": "Single player" }],
+  "extra_custom_tags": ["cozy", "farm", "life simulation"],
+  "anchor_games": [
+    "Stardew Valley",
+    "Animal Crossing: New Horizons",
+    "Spiritfarer",
+    "Coral Island",
+    "My Time at Portia"
+  ]
+}

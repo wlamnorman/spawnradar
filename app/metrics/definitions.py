@@ -102,6 +102,21 @@ GAMES_DUPLICATED = CounterMetricDefinition(
     help_text="Total number of game duplication actions.",
     definition="Count once when a game is created via explicit duplicate or copy.",
 )
+DISCOVERY_RUNS_COMPLETED = CounterMetricDefinition(
+    key="discovery_runs_completed",
+    prometheus_name="spawnradar_discovery_runs_completed_total",
+    help_text="Total number of discovery pipeline runs completed.",
+    definition=(
+        "Count once per game per scheduled or on-demand discovery run. "
+        "The value field stores the number of new creators found."
+    ),
+)
+PROSPECT_PAGES_VIEWED = CounterMetricDefinition(
+    key="prospect_pages_viewed",
+    prometheus_name="spawnradar_prospect_pages_viewed_total",
+    help_text="Total number of prospect page views.",
+    definition="Count once when a user views the ranked prospects page for a game.",
+)
 COUNTER_METRICS: tuple[CounterMetricDefinition, ...] = (
     ACCOUNTS_CREATED,
     SESSIONS_STARTED,
@@ -112,6 +127,8 @@ COUNTER_METRICS: tuple[CounterMetricDefinition, ...] = (
     GAMES_CREATED,
     GAMES_DELETED,
     GAMES_DUPLICATED,
+    DISCOVERY_RUNS_COMPLETED,
+    PROSPECT_PAGES_VIEWED,
 )
 
 TIME_TO_FIRST_GAME_CREATED = TimingMetricDefinition(

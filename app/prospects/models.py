@@ -32,12 +32,22 @@ class RelevantGame:
 
 
 @dataclass(frozen=True)
+class ObservedTag:
+    """One overlapping tag plus the number of distinct played games behind it."""
+
+    tag_type: str
+    tag_id: int | str
+    observed_game_count: int
+
+
+@dataclass(frozen=True)
 class RankedProspect:
     """One scored creator for a CustomerGame."""
 
     profile: CreatorRankingProfile
     coverage_score: float
     overlap_tags: tuple[tuple[str, int | str], ...]
+    observed_tags: tuple[ObservedTag, ...]
     relevant_game_count: int
     relevant_games: tuple[RelevantGame, ...] = ()
 

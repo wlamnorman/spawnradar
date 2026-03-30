@@ -17,21 +17,27 @@
         <link
             rel="icon"
             type="image/svg+xml"
-            href="/static/favicon/favicon.svg"
+            href="{{ static_asset_url('favicon/favicon.svg') }}"
         />
         <link
             rel="icon"
             type="image/png"
             sizes="96x96"
-            href="/static/favicon/favicon-96x96.png"
+            href="{{ static_asset_url('favicon/favicon-96x96.png') }}"
         />
-        <link rel="shortcut icon" href="/static/favicon/favicon.ico" />
+        <link
+            rel="shortcut icon"
+            href="{{ static_asset_url('favicon/favicon.ico') }}"
+        />
         <link
             rel="apple-touch-icon"
             sizes="180x180"
-            href="/static/favicon/apple-touch-icon.png"
+            href="{{ static_asset_url('favicon/apple-touch-icon.png') }}"
         />
-        <link rel="manifest" href="/static/favicon/site.webmanifest" />
+        <link
+            rel="manifest"
+            href="{{ static_asset_url('favicon/site.webmanifest') }}"
+        />
 
         <!-- Default meta — override per-page via block -->
         {% block meta_description %}
@@ -75,7 +81,7 @@
             content="{% block twitter_description %}Discover and prioritize creators who are a strong fit for your game.{% endblock %}"
         />
 
-        <link rel="stylesheet" href="/static/style.css" />
+        <link rel="stylesheet" href="{{ static_asset_url('style.css') }}" />
         {% block head %}{% endblock %}
     </head>
     <body>
@@ -83,7 +89,7 @@
             <div class="navbar-inner">
                 <a href="/" class="navbar-brand">
                     <img
-                        src="/static/favicon/favicon-96x96.png"
+                        src="{{ static_asset_url('favicon/favicon-96x96.png') }}"
                         alt=""
                         class="navbar-brand-mark"
                         width="72"

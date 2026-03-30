@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from functools import cache
 from pathlib import Path
 
 from authlib.integrations.starlette_client import OAuth
@@ -64,6 +65,24 @@ _FRONTEND_DIR = _APP_DIR / "frontend"
 _TEMPLATES_DIR = _FRONTEND_DIR / "templates"
 _STATIC_DIR = _FRONTEND_DIR / "static"
 logger = logging.getLogger(__name__)
+
+
+@cache
+def _static_asset_version(path: str) -> int | None:
+    """Return a stable cache-busting token for a static asset."""
+    asset_path = _STATIC_DIR / path
+    try:
+        return asset_path.stat().st_mtime_ns
+    except FileNotFoundError:
+        return None
+
+
+def static_asset_url(path: str) -> str:
+    """Return a versioned static URL so deploys invalidate stale browser caches."""
+    version = _static_asset_version(path)
+    if version is None:
+        return f"/static/{path}"
+    return f"/static/{path}?v={version}"
 
 
 @asynccontextmanager
@@ -129,9 +148,11 @@ async def lifespan(app: FastAPI):
             "Starting creator-index scheduler with games=%s",
             scope_message,
         )
+        catalog_dir = str(Path(__file__).resolve().parent / "catalog")
         scheduler = create_scheduler(
             db_path,
             source_runtime,
+            catalog_dir=catalog_dir,
         )
         scheduler.start()
 
@@ -139,7 +160,10 @@ async def lifespan(app: FastAPI):
         # schedule a one-shot discovery job.
         def _on_game_changed(customer_game_id: str) -> None:
             schedule_game_discovery(
-                scheduler, db_path, source_runtime, customer_game_id,
+                scheduler,
+                db_path,
+                source_runtime,
+                customer_game_id,
             )
 
         customer_game_service.set_on_game_changed(_on_game_changed)
@@ -160,6 +184,7 @@ async def lifespan(app: FastAPI):
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
     templates.env.globals["csrf_token_for"] = csrf_token_for
     templates.env.globals["subscription_for"] = subscription_for
+    templates.env.globals["static_asset_url"] = static_asset_url
 
     # Attach everything to app.state for dependency access in routes
     app.state.email_service = email_service
@@ -267,6 +292,7 @@ def create_app() -> FastAPI:
     app.include_router(games_router)
     app.include_router(prospects_router)
     app.include_router(billing_router)
+
     @app.get("/")
     async def root(
         request: Request,

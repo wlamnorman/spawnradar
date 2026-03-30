@@ -1,16 +1,31 @@
-"""Canonical IGDB keyword groupings for discovery experiments.
+"""Canonical IGDB keyword groupings for discovery.
 
-This file is based on ``igdb_keywords_filtered_pass2.txt`` but deduplicates
-obvious variant spellings such as ``deck building`` / ``deck-building`` /
-``deckbuilder`` into one canonical concept while keeping the underlying IGDB
-keyword aliases available for search.
+Deduplicates variant spellings (e.g. "deck building" / "deck-building" /
+"deckbuilder" → one canonical "deckbuilder") and splits keywords into
+Genre, Theme, and Mechanic buckets shown to customers alongside IGDB's
+own genre and theme taxonomies.
 
-The intent is:
-- show one clean customer-facing concept
-- retain all useful IGDB keyword variants for retrieval
-- split the canonical concepts into Genre, Theme, and Mechanic buckets
+Curation criteria (applied 2026-03-30):
 
-All strings in ``igdb_keywords`` are intended to be IGDB keyword names.
+1. **50+ IGDB games tagged** — keywords below this threshold have too few
+   games for any meaningful Twitch streaming community to exist around
+   them.  Removed 61 keywords (e.g. ``community sim``, ``drpg``,
+   ``extraction shooter``).
+
+2. **At least one well-known, actively-streamed title** — keywords whose
+   top-rated games are tiny or mistagged were removed even if the game
+   count was high.  Removed 17 keywords (e.g. ``block puzzle`` where the
+   top "game" was Zelda OoT, ``driving`` where Fortnite was the top hit,
+   ``text adventure`` where Pokémon Go was mistagged).
+
+3. **Not redundant with IGDB genres/themes** — keywords that exactly
+   duplicate an existing IGDB genre or theme add noise without adding
+   signal.  Removed 12 keywords (e.g. ``survival horror`` = Horror +
+   Survival themes, ``graphic adventure`` = Adventure + Point-and-click
+   genres, ``squad based shooter`` = Tactical + Shooter genres).
+
+Starting from 159 keywords in ``igdb_keywords_filtered_pass2.txt``, 90
+were removed, leaving 69 high-signal keywords.
 """
 
 from __future__ import annotations
@@ -36,36 +51,19 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
     CanonicalIGDBKeyword(
         "2d platformer", IGDBKeywordBucket.GENRE, ("2d platformer",)
     ),
-    CanonicalIGDBKeyword("2d rpg", IGDBKeywordBucket.GENRE, ("2d rpg",)),
     CanonicalIGDBKeyword(
         "3d platformer", IGDBKeywordBucket.GENRE, ("3d platformer",)
-    ),
-    CanonicalIGDBKeyword(
-        "3d shooter", IGDBKeywordBucket.GENRE, ("3d shooter",)
-    ),
-    CanonicalIGDBKeyword(
-        "action adventure rpg",
-        IGDBKeywordBucket.GENRE,
-        ("action adventure rpg",),
-    ),
-    CanonicalIGDBKeyword(
-        "action platformer", IGDBKeywordBucket.GENRE, ("action platformer",)
     ),
     CanonicalIGDBKeyword(
         "action roguelike", IGDBKeywordBucket.GENRE, ("action roguelike",)
     ),
     CanonicalIGDBKeyword(
-        "action roguelite", IGDBKeywordBucket.GENRE, ("action roguelite",)
-    ),
-    CanonicalIGDBKeyword(
-        "action rpg", IGDBKeywordBucket.GENRE, ("action-rpg", "arpg")
-    ),
-    CanonicalIGDBKeyword("adventure", IGDBKeywordBucket.GENRE, ("adventure",)),
-    CanonicalIGDBKeyword(
-        "analog horror", IGDBKeywordBucket.THEME, ("analog horror",)
-    ),
-    CanonicalIGDBKeyword(
-        "arcade shooter", IGDBKeywordBucket.GENRE, ("arcade shooter",)
+        "action rpg",
+        IGDBKeywordBucket.GENRE,
+        (
+            "action-rpg",
+            "arpg",
+        ),
     ),
     CanonicalIGDBKeyword(
         "arena shooter", IGDBKeywordBucket.GENRE, ("arena shooter",)
@@ -73,30 +71,25 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
     CanonicalIGDBKeyword(
         "asymmetrical multiplayer",
         IGDBKeywordBucket.MECHANIC,
-        ("asymmetrical", "asymmetric co-op", "asynchronous multiplayer"),
+        (
+            "asymmetrical",
+            "asymmetric co-op",
+            "asynchronous multiplayer",
+        ),
     ),
     CanonicalIGDBKeyword(
         "auto battler",
         IGDBKeywordBucket.GENRE,
-        ("auto battler", "autobattler"),
+        (
+            "auto battler",
+            "autobattler",
+        ),
     ),
     CanonicalIGDBKeyword(
         "automation", IGDBKeywordBucket.MECHANIC, ("automation",)
     ),
     CanonicalIGDBKeyword(
         "base building", IGDBKeywordBucket.MECHANIC, ("base building",)
-    ),
-    CanonicalIGDBKeyword(
-        "base defense", IGDBKeywordBucket.MECHANIC, ("base defense",)
-    ),
-    CanonicalIGDBKeyword(
-        "base management", IGDBKeywordBucket.MECHANIC, ("base management",)
-    ),
-    CanonicalIGDBKeyword(
-        "battle arena", IGDBKeywordBucket.GENRE, ("battle arena",)
-    ),
-    CanonicalIGDBKeyword(
-        "block puzzle", IGDBKeywordBucket.GENRE, ("block puzzle",)
     ),
     CanonicalIGDBKeyword(
         "boomer shooter", IGDBKeywordBucket.GENRE, ("boomer shooter",)
@@ -111,25 +104,15 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
     CanonicalIGDBKeyword(
         "business simulation",
         IGDBKeywordBucket.GENRE,
-        ("business simulation", "business simulator"),
+        (
+            "business simulation",
+            "business simulator",
+        ),
     ),
-    CanonicalIGDBKeyword(
-        "card based combat", IGDBKeywordBucket.MECHANIC, ("card based combat",)
-    ),
-    CanonicalIGDBKeyword(
-        "card battler", IGDBKeywordBucket.GENRE, ("card battler",)
-    ),
-    CanonicalIGDBKeyword(
-        "card collection", IGDBKeywordBucket.MECHANIC, ("card collection",)
-    ),
-    CanonicalIGDBKeyword("casual", IGDBKeywordBucket.GENRE, ("casual",)),
-    CanonicalIGDBKeyword(
-        "character action", IGDBKeywordBucket.GENRE, ("character action",)
-    ),
+    CanonicalIGDBKeyword("casual", IGDBKeywordBucket.THEME, ("casual",)),
     CanonicalIGDBKeyword(
         "city builder", IGDBKeywordBucket.GENRE, ("city builder",)
     ),
-    CanonicalIGDBKeyword("clicker", IGDBKeywordBucket.GENRE, ("clicker",)),
     CanonicalIGDBKeyword(
         "collectathon", IGDBKeywordBucket.GENRE, ("collectathon",)
     ),
@@ -139,95 +122,64 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
         ("collectible card game",),
     ),
     CanonicalIGDBKeyword(
-        "colony builder", IGDBKeywordBucket.GENRE, ("colony builder",)
-    ),
-    CanonicalIGDBKeyword(
         "colony simulator", IGDBKeywordBucket.GENRE, ("colony simulator",)
-    ),
-    CanonicalIGDBKeyword(
-        "combat simulator", IGDBKeywordBucket.GENRE, ("combat simulator",)
-    ),
-    CanonicalIGDBKeyword(
-        "community sim", IGDBKeywordBucket.GENRE, ("community sim",)
-    ),
-    CanonicalIGDBKeyword(
-        "co-op campaign", IGDBKeywordBucket.MECHANIC, ("co-op campaign",)
     ),
     CanonicalIGDBKeyword(
         "couch co-op", IGDBKeywordBucket.MECHANIC, ("couch co-op",)
     ),
     CanonicalIGDBKeyword(
-        "cozy", IGDBKeywordBucket.THEME, ("cozy", "cozy adventure")
+        "cozy",
+        IGDBKeywordBucket.THEME,
+        (
+            "cozy",
+            "cozy adventure",
+        ),
     ),
     CanonicalIGDBKeyword(
         "crafting", IGDBKeywordBucket.MECHANIC, ("crafting",)
-    ),
-    CanonicalIGDBKeyword(
-        "crafting survival", IGDBKeywordBucket.GENRE, ("crafting survival",)
     ),
     CanonicalIGDBKeyword(
         "creature collector", IGDBKeywordBucket.GENRE, ("creature collector",)
     ),
     CanonicalIGDBKeyword("crpg", IGDBKeywordBucket.GENRE, ("crpg",)),
     CanonicalIGDBKeyword(
-        "cyberpunk", IGDBKeywordBucket.THEME, ("cyberpunk rpg",)
-    ),
-    CanonicalIGDBKeyword(
         "dating sim",
         IGDBKeywordBucket.GENRE,
-        ("dating sim", "dating simulation"),
+        (
+            "dating sim",
+            "dating simulation",
+        ),
     ),
     CanonicalIGDBKeyword(
         "deckbuilder",
         IGDBKeywordBucket.GENRE,
-        ("deck building", "deck-building", "deckbuilder"),
+        (
+            "deck building",
+            "deck-building",
+            "deckbuilder",
+        ),
     ),
-    CanonicalIGDBKeyword(
-        "detective mystery", IGDBKeywordBucket.THEME, ("detective mystery",)
-    ),
-    CanonicalIGDBKeyword("driving", IGDBKeywordBucket.GENRE, ("driving",)),
-    CanonicalIGDBKeyword("drpg", IGDBKeywordBucket.GENRE, ("drpg",)),
     CanonicalIGDBKeyword(
         "dungeon crawler", IGDBKeywordBucket.GENRE, ("dungeon crawler",)
-    ),
-    CanonicalIGDBKeyword(
-        "dungeon management", IGDBKeywordBucket.GENRE, ("dungeon management",)
-    ),
-    CanonicalIGDBKeyword(
-        "endless runner", IGDBKeywordBucket.GENRE, ("endless runner",)
     ),
     CanonicalIGDBKeyword(
         "escape room", IGDBKeywordBucket.GENRE, ("escape room",)
     ),
     CanonicalIGDBKeyword(
-        "extraction", IGDBKeywordBucket.MECHANIC, ("extraction",)
-    ),
-    CanonicalIGDBKeyword(
-        "extraction horror", IGDBKeywordBucket.GENRE, ("extraction horror",)
-    ),
-    CanonicalIGDBKeyword(
-        "extraction shooter", IGDBKeywordBucket.GENRE, ("extraction shooter",)
-    ),
-    CanonicalIGDBKeyword(
         "exploration", IGDBKeywordBucket.MECHANIC, ("exploration",)
     ),
     CanonicalIGDBKeyword(
-        "exploration rpg", IGDBKeywordBucket.GENRE, ("exploration rpg",)
-    ),
-    CanonicalIGDBKeyword("factory", IGDBKeywordBucket.GENRE, ("factory",)),
-    CanonicalIGDBKeyword("farm", IGDBKeywordBucket.GENRE, ("farm", "farming")),
-    CanonicalIGDBKeyword(
-        "farming simulator", IGDBKeywordBucket.GENRE, ("farming simulator",)
+        "farm",
+        IGDBKeywordBucket.GENRE,
+        (
+            "farm",
+            "farming",
+        ),
     ),
     CanonicalIGDBKeyword(
         "first person horror",
         IGDBKeywordBucket.GENRE,
         ("first person horror",),
-    ),
-    CanonicalIGDBKeyword(
-        "first person shooter",
-        IGDBKeywordBucket.GENRE,
-        ("first person shooter",),
     ),
     CanonicalIGDBKeyword(
         "first-person platforming",
@@ -237,11 +189,10 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
     CanonicalIGDBKeyword(
         "flight simulation",
         IGDBKeywordBucket.GENRE,
-        ("flight simulation", "flight simulator"),
-    ),
-    CanonicalIGDBKeyword("fmv", IGDBKeywordBucket.GENRE, ("fmv",)),
-    CanonicalIGDBKeyword(
-        "foraging", IGDBKeywordBucket.MECHANIC, ("foraging",)
+        (
+            "flight simulation",
+            "flight simulator",
+        ),
     ),
     CanonicalIGDBKeyword("god game", IGDBKeywordBucket.GENRE, ("god game",)),
     CanonicalIGDBKeyword(
@@ -251,28 +202,7 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
         "grand strategy", IGDBKeywordBucket.GENRE, ("grand strategy",)
     ),
     CanonicalIGDBKeyword(
-        "graphic adventure", IGDBKeywordBucket.GENRE, ("graphic adventure",)
-    ),
-    CanonicalIGDBKeyword(
-        "hacking simulator", IGDBKeywordBucket.GENRE, ("hacking simulator",)
-    ),
-    CanonicalIGDBKeyword(
-        "horde survival", IGDBKeywordBucket.GENRE, ("horde survival",)
-    ),
-    CanonicalIGDBKeyword(
-        "horizontal shooter", IGDBKeywordBucket.GENRE, ("horizontal shooter",)
-    ),
-    CanonicalIGDBKeyword("horror", IGDBKeywordBucket.THEME, ("horror",)),
-    CanonicalIGDBKeyword(
         "immersive sim", IGDBKeywordBucket.GENRE, ("immersive sim",)
-    ),
-    CanonicalIGDBKeyword(
-        "indie mmorpg", IGDBKeywordBucket.GENRE, ("indie mmorpg",)
-    ),
-    CanonicalIGDBKeyword(
-        "interactive fiction",
-        IGDBKeywordBucket.GENRE,
-        ("interactive fiction",),
     ),
     CanonicalIGDBKeyword(
         "inventory management",
@@ -283,7 +213,10 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
     CanonicalIGDBKeyword(
         "life simulation",
         IGDBKeywordBucket.GENRE,
-        ("life simulation", "life simulator"),
+        (
+            "life simulation",
+            "life simulator",
+        ),
     ),
     CanonicalIGDBKeyword(
         "logic puzzle", IGDBKeywordBucket.GENRE, ("logic puzzle",)
@@ -304,19 +237,9 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
         "micromanagement", IGDBKeywordBucket.MECHANIC, ("micromanagement",)
     ),
     CanonicalIGDBKeyword(
-        "military simulator", IGDBKeywordBucket.GENRE, ("military simulator",)
-    ),
-    CanonicalIGDBKeyword(
-        "movement shooter", IGDBKeywordBucket.GENRE, ("movement shooter",)
-    ),
-    CanonicalIGDBKeyword("mmorpg", IGDBKeywordBucket.GENRE, ("mmorpg",)),
-    CanonicalIGDBKeyword(
         "narrative adventure",
         IGDBKeywordBucket.GENRE,
         ("narrative adventure",),
-    ),
-    CanonicalIGDBKeyword(
-        "open world", IGDBKeywordBucket.MECHANIC, ("open world",)
     ),
     CanonicalIGDBKeyword(
         "open world survival craft",
@@ -324,15 +247,7 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
         ("open world survival craft",),
     ),
     CanonicalIGDBKeyword(
-        "party game", IGDBKeywordBucket.GENRE, ("party game",)
-    ),
-    CanonicalIGDBKeyword(
         "party-based", IGDBKeywordBucket.MECHANIC, ("party-based",)
-    ),
-    CanonicalIGDBKeyword(
-        "party-based combat",
-        IGDBKeywordBucket.MECHANIC,
-        ("party-based combat",),
     ),
     CanonicalIGDBKeyword(
         "party-based rpg", IGDBKeywordBucket.GENRE, ("party-based rpg",)
@@ -340,12 +255,10 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
     CanonicalIGDBKeyword(
         "physics puzzle",
         IGDBKeywordBucket.GENRE,
-        ("physics puzzle", "physics puzzles"),
-    ),
-    CanonicalIGDBKeyword(
-        "physics-based platformer",
-        IGDBKeywordBucket.GENRE,
-        ("physics-based platformer",),
+        (
+            "physics puzzle",
+            "physics puzzles",
+        ),
     ),
     CanonicalIGDBKeyword(
         "precision platforming",
@@ -353,34 +266,18 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
         ("precision platforming",),
     ),
     CanonicalIGDBKeyword(
-        "programming game", IGDBKeywordBucket.GENRE, ("programming game",)
-    ),
-    CanonicalIGDBKeyword(
         "psychological horror",
         IGDBKeywordBucket.THEME,
         ("psychological horror",),
     ),
-    CanonicalIGDBKeyword("puzzle", IGDBKeywordBucket.GENRE, ("puzzle",)),
     CanonicalIGDBKeyword(
         "puzzle platformer", IGDBKeywordBucket.GENRE, ("puzzle platformer",)
-    ),
-    CanonicalIGDBKeyword(
-        "puzzle shooter", IGDBKeywordBucket.GENRE, ("puzzle shooter",)
-    ),
-    CanonicalIGDBKeyword(
-        "real time tactics", IGDBKeywordBucket.GENRE, ("real time tactics",)
     ),
     CanonicalIGDBKeyword(
         "resource management",
         IGDBKeywordBucket.MECHANIC,
         ("resource management",),
     ),
-    CanonicalIGDBKeyword(
-        "restaurant management",
-        IGDBKeywordBucket.GENRE,
-        ("restaurant management",),
-    ),
-    CanonicalIGDBKeyword("rhythm", IGDBKeywordBucket.GENRE, ("rhythm",)),
     CanonicalIGDBKeyword("roguelike", IGDBKeywordBucket.GENRE, ("roguelike",)),
     CanonicalIGDBKeyword(
         "roguelike deckbuilder",
@@ -388,23 +285,6 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
         ("roguelike deckbuilder",),
     ),
     CanonicalIGDBKeyword("roguelite", IGDBKeywordBucket.GENRE, ("roguelite",)),
-    CanonicalIGDBKeyword("sandbox", IGDBKeywordBucket.GENRE, ("sandbox",)),
-    CanonicalIGDBKeyword(
-        "sandbox rpg", IGDBKeywordBucket.GENRE, ("sandbox rpg",)
-    ),
-    CanonicalIGDBKeyword(
-        "settlement building",
-        IGDBKeywordBucket.MECHANIC,
-        ("settlement building",),
-    ),
-    CanonicalIGDBKeyword(
-        "shop management",
-        IGDBKeywordBucket.GENRE,
-        ("shop management", "shop simulator"),
-    ),
-    CanonicalIGDBKeyword(
-        "simulation", IGDBKeywordBucket.GENRE, ("simulation",)
-    ),
     CanonicalIGDBKeyword(
         "social deduction", IGDBKeywordBucket.GENRE, ("social deduction",)
     ),
@@ -413,84 +293,13 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
     ),
     CanonicalIGDBKeyword("soulslike", IGDBKeywordBucket.GENRE, ("soulslike",)),
     CanonicalIGDBKeyword(
-        "space shooter", IGDBKeywordBucket.GENRE, ("space shooter",)
-    ),
-    CanonicalIGDBKeyword(
         "space simulation", IGDBKeywordBucket.GENRE, ("space simulation",)
     ),
     CanonicalIGDBKeyword(
         "space strategy", IGDBKeywordBucket.GENRE, ("space strategy",)
     ),
     CanonicalIGDBKeyword(
-        "squad based shooter",
-        IGDBKeywordBucket.GENRE,
-        ("squad based shooter",),
-    ),
-    CanonicalIGDBKeyword(
-        "squad tactics", IGDBKeywordBucket.GENRE, ("squad tactics",)
-    ),
-    CanonicalIGDBKeyword("stealth", IGDBKeywordBucket.MECHANIC, ("stealth",)),
-    CanonicalIGDBKeyword(
-        "story driven rpg", IGDBKeywordBucket.GENRE, ("story driven rpg",)
-    ),
-    CanonicalIGDBKeyword("strategy", IGDBKeywordBucket.GENRE, ("strategy",)),
-    CanonicalIGDBKeyword(
-        "strategy card", IGDBKeywordBucket.GENRE, ("strategy card",)
-    ),
-    CanonicalIGDBKeyword(
-        "strategy rpg", IGDBKeywordBucket.GENRE, ("strategy rpg",)
-    ),
-    CanonicalIGDBKeyword("survival", IGDBKeywordBucket.GENRE, ("survival",)),
-    CanonicalIGDBKeyword(
-        "survival horror", IGDBKeywordBucket.GENRE, ("survival horror",)
-    ),
-    CanonicalIGDBKeyword(
-        "survival management",
-        IGDBKeywordBucket.GENRE,
-        ("survival management",),
-    ),
-    CanonicalIGDBKeyword(
-        "survival rpg", IGDBKeywordBucket.GENRE, ("survival rpg",)
-    ),
-    CanonicalIGDBKeyword(
-        "survival shooter", IGDBKeywordBucket.GENRE, ("survival shooter",)
-    ),
-    CanonicalIGDBKeyword(
-        "tactical rpg", IGDBKeywordBucket.GENRE, ("tactical rpg",)
-    ),
-    CanonicalIGDBKeyword(
-        "tactical turn-based combat",
-        IGDBKeywordBucket.MECHANIC,
-        ("tactical turn-based combat",),
-    ),
-    CanonicalIGDBKeyword(
-        "text adventure", IGDBKeywordBucket.GENRE, ("text adventure",)
-    ),
-    CanonicalIGDBKeyword(
-        "third person rpg", IGDBKeywordBucket.GENRE, ("third person rpg",)
-    ),
-    CanonicalIGDBKeyword(
         "time management", IGDBKeywordBucket.MECHANIC, ("time management",)
-    ),
-    CanonicalIGDBKeyword(
-        "top down shooter", IGDBKeywordBucket.GENRE, ("top down shooter",)
-    ),
-    CanonicalIGDBKeyword(
-        "town building", IGDBKeywordBucket.GENRE, ("town building",)
-    ),
-    CanonicalIGDBKeyword(
-        "town management", IGDBKeywordBucket.GENRE, ("town management",)
-    ),
-    CanonicalIGDBKeyword(
-        "traditional roguelike",
-        IGDBKeywordBucket.GENRE,
-        ("traditional roguelike",),
-    ),
-    CanonicalIGDBKeyword("trivia", IGDBKeywordBucket.GENRE, ("trivia",)),
-    CanonicalIGDBKeyword(
-        "turn based strategy",
-        IGDBKeywordBucket.GENRE,
-        ("turn based strategy",),
     ),
     CanonicalIGDBKeyword(
         "turn-based rpg", IGDBKeywordBucket.GENRE, ("turn-based rpg",)
@@ -502,23 +311,10 @@ IGDB_KEYWORD_GROUPS: tuple[CanonicalIGDBKeyword, ...] = (
         "vehicle simulation", IGDBKeywordBucket.GENRE, ("vehicle simulation",)
     ),
     CanonicalIGDBKeyword(
-        "visual novel", IGDBKeywordBucket.GENRE, ("visual novel",)
-    ),
-    CanonicalIGDBKeyword(
         "walking simulator", IGDBKeywordBucket.GENRE, ("walking simulator",)
-    ),
-    CanonicalIGDBKeyword("wargame", IGDBKeywordBucket.GENRE, ("wargame",)),
-    CanonicalIGDBKeyword(
-        "word puzzle", IGDBKeywordBucket.GENRE, ("word puzzle",)
     ),
     CanonicalIGDBKeyword(
         "world building", IGDBKeywordBucket.MECHANIC, ("world building",)
-    ),
-    CanonicalIGDBKeyword(
-        "zombie shooter", IGDBKeywordBucket.GENRE, ("zombie shooter",)
-    ),
-    CanonicalIGDBKeyword(
-        "zombie survival", IGDBKeywordBucket.GENRE, ("zombie survival",)
     ),
 )
 

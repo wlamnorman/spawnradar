@@ -81,19 +81,29 @@ subscription.is_trialing %}
         {% endif %}
 
         <div class="tag-row">
-            {% for label in game.genre_labels %}
+            {% for label in game.platform_labels %}
+            <span class="tag-pill tag-platform">{{ label }}</span>
+            {% endfor %} {% for label in game.genre_labels %}
             <span class="tag-pill tag-genre">{{ label }}</span>
             {% endfor %} {% for label in game.theme_labels %}
-            <span class="tag-pill tag-vibe">{{ label }}</span>
+            <span class="tag-pill tag-theme">{{ label }}</span>
             {% endfor %} {% for label in game.mechanic_labels %}
             <span class="tag-pill tag-mechanic">{{ label }}</span>
+            {% endfor %} {% for label in game.similar_game_names %}
+            <span class="tag-pill tag-similar">{{ label }}</span>
             {% endfor %}
         </div>
 
         <div class="game-card-footer">
             <div class="game-card-actions">
+                <p class="game-card-meta subtle">
+                    {{ game_match_counts.get(game.customer_game_id, 0) }}
+                    matched creator{% if
+                    game_match_counts.get(game.customer_game_id, 0) != 1 %}s{%
+                    endif %}
+                </p>
                 <a href="/games/{{ game.slug }}/prospects" class="button"
-                    >Find creators</a
+                    >Discover creators</a
                 >
             </div>
         </div>
@@ -121,6 +131,6 @@ subscription.is_trialing %}
 </div>
 
 {% endblock %} {% block scripts %}
-<script src="/static/confirm.js"></script>
-<script src="/static/dashboard.js"></script>
+<script src="{{ static_asset_url('confirm.js') }}"></script>
+<script src="{{ static_asset_url('dashboard.js') }}"></script>
 {% endblock %}

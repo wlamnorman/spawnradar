@@ -103,6 +103,85 @@ class ProspectRepository:
             )
         return result
 
+    def count_creators_with_overlap(
+        self,
+        *,
+        game_tags: Sequence[TagKey],
+        min_reach: int = 0,
+    ) -> int:
+        """Count creators with at least one overlapping game tag."""
+        if not game_tags:
+            return 0
+
+        game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
+        sql = f"""
+            WITH game_tags AS (
+                {game_tags_sql}
+            ),
+            overlapping_accounts AS (
+                SELECT DISTINCT cgp.account_id
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+            )
+            SELECT COUNT(*) AS creator_count
+            FROM (
+                SELECT
+                    oa.account_id,
+                    COALESCE(tp.followers_count, yc.subscriber_count, 0) AS reach
+                FROM overlapping_accounts oa
+                JOIN source_accounts sa ON sa.account_id = oa.account_id
+                LEFT JOIN twitch_profiles_latest tp
+                    ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
+                LEFT JOIN youtube_channels_latest yc
+                    ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
+            ) ranked_accounts
+            WHERE ranked_accounts.reach >= ?
+        """
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(sql, [*game_tags_params, min_reach]).fetchone()
+        return int(row["creator_count"] or 0) if row is not None else 0
+
+    def max_reach_with_overlap(
+        self,
+        *,
+        game_tags: Sequence[TagKey],
+        min_reach: int = 0,
+    ) -> int:
+        """Return the maximum reach among creators overlapping the game tags."""
+        if not game_tags:
+            return 0
+
+        game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
+        sql = f"""
+            WITH game_tags AS (
+                {game_tags_sql}
+            ),
+            overlapping_accounts AS (
+                SELECT DISTINCT cgp.account_id
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+            )
+            SELECT MAX(
+                COALESCE(tp.followers_count, yc.subscriber_count, 0)
+            ) AS max_reach
+            FROM overlapping_accounts oa
+            JOIN source_accounts sa ON sa.account_id = oa.account_id
+            LEFT JOIN twitch_profiles_latest tp
+                ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
+            LEFT JOIN youtube_channels_latest yc
+                ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
+            WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
+        """
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(sql, [*game_tags_params, min_reach]).fetchone()
+        return int(row["max_reach"] or 0) if row is not None else 0
+
     def count_relevant_games(
         self,
         account_ids: list[str],
@@ -131,6 +210,45 @@ class ProspectRepository:
         with get_connection(self._db_path) as conn:
             rows = conn.execute(sql, params).fetchall()
         return {str(row["account_id"]): int(row["game_count"]) for row in rows}
+
+    def max_relevant_games_with_overlap(
+        self,
+        *,
+        game_tags: Sequence[TagKey],
+        min_reach: int = 0,
+    ) -> int:
+        """Return the maximum relevant-game count among overlapping creators."""
+        if not game_tags:
+            return 0
+
+        game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
+        sql = f"""
+            WITH game_tags AS (
+                {game_tags_sql}
+            ),
+            creator_relevant_games AS (
+                SELECT
+                    cgp.account_id,
+                    COUNT(DISTINCT cgp.igdb_game_id) AS game_count
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+                GROUP BY cgp.account_id
+            )
+            SELECT MAX(crg.game_count) AS max_game_count
+            FROM creator_relevant_games crg
+            JOIN source_accounts sa ON sa.account_id = crg.account_id
+            LEFT JOIN twitch_profiles_latest tp
+                ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
+            LEFT JOIN youtube_channels_latest yc
+                ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
+            WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
+        """
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(sql, [*game_tags_params, min_reach]).fetchone()
+        return int(row["max_game_count"] or 0) if row is not None else 0
 
     def get_relevant_games(
         self,

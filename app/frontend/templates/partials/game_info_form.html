@@ -4,6 +4,17 @@
         name="csrf_token"
         value="{{ csrf_token_for(request) }}"
     />
+
+    <p
+        class="text-muted"
+        style="margin-bottom: 14px; line-height: 1.2; font-size: 0.8"
+    >
+        These settings are used to find content creators for you. Take your time
+        to find the tags that best describe your game's core identity. Using
+        fewer, more accurate tags tends to produce better matches than selecting
+        everything that vaguely applies.
+    </p>
+
     <div class="form-section">
         <div class="form-group">
             <label for="name">Game name <span class="required">*</span></label>
@@ -86,128 +97,253 @@
         </div>
 
         <div class="form-group">
-            <label>Genres <span class="required">*</span></label>
-            <p class="field-hint">
-                Select the genres and subgenres that best describe your game.
-            </p>
-            <div class="checkbox-group">
-                {% for value, label in igdb_genres %}
-                <label class="checkbox-label">
-                    <input
-                        type="checkbox"
-                        name="igdb_genre_ids"
-                        value="{{ value }}"
-                        {%
-                        if
-                        value
-                        in
-                        (selected_igdb_genre_ids
-                        |
-                        default(()))
-                        %}checked{%
-                        endif
-                        %}
-                    />
-                    {{ label }}
-                </label>
-                {% endfor %} {% for value, label in igdb_genre_keywords %}
-                <label class="checkbox-label">
-                    <input
-                        type="checkbox"
-                        name="igdb_keyword_ids"
-                        value="{{ value }}"
-                        {%
-                        if
-                        value
-                        in
-                        (selected_igdb_keyword_ids
-                        |
-                        default(()))
-                        %}checked{%
-                        endif
-                        %}
-                    />
-                    {{ label }}
-                </label>
-                {% endfor %}
+            <div class="tag-picker-list">
+                <div class="tag-picker-row" data-tag-picker-root>
+                    <div class="tag-picker-field">
+                        <label for="genre-picker-search"
+                            >Genres <span class="required">*</span></label
+                        >
+                        <div class="tag-input-wrap">
+                            <input
+                                type="text"
+                                id="genre-picker-search"
+                                placeholder="Add a genre..."
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                data-tag-picker-search
+                            />
+                            <div
+                                class="tag-suggestion-bank"
+                                data-tag-picker-suggestions
+                                hidden
+                            >
+                                {% for option in genre_picker_options %}
+                                <button
+                                    type="button"
+                                    class="tag-suggestion"
+                                    data-tag-picker-suggestion
+                                    data-field-name="{{ option.field_name }}"
+                                    data-field-value="{{ option.value }}"
+                                    data-label="{{ option.label }}"
+                                    data-pill-class="{{ option.pill_class }}"
+                                >
+                                    {{ option.label }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <p class="field-hint">
+                            Highest-signal tags for discovery and scoring.
+                        </p>
+                    </div>
+                    <div class="tag-picker-preview">
+                        <div class="tag-picker-preview-label">
+                            Selected genres
+                        </div>
+                        <div class="pill-preview" data-tag-picker-preview></div>
+                        <div data-tag-picker-hidden-inputs>
+                            {% for option in genre_picker_options %} {% if
+                            (option.field_name == "igdb_genre_ids" and
+                            option.value in (selected_igdb_genre_ids |
+                            default(()))) or (option.field_name ==
+                            "igdb_keyword_ids" and option.value in
+                            (selected_igdb_keyword_ids | default(()))) %}
+                            <input
+                                type="hidden"
+                                name="{{ option.field_name }}"
+                                value="{{ option.value }}"
+                                data-label="{{ option.label }}"
+                                data-pill-class="{{ option.pill_class }}"
+                            />
+                            {% endif %} {% endfor %}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="form-group">
-            <label>Themes</label>
-            <p class="field-hint">
-                Select the themes, moods, settings and vibes that fit your game.
-            </p>
-            <div class="checkbox-group">
-                {% for value, label in igdb_themes %}
-                <label class="checkbox-label">
-                    <input
-                        type="checkbox"
-                        name="igdb_theme_ids"
-                        value="{{ value }}"
-                        {%
-                        if
-                        value
-                        in
-                        (selected_igdb_theme_ids
-                        |
-                        default(()))
-                        %}checked{%
-                        endif
-                        %}
-                    />
-                    {{ label }}
-                </label>
-                {% endfor %} {% for value, label in igdb_theme_keywords %}
-                <label class="checkbox-label">
-                    <input
-                        type="checkbox"
-                        name="igdb_keyword_ids"
-                        value="{{ value }}"
-                        {%
-                        if
-                        value
-                        in
-                        (selected_igdb_keyword_ids
-                        |
-                        default(()))
-                        %}checked{%
-                        endif
-                        %}
-                    />
-                    {{ label }}
-                </label>
-                {% endfor %}
+            <div class="tag-picker-list">
+                <div class="tag-picker-row" data-tag-picker-root>
+                    <div class="tag-picker-field">
+                        <label for="theme-picker-search">Themes</label>
+                        <div class="tag-input-wrap">
+                            <input
+                                type="text"
+                                id="theme-picker-search"
+                                placeholder="Add a theme..."
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                data-tag-picker-search
+                            />
+                            <div
+                                class="tag-suggestion-bank"
+                                data-tag-picker-suggestions
+                                hidden
+                            >
+                                {% for option in theme_picker_options %}
+                                <button
+                                    type="button"
+                                    class="tag-suggestion"
+                                    data-tag-picker-suggestion
+                                    data-field-name="{{ option.field_name }}"
+                                    data-field-value="{{ option.value }}"
+                                    data-label="{{ option.label }}"
+                                    data-pill-class="{{ option.pill_class }}"
+                                >
+                                    {{ option.label }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <p class="field-hint">
+                            Mood, setting, tone, and world-level fit.
+                        </p>
+                    </div>
+                    <div class="tag-picker-preview">
+                        <div class="tag-picker-preview-label">
+                            Selected themes
+                        </div>
+                        <div class="pill-preview" data-tag-picker-preview></div>
+                        <div data-tag-picker-hidden-inputs>
+                            {% for option in theme_picker_options %} {% if
+                            (option.field_name == "igdb_theme_ids" and
+                            option.value in (selected_igdb_theme_ids |
+                            default(()))) or (option.field_name ==
+                            "igdb_keyword_ids" and option.value in
+                            (selected_igdb_keyword_ids | default(()))) %}
+                            <input
+                                type="hidden"
+                                name="{{ option.field_name }}"
+                                value="{{ option.value }}"
+                                data-label="{{ option.label }}"
+                                data-pill-class="{{ option.pill_class }}"
+                            />
+                            {% endif %} {% endfor %}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="form-group">
-            <label>Mechanics</label>
-            <p class="field-hint">
-                Use these to capture gameplay structure and systems like
-                crafting, permadeath or base building.
-            </p>
-            <div class="checkbox-group">
-                {% for value, label in igdb_mechanic_keywords %}
-                <label class="checkbox-label">
-                    <input
-                        type="checkbox"
-                        name="igdb_keyword_ids"
-                        value="{{ value }}"
-                        {%
-                        if
-                        value
-                        in
-                        (selected_igdb_keyword_ids
-                        |
-                        default(()))
-                        %}checked{%
-                        endif
-                        %}
-                    />
-                    {{ label }}
-                </label>
-                {% endfor %}
+            <div class="tag-picker-list">
+                <div class="tag-picker-row" data-tag-picker-root>
+                    <div class="tag-picker-field">
+                        <label for="mechanic-picker-search">Mechanics</label>
+                        <div class="tag-input-wrap">
+                            <input
+                                type="text"
+                                id="mechanic-picker-search"
+                                placeholder="Add a mechanic..."
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                data-tag-picker-search
+                            />
+                            <div
+                                class="tag-suggestion-bank"
+                                data-tag-picker-suggestions
+                                hidden
+                            >
+                                {% for option in mechanic_picker_options %}
+                                <button
+                                    type="button"
+                                    class="tag-suggestion"
+                                    data-tag-picker-suggestion
+                                    data-field-name="{{ option.field_name }}"
+                                    data-field-value="{{ option.value }}"
+                                    data-label="{{ option.label }}"
+                                    data-pill-class="{{ option.pill_class }}"
+                                >
+                                    {{ option.label }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <p class="field-hint">
+                            Core gameplay systems that define the experience.
+                            Only add if it's game defining.
+                        </p>
+                    </div>
+                    <div class="tag-picker-preview">
+                        <div class="tag-picker-preview-label">
+                            Selected mechanics
+                        </div>
+                        <div class="pill-preview" data-tag-picker-preview></div>
+                        <div data-tag-picker-hidden-inputs>
+                            {% for option in mechanic_picker_options %} {% if
+                            option.value in (selected_igdb_keyword_ids |
+                            default(())) %}
+                            <input
+                                type="hidden"
+                                name="{{ option.field_name }}"
+                                value="{{ option.value }}"
+                                data-label="{{ option.label }}"
+                                data-pill-class="{{ option.pill_class }}"
+                            />
+                            {% endif %} {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="tag-picker-list">
+                <div class="tag-picker-row" data-tag-picker-root>
+                    <div class="tag-picker-field">
+                        <label for="similar-games-search">Similar games</label>
+                        <div class="tag-input-wrap">
+                            <input
+                                type="text"
+                                id="similar-games-search"
+                                placeholder="Add a game..."
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                data-tag-picker-search
+                                data-allow-custom="true"
+                                data-custom-field-name="similar_game_names"
+                                data-custom-pill-class="tag-similar"
+                                data-remote-suggestions-url="/games/igdb-search"
+                            />
+                            <div
+                                class="tag-suggestion-bank"
+                                data-tag-picker-suggestions
+                                hidden
+                            ></div>
+                        </div>
+                        <p class="field-hint">
+                            Similar games with audience overlap makes it easier
+                            for us to find creators.
+                        </p>
+                    </div>
+                    <div class="tag-picker-preview">
+                        <div class="tag-picker-preview-label">
+                            Selected similar games
+                        </div>
+                        <div class="pill-preview" data-tag-picker-preview></div>
+                        <div data-tag-picker-hidden-inputs>
+                            {% for game_name in selected_similar_game_names |
+                            default(()) %}
+                            <input
+                                type="hidden"
+                                name="similar_game_names"
+                                value="{{ game_name }}"
+                                data-label="{{ game_name }}"
+                                data-pill-class="tag-similar"
+                            />
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

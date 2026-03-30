@@ -335,12 +335,15 @@ class TestGameRoutes:
             response = client.get("/games/new")
 
         assert response.status_code == 200
-        assert "genres and subgenres" in response.text
-        assert "themes, moods, settings and vibes" in response.text
+        assert (
+            "Highest-signal tags for discovery and scoring." in response.text
+        )
+        assert "Themes" in response.text
         assert "Mechanics" in response.text
         assert "Roguelike" in response.text
         assert "Cozy" in response.text
         assert "Crafting" in response.text
+        assert "Similar games" in response.text
         assert "Platform" in response.text
         assert "PC / Steam" in response.text
         assert "Nintendo Switch" in response.text
@@ -365,12 +368,15 @@ class TestGameRoutes:
             response = client.get(f"/games/{row['slug']}/setup")
 
         assert response.status_code == 200
-        assert "genres and subgenres" in response.text
-        assert "themes, moods, settings and vibes" in response.text
+        assert (
+            "Highest-signal tags for discovery and scoring." in response.text
+        )
+        assert "Themes" in response.text
         assert "Mechanics" in response.text
         assert "Roguelike" in response.text
         assert "Cozy" in response.text
         assert "Crafting" in response.text
+        assert "Similar games" in response.text
         assert "Platform" in response.text
         assert "Board Game" in response.text
 
@@ -446,6 +452,7 @@ class TestGameRoutes:
             )
 
         assert response.status_code == 303
+        assert response.headers["location"] == "/games"
 
         with get_connection(db_path) as conn:
             row = conn.execute(
@@ -524,6 +531,7 @@ class TestGameRoutes:
             )
 
         assert response.status_code == 303
+        assert response.headers["location"] == "/games"
 
         with get_connection(db_path) as conn:
             row = conn.execute(
@@ -533,6 +541,246 @@ class TestGameRoutes:
 
         assert row is not None
         assert json.loads(str(row["platforms"])) == ["switch"]
+
+    def test_setup_page_persists_similar_games(self, monkeypatch, tmp_path):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "similar-games-update@example.com", "testpass"
+            )
+            _create_game_for_user(client, "Setup Similar Game")
+
+            with get_connection(db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT slug, summary, description
+                    FROM customer_games
+                    WHERE name = ?
+                    """,
+                    ("Setup Similar Game",),
+                ).fetchone()
+            assert row is not None
+
+            response = client.post(
+                f"/games/{row['slug']}",
+                data={
+                    "csrf_token": _csrf_token(
+                        client, f"/games/{row['slug']}/setup"
+                    ),
+                    "name": "Setup Similar Game",
+                    "summary": str(row["summary"]),
+                    "description": str(row["description"]),
+                    "igdb_genre_ids": ["12"],
+                    "similar_game_names": [
+                        "Slay the Spire",
+                        "FTL: Faster Than Light",
+                    ],
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT similar_game_names FROM customer_games WHERE name = ?",
+                ("Setup Similar Game",),
+            ).fetchone()
+
+        assert row is not None
+        assert json.loads(str(row["similar_game_names"])) == [
+            "Slay the Spire",
+            "FTL: Faster Than Light",
+        ]
+
+    def test_create_game_validation_error_preserves_pending_form_state(
+        self, monkeypatch, tmp_path
+    ):
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "preserve-create@example.com", "testpass"
+            )
+
+            response = client.post(
+                "/games",
+                data={
+                    "csrf_token": _csrf_token(client, "/games/new"),
+                    "name": "Pending Theme Overflow",
+                    "summary": "Pending summary for invalid create.",
+                    "description": "Pending description for invalid create.",
+                    "platforms": ["pc"],
+                    "igdb_genre_ids": ["12"],
+                    "igdb_theme_ids": ["17", "18"],
+                    "igdb_keyword_ids": ["cozy"],
+                    "similar_game_names": ["Slay the Spire"],
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 400
+        assert (
+            "At most 2 themes can be selected (you have 3)." in response.text
+        )
+        assert "Pending Theme Overflow" in response.text
+        assert "Pending summary for invalid create." in response.text
+        assert "Pending description for invalid create." in response.text
+        assert "PC / Steam" in response.text
+        assert "Fantasy" in response.text
+        assert "Science fiction" in response.text
+        assert "Cozy" in response.text
+        assert "Slay the Spire" in response.text
+
+    def test_setup_validation_error_preserves_pending_form_state(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "preserve-update@example.com", "testpass"
+            )
+            _create_game_for_user(client, "Persist Pending Game")
+
+            with get_connection(db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT slug, summary, description
+                    FROM customer_games
+                    WHERE name = ?
+                    """,
+                    ("Persist Pending Game",),
+                ).fetchone()
+            assert row is not None
+
+            response = client.post(
+                f"/games/{row['slug']}",
+                data={
+                    "csrf_token": _csrf_token(
+                        client, f"/games/{row['slug']}/setup"
+                    ),
+                    "name": "Pending Updated Name",
+                    "summary": "Pending summary for invalid update.",
+                    "description": "Pending description for invalid update.",
+                    "platforms": ["switch"],
+                    "igdb_genre_ids": ["12"],
+                    "igdb_theme_ids": ["17", "18"],
+                    "igdb_keyword_ids": ["cozy"],
+                    "similar_game_names": [
+                        "Slay the Spire",
+                        "FTL: Faster Than Light",
+                    ],
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 400
+        assert (
+            "At most 2 themes can be selected (you have 3)." in response.text
+        )
+        assert "Pending Updated Name" in response.text
+        assert "Pending summary for invalid update." in response.text
+        assert "Pending description for invalid update." in response.text
+        assert "Nintendo Switch" in response.text
+        assert "Fantasy" in response.text
+        assert "Science fiction" in response.text
+        assert "Cozy" in response.text
+        assert "Slay the Spire" in response.text
+        assert "FTL: Faster Than Light" in response.text
+
+    def test_cached_igdb_search_returns_similar_game_suggestions(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "similar-games-search@example.com", "testpass"
+            )
+            with get_connection(db_path) as conn:
+                conn.executemany(
+                    """
+                    INSERT INTO igdb_games (
+                        igdb_id, name, slug, summary, first_release_date,
+                        platform_ids_json, platform_names_json, last_synced_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    [
+                        (
+                            101,
+                            "Slay the Spire",
+                            "slay-the-spire",
+                            None,
+                            None,
+                            "[]",
+                            "[]",
+                        ),
+                        (
+                            102,
+                            "Slay the Princess",
+                            "slay-the-princess",
+                            None,
+                            None,
+                            "[]",
+                            "[]",
+                        ),
+                        (
+                            103,
+                            "Monster Train",
+                            "monster-train",
+                            None,
+                            None,
+                            "[]",
+                            "[]",
+                        ),
+                    ],
+                )
+
+            response = client.get("/games/igdb-search?q=slay")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "igdb_id": 101,
+                "name": "Slay the Spire",
+                "slug": "slay-the-spire",
+            },
+            {
+                "igdb_id": 102,
+                "name": "Slay the Princess",
+                "slug": "slay-the-princess",
+            },
+        ]
+
+    def test_dashboard_game_card_shows_matched_creator_count(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "dashboard-count@example.com", "testpass"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Counted Dashboard Game",
+                    "summary": "A strategy game.",
+                    "description": "A strategy game.",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            _seed_ranked_prospects(
+                db_path,
+                count=3,
+                customer_game_name="Counted Dashboard Game",
+                game_name="Counted Match Game",
+            )
+
+            response = client.get("/games")
+
+        assert response.status_code == 200
+        assert " ".join(response.text.split()).find("3 matched creators") != -1
 
     def test_prospects_page_shows_bucketed_curated_tags(
         self, monkeypatch, tmp_path
@@ -658,9 +906,109 @@ class TestGameRoutes:
             page = client.get(f"/games/{game_row['slug']}/prospects")
 
         assert page.status_code == 200
+        assert "Observed Tags" in page.text
         assert "Roguelike" in page.text
         assert "Cozy" in page.text
         assert "Crafting" in page.text
+        assert 'data-tooltip="Observed in 1 played game"' in page.text
+        assert "tag-genre" in page.text
+        assert "tag-theme" in page.text
+        assert "tag-mechanic" in page.text
+
+    def test_prospects_page_uses_true_reach_filter_max(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-reach-max@example.com", "testpass"
+            )
+            _activate_paid_subscription(
+                db_path, "prospects-reach-max@example.com"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Reach Max Prospect Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=3,
+                customer_game_name="Reach Max Prospect Game",
+                game_name="Reach Max Match",
+            )
+            with get_connection(db_path) as conn:
+                conn.execute(
+                    """
+                    UPDATE twitch_profiles_latest
+                    SET followers_count = ?
+                    WHERE account_id = ?
+                    """,
+                    (250_000, "prospect-002"),
+                )
+
+            response = client.get(f"/games/{game_slug}/prospects")
+
+        assert response.status_code == 200
+        assert 'name="max_reach"' in response.text
+        assert 'value="250000"' in response.text
+        assert 'name="min_reach"' in response.text
+        assert 'value="50"' in response.text
+
+    def test_prospects_page_excludes_creators_below_minimum_reach(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-min-reach@example.com", "testpass"
+            )
+            _activate_paid_subscription(
+                db_path, "prospects-min-reach@example.com"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Min Reach Prospect Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=2,
+                customer_game_name="Min Reach Prospect Game",
+                game_name="Min Reach Match",
+            )
+            with get_connection(db_path) as conn:
+                conn.execute(
+                    """
+                    UPDATE twitch_profiles_latest
+                    SET followers_count = ?
+                    WHERE account_id = ?
+                    """,
+                    (20, "prospect-001"),
+                )
+
+            response = client.get(f"/games/{game_slug}/prospects")
+
+        assert response.status_code == 200
+        normalized = " ".join(response.text.split())
+        assert "1 creator matched" in normalized
+        assert "Prospect 001" not in response.text
 
     def test_trial_prospects_page_shows_upgrade_nudge_after_top_50(
         self, monkeypatch, tmp_path
@@ -700,6 +1048,44 @@ class TestGameRoutes:
         assert 'href="/billing"' in response.text
         assert '<details class="prospects-filter-menu">' not in response.text
         assert "Next →" not in response.text
+
+    def test_prospects_page_shows_true_total_above_fetch_cap(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-true-total@example.com", "testpass"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "True Total Prospect Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            _activate_paid_subscription(
+                db_path, "prospects-true-total@example.com"
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=1005,
+                customer_game_name="True Total Prospect Game",
+                game_name="True Total Match",
+            )
+
+            response = client.get(f"/games/{game_slug}/prospects")
+
+        assert response.status_code == 200
+        assert (
+            " ".join(response.text.split()).find("1005 creators matched") != -1
+        )
 
     def test_trial_prospects_page_redirects_page_two_back_to_first_page(
         self, monkeypatch, tmp_path

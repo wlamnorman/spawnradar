@@ -17,12 +17,20 @@ relevant creator matches.{% endblock %} {% block content %}
     <div class="alert alert-error">{{ error }}</div>
     {% endif %} {% set form_action = "/games" %} {% set submit_label = "Save &
     Continue to Setup →" %} {% set cancel_href = "/games" %} {% set name_value =
-    "" %} {% set summary_value = "" %} {% set description_value = "" %} {% set
-    description_rows = 10 %} {% set website_url_value = "" %} {% set
-    selected_platforms = () %} {% set selected_igdb_genre_ids = () %} {% set
-    selected_igdb_theme_ids = () %} {% set selected_igdb_game_mode_ids = () %}
-    {% set selected_igdb_player_perspective_ids = () %} {% set
-    selected_igdb_keyword_ids = () %} {% include "partials/game_info_form.html"
-    %}
+    form_state.name_value %} {% set summary_value = form_state.summary_value %}
+    {% set description_value = form_state.description_value %} {% set
+    description_rows = 10 %} {% set website_url_value =
+    form_state.website_url_value %} {% set selected_platforms =
+    form_state.selected_platforms %} {% set selected_igdb_genre_ids =
+    form_state.selected_igdb_genre_ids %} {% set selected_igdb_theme_ids =
+    form_state.selected_igdb_theme_ids %} {% set selected_igdb_game_mode_ids =
+    form_state.selected_igdb_game_mode_ids %} {% set
+    selected_igdb_player_perspective_ids =
+    form_state.selected_igdb_player_perspective_ids %} {% set
+    selected_igdb_keyword_ids = form_state.selected_igdb_keyword_ids %} {% set
+    selected_similar_game_names = form_state.selected_similar_game_names %} {%
+    include "partials/game_info_form.html" %}
 </div>
+{% endblock %} {% block scripts %}
+<script src="{{ static_asset_url('game-form.js') }}"></script>
 {% endblock %}

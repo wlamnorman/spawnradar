@@ -9,6 +9,7 @@ from app.devtools.bootstrap import DEV_EMAIL
 from app.devtools.cli import (
     main,
     run_customer_ids,
+    run_forgetting_hour,
     run_get_profiles,
     run_igdb_fetch,
     run_inspect_twitch_igdb,
@@ -118,8 +119,11 @@ def test_run_snapshot_game_preset_updates_seed_payload_from_saved_game(
         summary="A tighter tactical fleet roguelite for PC strategy fans.",
         description="Updated description from the setup page.",
         website_url="https://strife.example",
+        platforms=["pc"],
         igdb_genre_ids=[12, 24],  # Strategy, Tactical
         igdb_theme_ids=[18],  # Sci-fi
+        igdb_keyword_ids=["roguelike", "grid-based"],
+        similar_game_names=["Slay the Spire", "FTL: Faster Than Light"],
     )
 
     preset_path = _copy_preset_file(tmp_path)
@@ -137,9 +141,134 @@ def test_run_snapshot_game_preset_updates_seed_payload_from_saved_game(
         == "A tighter tactical fleet roguelite for PC strategy fans."
     )
     assert preset["description"] == "Updated description from the setup page."
+    assert preset["platforms"] == ["pc"]
     assert preset["igdb_genre_ids"] == [12, 24]
     assert preset["igdb_theme_ids"] == [18]
+    assert preset["igdb_keyword_ids"] == ["roguelike", "grid-based"]
+    assert preset["similar_game_names"] == [
+        "Slay the Spire",
+        "FTL: Faster Than Light",
+    ]
     assert preset["website_url"] == "https://strife.example"
+
+
+def test_run_strife_of_stars_round_trips_all_settings_after_snapshot(
+    db_path, tmp_path, monkeypatch
+):
+    preset_path = _copy_preset_file(tmp_path)
+    monkeypatch.setattr(game_presets, "PRESET_FILE", preset_path)
+
+    run_strife_of_stars(db_path)
+
+    user = UserRepository(db_path).get_by_email(DEV_EMAIL)
+    assert user is not None
+    repo = CustomerGameRepository(db_path)
+    service = CustomerGameService(repo)
+    game = next(
+        game
+        for game in repo.list_by_user(user.user_id)
+        if game.name == "Strife Of Stars"
+    )
+    service.update_game(
+        game.customer_game_id,
+        user.user_id,
+        name="Strife Of Stars",
+        summary="A tighter tactical fleet roguelite for PC strategy fans.",
+        description="Updated description from the setup page.",
+        website_url="https://strife.example",
+        platforms=["pc"],
+        igdb_genre_ids=[12, 24],
+        igdb_theme_ids=[18],
+        igdb_keyword_ids=["roguelike", "grid-based"],
+        similar_game_names=["Slay the Spire", "FTL: Faster Than Light"],
+    )
+
+    run_snapshot_game_preset(db_path, "strife-of-stars")
+    repo.delete(game.customer_game_id)
+
+    result = run_strife_of_stars(db_path)
+
+    reseeded = next(
+        game
+        for game in repo.list_by_user(user.user_id)
+        if game.name == "Strife Of Stars"
+    )
+    assert result.created is True
+    assert (
+        reseeded.summary
+        == "A tighter tactical fleet roguelite for PC strategy fans."
+    )
+    assert reseeded.description == "Updated description from the setup page."
+    assert reseeded.website_url == "https://strife.example"
+    assert reseeded.platforms == ["pc"]
+    assert reseeded.igdb_genre_ids == [12, 24]
+    assert reseeded.igdb_theme_ids == [18]
+    assert reseeded.igdb_keyword_ids == ["roguelike", "grid-based"]
+    assert reseeded.similar_game_names == [
+        "Slay the Spire",
+        "FTL: Faster Than Light",
+    ]
+
+
+def test_run_forgetting_hour_round_trips_all_settings_after_snapshot(
+    db_path, tmp_path, monkeypatch
+):
+    preset_path = _copy_preset_file(tmp_path)
+    monkeypatch.setattr(game_presets, "PRESET_FILE", preset_path)
+
+    run_forgetting_hour(db_path)
+
+    user = UserRepository(db_path).get_by_email(DEV_EMAIL)
+    assert user is not None
+    repo = CustomerGameRepository(db_path)
+    service = CustomerGameService(repo)
+    game = next(
+        game
+        for game in repo.list_by_user(user.user_id)
+        if game.name == "The Forgetting Hour"
+    )
+    service.update_game(
+        game.customer_game_id,
+        user.user_id,
+        name="The Forgetting Hour",
+        summary="A cozy time-loop mystery for handheld and PC players.",
+        description="Updated forgetting hour description from the setup page.",
+        website_url="https://forgetting.example",
+        platforms=["switch", "pc"],
+        igdb_genre_ids=[31, 13],
+        igdb_theme_ids=[27],
+        igdb_keyword_ids=["cozy"],
+        similar_game_names=["Beacon Pines", "Night in the Woods"],
+    )
+
+    run_snapshot_game_preset(db_path, "forgetting-hour")
+    repo.delete(game.customer_game_id)
+
+    result = run_forgetting_hour(db_path)
+
+    reseeded = next(
+        game
+        for game in repo.list_by_user(user.user_id)
+        if game.name == "The Forgetting Hour"
+    )
+    assert result.created is True
+    assert (
+        reseeded.summary
+        == "A cozy time-loop mystery for handheld and PC players."
+    )
+    assert (
+        reseeded.description
+        == "Updated forgetting hour description from the setup page."
+    )
+    assert reseeded.website_url == "https://forgetting.example"
+    assert reseeded.platforms == ["switch", "pc"]
+    assert reseeded.igdb_genre_ids == [31, 13]
+    assert reseeded.igdb_theme_ids == [27]
+    assert reseeded.igdb_keyword_ids == ["cozy"]
+    assert reseeded.similar_game_names == [
+        "Beacon Pines",
+        "Night in the Woods",
+    ]
 
 
 def test_main_snapshot_game_preset_accepts_explicit_game_selector(

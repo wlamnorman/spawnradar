@@ -24,9 +24,10 @@ def test_root_renders_public_landing_page(monkeypatch, tmp_path):
         in " ".join(response.text.split())
     )
     assert 'href="/pricing"' in response.text
-    assert 'href="/static/favicon/site.webmanifest"' in response.text
+    assert "/static/favicon/site.webmanifest?v=" in response.text
     assert 'href="/static/favicon/favicon.svg"' in response.text
-    assert 'src="/static/favicon/favicon-96x96.png"' in response.text
+    assert "/static/favicon/favicon-96x96.png?v=" in response.text
+    assert "/static/style.css?v=" in response.text
     assert 'href="/terms"' in response.text
     assert 'href="/privacy"' in response.text
     assert 'href="/refunds"' in response.text

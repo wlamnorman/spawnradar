@@ -27,6 +27,7 @@ tier_prices[tier] %}
                     games
                 </li>
                 <li>Browse unlimited creator matches</li>
+                <li>Advanced creator filtering</li>
             </ul>
             {% if not user %}
             <a href="/auth/register" class="button button-full">
@@ -40,7 +41,7 @@ tier_prices[tier] %}
             <button type="button" class="button button-full" disabled>
                 Billing unavailable
             </button>
-            {% endif %} {% elif _sub and _sub.has_subscription %}
+            {% endif %} {% elif _sub and (_sub.has_subscription or _sub.is_comped) %}
             <a href="/billing" class="button button-full">
                 Manage subscription →
             </a>

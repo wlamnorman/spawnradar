@@ -106,8 +106,11 @@ def _snapshot_payload_for_game(game) -> dict[str, object]:
         "summary": game.summary or "",
         "description": game.description,
         "website_url": game.website_url,
+        "platforms": game.platforms,
         "igdb_genre_ids": game.igdb_genre_ids,
         "igdb_theme_ids": game.igdb_theme_ids,
+        "igdb_keyword_ids": game.igdb_keyword_ids,
+        "similar_game_names": game.similar_game_names,
     }
 
 
@@ -185,6 +188,7 @@ def _seed_preset_game(
         summary=str(preset.get("summary", "")),
         description=str(preset["description"]),
         website_url=cast(str | None, preset.get("website_url")),
+        platforms=cast(list[str] | None, preset.get("platforms")),
         igdb_genre_ids=cast(list[int] | None, preset.get("igdb_genre_ids")),
         igdb_theme_ids=cast(list[int] | None, preset.get("igdb_theme_ids")),
         igdb_keyword_ids=cast(
@@ -366,6 +370,7 @@ def _seed_game(
     summary: str = "",
     description: str,
     website_url: str | None,
+    platforms: list[str] | None = None,
     igdb_genre_ids: list[int] | None = None,
     igdb_theme_ids: list[int] | None = None,
     igdb_keyword_ids: list[str] | None = None,
@@ -392,6 +397,7 @@ def _seed_game(
         "summary": summary,
         "description": description,
         "website_url": website_url,
+        "platforms": platforms,
         "igdb_genre_ids": igdb_genre_ids,
         "igdb_theme_ids": igdb_theme_ids,
         "igdb_keyword_ids": igdb_keyword_ids,

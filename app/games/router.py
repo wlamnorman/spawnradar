@@ -20,15 +20,18 @@ from app.auth.dependencies import require_product_access
 from app.auth.models import User
 from app.billing.models import TIER_LIMITS, TRIAL_LIMITS
 from app.billing.service import BillingService
+from app.config import Settings
 from app.dependencies import (
     get_billing_service,
     get_customer_game_repo,
     get_customer_game_service,
+    get_settings,
     get_templates,
 )
 from app.games.repository import CustomerGameRepository
 from app.games.service import CustomerGameService
 from app.igdb.platforms import PLATFORM_OPTIONS
+from app.igdb.repository import IGDBRepository
 from app.igdb.taxonomy import (
     IGDB_GENRE_KEYWORDS,
     IGDB_MECHANIC_KEYWORDS,
@@ -39,6 +42,7 @@ from app.igdb.taxonomy import (
     IGDBTheme,
     keyword_label_for_value,
 )
+from app.prospects.service import ProspectRankingService
 from app.security import require_csrf_form
 
 router = APIRouter(tags=["games"])
@@ -58,6 +62,18 @@ _ALLOWED_PLATFORM_VALUES = frozenset(value for value, _ in _PLATFORM_OPTIONS)
 def _keyword_option_label(canonical: str) -> str:
     """Render a canonical keyword into a readable checkbox label."""
     return keyword_label_for_value(canonical) or canonical.title()
+
+
+def _picker_option(
+    field_name: str, value: int | str, label: str, pill_class: str
+) -> dict[str, object]:
+    """Build one searchable picker option for the game form."""
+    return {
+        "field_name": field_name,
+        "value": value,
+        "label": label,
+        "pill_class": pill_class,
+    }
 
 
 def _igdb_form_context() -> dict[str, object]:
@@ -102,6 +118,24 @@ def _igdb_form_context() -> dict[str, object]:
         ],
         key=lambda item: item[1],
     )
+    genre_picker_options = [
+        _picker_option("igdb_genre_ids", value, label, "tag-genre")
+        for value, label in igdb_genres
+    ] + [
+        _picker_option("igdb_keyword_ids", value, label, "tag-genre")
+        for value, label in igdb_genre_keywords
+    ]
+    theme_picker_options = [
+        _picker_option("igdb_theme_ids", value, label, "tag-theme")
+        for value, label in igdb_themes
+    ] + [
+        _picker_option("igdb_keyword_ids", value, label, "tag-theme")
+        for value, label in igdb_theme_keywords
+    ]
+    mechanic_picker_options = [
+        _picker_option("igdb_keyword_ids", value, label, "tag-mechanics")
+        for value, label in igdb_mechanic_keywords
+    ]
     return {
         "platform_options": _PLATFORM_OPTIONS,
         "igdb_genres": igdb_genres,
@@ -111,6 +145,9 @@ def _igdb_form_context() -> dict[str, object]:
         "igdb_genre_keywords": igdb_genre_keywords,
         "igdb_theme_keywords": igdb_theme_keywords,
         "igdb_mechanic_keywords": igdb_mechanic_keywords,
+        "genre_picker_options": genre_picker_options,
+        "theme_picker_options": theme_picker_options,
+        "mechanic_picker_options": mechanic_picker_options,
     }
 
 
@@ -149,6 +186,57 @@ def _string_form_values(
     return result
 
 
+def _game_form_state(
+    *,
+    name: str = "",
+    summary: str = "",
+    description: str = "",
+    website_url: str = "",
+    platforms: list[str] | None = None,
+    igdb_genre_ids: list[int] | None = None,
+    igdb_theme_ids: list[int] | None = None,
+    igdb_game_mode_ids: list[int] | None = None,
+    igdb_player_perspective_ids: list[int] | None = None,
+    igdb_keyword_ids: list[str] | None = None,
+    similar_game_names: list[str] | None = None,
+) -> dict[str, object]:
+    """Return a template-friendly snapshot of the current game form state."""
+    return {
+        "name_value": name,
+        "summary_value": summary,
+        "description_value": description,
+        "website_url_value": website_url,
+        "selected_platforms": tuple(platforms or ()),
+        "selected_igdb_genre_ids": tuple(igdb_genre_ids or ()),
+        "selected_igdb_theme_ids": tuple(igdb_theme_ids or ()),
+        "selected_igdb_game_mode_ids": tuple(igdb_game_mode_ids or ()),
+        "selected_igdb_player_perspective_ids": tuple(
+            igdb_player_perspective_ids or ()
+        ),
+        "selected_igdb_keyword_ids": tuple(igdb_keyword_ids or ()),
+        "selected_similar_game_names": tuple(similar_game_names or ()),
+    }
+
+
+def _game_form_state_from_game(game: object) -> dict[str, object]:
+    """Build form state from a persisted customer game."""
+    return _game_form_state(
+        name=str(getattr(game, "name", "")),
+        summary=str(getattr(game, "summary", "") or ""),
+        description=str(getattr(game, "description", "") or ""),
+        website_url=str(getattr(game, "website_url", "") or ""),
+        platforms=list(getattr(game, "platforms", ()) or ()),
+        igdb_genre_ids=list(getattr(game, "igdb_genre_ids", ()) or ()),
+        igdb_theme_ids=list(getattr(game, "igdb_theme_ids", ()) or ()),
+        igdb_game_mode_ids=list(getattr(game, "igdb_game_mode_ids", ()) or ()),
+        igdb_player_perspective_ids=list(
+            getattr(game, "igdb_player_perspective_ids", ()) or ()
+        ),
+        igdb_keyword_ids=list(getattr(game, "igdb_keyword_ids", ()) or ()),
+        similar_game_names=list(getattr(game, "similar_game_names", ()) or ()),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Game list / dashboard
 # ---------------------------------------------------------------------------
@@ -160,6 +248,7 @@ def list_games(
     user: User = Depends(require_product_access),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     billing_service: BillingService = Depends(get_billing_service),
+    settings: Settings = Depends(get_settings),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the dashboard showing all of the user's games."""
@@ -173,6 +262,14 @@ def list_games(
         if subscription.is_trialing
         else TIER_LIMITS[subscription.effective_tier]["games"]
     )
+    prospect_service = ProspectRankingService(settings.db_path)
+    game_match_counts = {
+        game.customer_game_id: prospect_service.count_prospects(
+            game,
+            min_reach=settings.creator_index_twitch_min_followers,
+        )
+        for game in games
+    }
     placeholder_slots = max(0, max_game_slots - len(games))
     unlocked_placeholder_slots = max(0, current_game_limit - len(games))
 
@@ -184,10 +281,30 @@ def list_games(
             "games": games,
             "subscription": subscription,
             "can_add_game": can_add_game,
+            "game_match_counts": game_match_counts,
             "placeholder_slots": placeholder_slots,
             "unlocked_placeholder_slots": unlocked_placeholder_slots,
         },
     )
+
+
+@router.get("/games/igdb-search")
+def search_cached_igdb_games(
+    q: str,
+    user: User = Depends(require_product_access),
+    settings: Settings = Depends(get_settings),
+) -> list[dict[str, object]]:
+    """Return cached IGDB game name suggestions for similar-games inputs."""
+    del user
+    rows = IGDBRepository(settings.db_path).search_by_name(q)
+    return [
+        {
+            "igdb_id": int(row["igdb_id"]),
+            "name": str(row["name"]),
+            "slug": str(row["slug"]),
+        }
+        for row in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +322,12 @@ def new_game_page(
     return templates.TemplateResponse(
         request,
         "games/create.html",
-        {"user": user, "error": None, **_igdb_form_context()},
+        {
+            "user": user,
+            "error": None,
+            "form_state": _game_form_state(),
+            **_igdb_form_context(),
+        },
     )
 
 
@@ -238,6 +360,20 @@ async def create_game_post(
     platforms = _string_form_values(
         form, "platforms", allowed_values=_ALLOWED_PLATFORM_VALUES
     )
+    similar_game_names = _string_form_values(form, "similar_game_names")
+    form_state = _game_form_state(
+        name=name,
+        summary=summary,
+        description=description,
+        website_url=website_url,
+        platforms=platforms,
+        igdb_genre_ids=igdb_genre_ids,
+        igdb_theme_ids=igdb_theme_ids,
+        igdb_game_mode_ids=igdb_game_mode_ids,
+        igdb_player_perspective_ids=igdb_player_perspective_ids,
+        igdb_keyword_ids=igdb_keyword_ids,
+        similar_game_names=similar_game_names,
+    )
 
     # Check subscription limit
     if not billing_service.check_game_limit(user.user_id):
@@ -247,6 +383,7 @@ async def create_game_post(
             {
                 "user": user,
                 "error": "You've reached your game limit. Upgrade your plan to add more games.",
+                "form_state": form_state,
                 **_igdb_form_context(),
             },
             status_code=400,
@@ -265,12 +402,18 @@ async def create_game_post(
             igdb_game_mode_ids=igdb_game_mode_ids or None,
             igdb_player_perspective_ids=igdb_player_perspective_ids or None,
             igdb_keyword_ids=igdb_keyword_ids or None,
+            similar_game_names=similar_game_names or None,
         )
     except ValueError as exc:
         return templates.TemplateResponse(
             request,
             "games/create.html",
-            {"user": user, "error": str(exc), **_igdb_form_context()},
+            {
+                "user": user,
+                "error": str(exc),
+                "form_state": form_state,
+                **_igdb_form_context(),
+            },
             status_code=400,
         )  # type: ignore[return-value]
 
@@ -303,6 +446,7 @@ def game_setup_page(
             "user": user,
             "game": game,
             "error": None,
+            "form_state": _game_form_state_from_game(game),
             **_igdb_form_context(),
         },
     )
@@ -338,6 +482,20 @@ async def update_game_post(
     platforms = _string_form_values(
         form, "platforms", allowed_values=_ALLOWED_PLATFORM_VALUES
     )
+    similar_game_names = _string_form_values(form, "similar_game_names")
+    form_state = _game_form_state(
+        name=name,
+        summary=summary,
+        description=description,
+        website_url=website_url,
+        platforms=platforms,
+        igdb_genre_ids=igdb_genre_ids,
+        igdb_theme_ids=igdb_theme_ids,
+        igdb_game_mode_ids=igdb_game_mode_ids,
+        igdb_player_perspective_ids=igdb_player_perspective_ids,
+        igdb_keyword_ids=igdb_keyword_ids,
+        similar_game_names=similar_game_names,
+    )
 
     game = game_repo.get_by_slug(slug)
     if game is None or game.user_id != user.user_id:
@@ -357,6 +515,7 @@ async def update_game_post(
             igdb_game_mode_ids=igdb_game_mode_ids or None,
             igdb_player_perspective_ids=igdb_player_perspective_ids or None,
             igdb_keyword_ids=igdb_keyword_ids or None,
+            similar_game_names=similar_game_names or None,
         )
     except ValueError as exc:
         return templates.TemplateResponse(
@@ -366,12 +525,13 @@ async def update_game_post(
                 "user": user,
                 "game": game,
                 "error": str(exc),
+                "form_state": form_state,
                 **_igdb_form_context(),
             },
             status_code=400,
         )
 
-    return RedirectResponse(url=f"/games/{slug}/setup", status_code=303)
+    return RedirectResponse(url="/games", status_code=303)
 
 
 # ---------------------------------------------------------------------------

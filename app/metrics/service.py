@@ -14,11 +14,13 @@ from app.billing.models import Subscription
 from app.metrics.definitions import (
     ACCOUNTS_CREATED,
     COUNTER_METRICS,
+    DISCOVERY_RUNS_COMPLETED,
     GAMES_CREATED,
     GAMES_DELETED,
     GAMES_DUPLICATED,
     PAID_ACCESS_ENDED,
     PAID_SUBSCRIPTIONS_STARTED,
+    PROSPECT_PAGES_VIEWED,
     SESSIONS_STARTED,
     TIME_TO_FIRST_GAME_CREATED,
     TIMING_METRICS,
@@ -222,6 +224,42 @@ class MetricsService:
                 user_id=user_id,
                 customer_game_id=customer_game_id,
                 occurred_at=occurred_at,
+            ),
+        )
+
+    def record_discovery_run_completed(
+        self,
+        *,
+        customer_game_id: str,
+        creators_found: int,
+    ) -> bool:
+        """Record one completed discovery run for a game."""
+        return self._best_effort(
+            DISCOVERY_RUNS_COMPLETED.key,
+            False,
+            lambda: self.record_event(
+                DISCOVERY_RUNS_COMPLETED,
+                customer_game_id=customer_game_id,
+                occurred_at=datetime.now(UTC).isoformat(),
+                value=float(creators_found),
+            ),
+        )
+
+    def record_prospect_page_viewed(
+        self,
+        *,
+        user_id: str,
+        customer_game_id: str,
+    ) -> bool:
+        """Record one prospect page view."""
+        return self._best_effort(
+            PROSPECT_PAGES_VIEWED.key,
+            False,
+            lambda: self.record_event(
+                PROSPECT_PAGES_VIEWED,
+                user_id=user_id,
+                customer_game_id=customer_game_id,
+                occurred_at=datetime.now(UTC).isoformat(),
             ),
         )
 

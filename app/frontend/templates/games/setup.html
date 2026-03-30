@@ -7,34 +7,28 @@ endblock %} {% block og_description %}Refine your game profile with genres,
 themes, mechanics, and similar games.{% endblock %} {% block twitter_title %}{{
 game.name }} — Settings — SpawnRadar{% endblock %} {% block twitter_description
 %}Refine your game profile with genres, themes, mechanics, and similar games.{%
-endblock %} {% block content %}
-<div class="setup-header">
-    <div>
-        <h1>{{ game.name }} — Settings</h1>
-    </div>
-    <div class="setup-header-actions">
-        <a href="/games" class="button secondary">← All Games</a>
-    </div>
-</div>
-
-{% if error %}
+endblock %} {% block content %} {% if error %}
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}
 
 <section class="setup-section">
     <h2>Game Info</h2>
     {% set form_action = "/games/" ~ game.slug %} {% set submit_label = "Save
-    Game Info" %} {% set cancel_href = none %} {% set name_value = game.name %}
-    {% set summary_value = game.summary or "" %} {% set description_value =
-    game.description %} {% set description_rows = 12 %} {% set website_url_value
-    = game.website_url or "" %} {% set selected_platforms = game.platforms %} {%
-    set selected_igdb_genre_ids = game.igdb_genre_ids %} {% set
-    selected_igdb_theme_ids = game.igdb_theme_ids %} {% set
-    selected_igdb_game_mode_ids = game.igdb_game_mode_ids %} {% set
-    selected_igdb_player_perspective_ids = game.igdb_player_perspective_ids %}
-    {% set selected_igdb_keyword_ids = game.igdb_keyword_ids %} {% include
-    "partials/game_info_form.html" %}
+    Game Info" %} {% set cancel_href = none %} {% set name_value =
+    form_state.name_value %} {% set summary_value = form_state.summary_value %}
+    {% set description_value = form_state.description_value %} {% set
+    description_rows = 12 %} {% set website_url_value =
+    form_state.website_url_value %} {% set selected_platforms =
+    form_state.selected_platforms %} {% set selected_igdb_genre_ids =
+    form_state.selected_igdb_genre_ids %} {% set selected_igdb_theme_ids =
+    form_state.selected_igdb_theme_ids %} {% set selected_igdb_game_mode_ids =
+    form_state.selected_igdb_game_mode_ids %} {% set
+    selected_igdb_player_perspective_ids =
+    form_state.selected_igdb_player_perspective_ids %} {% set
+    selected_igdb_keyword_ids = form_state.selected_igdb_keyword_ids %} {% set
+    selected_similar_game_names = form_state.selected_similar_game_names %} {%
+    include "partials/game_info_form.html" %}
 </section>
 {% endblock %} {% block scripts %}
-<script src="/static/game-form.js"></script>
+<script src="{{ static_asset_url('game-form.js') }}"></script>
 {% endblock %}

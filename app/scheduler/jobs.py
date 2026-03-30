@@ -16,11 +16,32 @@ from app.runtime import SourceRuntime
 
 logger = logging.getLogger(__name__)
 
-# On-demand and background discovery each get their own concurrency slot.
-# This means on-demand jobs never wait for background jobs, and at most
-# 2 discovery runs happen simultaneously (1 on-demand + 1 background).
-_on_demand_semaphore = asyncio.Semaphore(1)
-_background_semaphore = asyncio.Semaphore(1)
+
+def _record_discovery_run(
+    db_path: str, customer_game_id: str, creators_found: int
+) -> None:
+    """Best-effort metric recording for a completed discovery run."""
+    try:
+        from app.billing.repository import SubscriptionRepository
+        from app.metrics.repository import MetricsRepository
+        from app.metrics.service import MetricsService
+
+        metrics = MetricsService(
+            MetricsRepository(db_path),
+            SubscriptionRepository(db_path),
+        )
+        metrics.record_discovery_run_completed(
+            customer_game_id=customer_game_id,
+            creators_found=creators_found,
+        )
+    except Exception:
+        logger.debug("Failed to record discovery metric", exc_info=True)
+
+
+# On-demand and background discovery share a single pool of 2 slots.
+# At most 2 discovery runs happen concurrently to stay well within
+# Twitch's 800 req/min rate limit.
+_discovery_semaphore = asyncio.Semaphore(2)
 
 
 async def run_scheduled_creator_index_sync(
@@ -32,7 +53,7 @@ async def run_scheduled_creator_index_sync(
     This job is intentionally separate from any customer-facing workflow state.
     It discovers creators for all active customer games using the v2 pipeline.
     """
-    async with _background_semaphore:
+    async with _discovery_semaphore:
         # Fill in missing LLM suggestions before crawling
         from app.config import Settings
 
@@ -47,11 +68,14 @@ async def run_scheduled_creator_index_sync(
 
                     try:
                         tight, broad = await generate_game_suggestions(
-                            game, api_key=settings.anthropic_api_key,
+                            game,
+                            api_key=settings.anthropic_api_key,
                         )
                         if tight or broad:
                             repo.set_llm_game_suggestions(
-                                game.customer_game_id, tight, broad,
+                                game.customer_game_id,
+                                tight,
+                                broad,
                             )
                     except Exception:
                         logger.exception(
@@ -71,6 +95,13 @@ async def run_scheduled_creator_index_sync(
                 summary.content_samples_synced,
                 summary.contact_points_synced,
             )
+            # Record per-game summaries if available
+            for gs in summary.game_summaries:
+                _record_discovery_run(
+                    db_path,
+                    gs.customer_game_id,
+                    gs.accounts_synced,
+                )
         except Exception:
             logger.exception("Background creator-index sync failed")
 
@@ -80,7 +111,7 @@ async def run_top_categories_crawl(
     source_runtime: SourceRuntime,
 ) -> None:
     """Scheduled job: crawl top Twitch categories for pre-population."""
-    async with _background_semaphore:
+    async with _discovery_semaphore:
         service = CreatorIndexService(
             db_path=db_path,
             source_runtime=source_runtime,
@@ -98,7 +129,7 @@ async def run_catalog_discovery(
     catalog_dir: str,
 ) -> None:
     """Scheduled job: run discovery against catalog definitions."""
-    async with _background_semaphore:
+    async with _discovery_semaphore:
         service = CreatorIndexService(
             db_path=db_path,
             source_runtime=source_runtime,
@@ -108,7 +139,8 @@ async def run_catalog_discovery(
             total = sum(results.values())
             logger.info(
                 "Catalog discovery: %d creators across %d definitions",
-                total, len(results),
+                total,
+                len(results),
             )
         except Exception:
             logger.exception("Catalog discovery job failed")
@@ -126,7 +158,8 @@ async def run_game_discovery(
     customer_game = repo.get_by_id(customer_game_id)
     if customer_game is None:
         logger.warning(
-            "On-demand discovery: game %s not found", customer_game_id,
+            "On-demand discovery: game %s not found",
+            customer_game_id,
         )
         return
 
@@ -137,7 +170,8 @@ async def run_game_discovery(
 
         try:
             tight, broad = await generate_game_suggestions(
-                customer_game, api_key=settings.anthropic_api_key,
+                customer_game,
+                api_key=settings.anthropic_api_key,
             )
             if tight or broad:
                 repo.set_llm_game_suggestions(customer_game_id, tight, broad)
@@ -151,7 +185,7 @@ async def run_game_discovery(
                 customer_game_id,
             )
 
-    async with _on_demand_semaphore:
+    async with _discovery_semaphore:
         service = CreatorIndexService(
             db_path=db_path,
             source_runtime=source_runtime,
@@ -160,9 +194,16 @@ async def run_game_discovery(
             summary = await service.sync_customer_game(customer_game)
             logger.info(
                 "On-demand discovery for '%s': accounts=%d",
-                customer_game.name, summary.accounts_synced,
+                customer_game.name,
+                summary.accounts_synced,
+            )
+            _record_discovery_run(
+                db_path,
+                customer_game_id,
+                summary.accounts_synced,
             )
         except Exception:
             logger.exception(
-                "On-demand discovery failed for game %s", customer_game_id,
+                "On-demand discovery failed for game %s",
+                customer_game_id,
             )

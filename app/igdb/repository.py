@@ -140,3 +140,34 @@ class IGDBRepository:
                     (limit,),
                 ).fetchall()
             ]
+
+    def search_by_name(
+        self, query: str, *, limit: int = 8
+    ) -> list[sqlite3.Row]:
+        """Search cached IGDB games by name using exact/prefix/contains order."""
+        normalized = query.strip().lower()
+        if not normalized:
+            return []
+        with get_connection(self._db_path) as con:
+            return con.execute(
+                """
+                SELECT igdb_id, name, slug
+                FROM igdb_games
+                WHERE LOWER(name) LIKE ?
+                ORDER BY
+                    CASE
+                        WHEN LOWER(name) = ? THEN 0
+                        WHEN LOWER(name) LIKE ? THEN 1
+                        ELSE 2
+                    END,
+                    LENGTH(name) ASC,
+                    name ASC
+                LIMIT ?
+                """,
+                (
+                    f"%{normalized}%",
+                    normalized,
+                    f"{normalized}%",
+                    limit,
+                ),
+            ).fetchall()
