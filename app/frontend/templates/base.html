@@ -105,7 +105,7 @@
                 <div class="navbar-right">
                     <a href="/games" class="nav-link">Dashboard</a>
                     {% set _sub = subscription_for(request) %} {% if _sub and
-                    _sub.has_subscription %}
+                    (_sub.has_subscription or _sub.is_comped) %}
                     <a href="/billing" class="nav-link">Billing</a>
                     {% else %}
                     <a href="/pricing" class="nav-link">Pricing</a>
