@@ -116,6 +116,18 @@ CREATE TABLE IF NOT EXISTS customer_game_search_cursors (
     FOREIGN KEY (customer_game_id) REFERENCES customer_games(customer_game_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS prospect_statuses (
+    customer_game_id TEXT NOT NULL REFERENCES customer_games(customer_game_id) ON DELETE CASCADE,
+    account_id       TEXT NOT NULL REFERENCES source_accounts(account_id) ON DELETE CASCADE,
+    status           TEXT NOT NULL DEFAULT 'new',
+    notes            TEXT NOT NULL DEFAULT '',
+    updated_at       TEXT NOT NULL,
+    PRIMARY KEY (customer_game_id, account_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prospect_statuses_game_status
+    ON prospect_statuses(customer_game_id, status);
+
 CREATE TABLE IF NOT EXISTS source_accounts (
     account_id            TEXT PRIMARY KEY,
     platform              TEXT NOT NULL,

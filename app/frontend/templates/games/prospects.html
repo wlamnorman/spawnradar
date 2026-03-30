@@ -293,6 +293,17 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                                     stroke="none"
                                 />
                             </svg>
+                            {% elif option.value == "tiktok" %}
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path
+                                    d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1 0-5.78 2.92 2.92 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.57 6.33 6.33 0 0 0 9.37 22a6.33 6.33 0 0 0 6.38-6.22V9.4a8.16 8.16 0 0 0 3.84.96V7.1a4.85 4.85 0 0 1-.01-.4z"
+                                />
+                            </svg>
                             {% elif option.value == "bluesky" %}
                             <svg
                                 width="18"
@@ -321,21 +332,53 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
         </form>
     </details>
     {% else %}
-    <a href="/billing" class="button secondary">Filters</a>
+    <span
+        class="button secondary is-disabled"
+        aria-disabled="true"
+        title="Disabled during trial"
+        data-tooltip="Disabled during trial"
+    >
+        Filters
+    </span>
     {% endif %}
 </div>
 
+<div class="prospects-status-tabs" aria-label="Prospect workflow filters">
+    {% for tab in status_tab_links %} {% if workflow_unlocked %}
+    <a
+        href="{{ tab.href }}"
+        class="prospects-status-tab {% if tab.active %}is-active{% endif %} {% if tab.is_empty %}is-empty{% endif %}"
+        data-status-tab="{{ tab.value }}"
+    >
+        <span>{{ tab.label }}</span>
+        <span class="prospects-status-tab-count">{{ tab.count }}</span>
+    </a>
+    {% else %}
+    <span
+        class="prospects-status-tab is-disabled {% if tab.active %}is-active{% endif %} {% if tab.is_empty %}is-empty{% endif %}"
+        title="Disabled during trial"
+        data-tooltip="Disabled during trial"
+    >
+        <span>{{ tab.label }}</span>
+        <span class="prospects-status-tab-count">{{ tab.count }}</span>
+    </span>
+    {% endif %} {% endfor %}
+</div>
 {% if not prospects %}
 <div class="empty-state">
     <h2>
-        {% if filters_active %}No creators match your current filters{% else
-        %}No matching creators found yet{% endif %}
+        {% if active_status_filter != "all" %}No creators are marked {{
+        prospect_status_labels[active_status_filter] }} yet{% elif
+        filters_active %}No creators match your current filters{% else %}No
+        matching creators found yet{% endif %}
     </h2>
     <p>
-        {% if filters_active %}Try lowering your reach or interest overlap
-        thresholds to see more creator matches.{% else %}Our system is
-        continuously building its data bank. As more creators are discovered and
-        their game libraries are mapped, matches will appear here.{% endif %}
+        {% if active_status_filter != "all" %}Creators will appear here once you
+        move them into this workflow stage.{% elif filters_active %}Try lowering
+        your reach or interest overlap thresholds to see more creator matches.{%
+        else %}Our system is continuously building its data bank. As more
+        creators are discovered and their game libraries are mapped, matches
+        will appear here.{% endif %}
     </p>
 </div>
 {% else %}
@@ -354,9 +397,9 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
         <tbody>
             {% for prospect in prospects %} {% set contact = namespace(
             email_url=None, email_title=None, discord_url=None, twitch_url=None,
-            youtube_url=None, x_url=None, instagram_url=None, bluesky_url=None )
-            %} {% if prospect.profile.platform == "twitch" and
-            prospect.profile.canonical_url %} {% set contact.twitch_url =
+            youtube_url=None, x_url=None, instagram_url=None, tiktok_url=None,
+            bluesky_url=None ) %} {% if prospect.profile.platform == "twitch"
+            and prospect.profile.canonical_url %} {% set contact.twitch_url =
             prospect.profile.canonical_url %} {% elif prospect.profile.platform
             == "youtube" and prospect.profile.canonical_url %} {% set
             contact.youtube_url = prospect.profile.canonical_url %} {% endif %}
@@ -370,16 +413,22 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
             url or "x.com/" in url) and contact.x_url is none %} {% set
             contact.x_url = url %} {% elif "instagram.com/" in url and
             contact.instagram_url is none %} {% set contact.instagram_url = url
-            %} {% elif "bsky.app/" in url and contact.bluesky_url is none %} {%
-            set contact.bluesky_url = url %} {% elif ("youtube.com/" in url or
-            "youtu.be/" in url) and contact.youtube_url is none %} {% set
-            contact.youtube_url = url %} {% endif %} {% endfor %} {% set
-            has_contact_icons = contact.email_url is not none or
-            contact.discord_url is not none or contact.twitch_url is not none or
-            contact.youtube_url is not none or contact.x_url is not none or
-            contact.instagram_url is not none or contact.bluesky_url is not none
-            %}
-            <tr>
+            %} {% elif "tiktok.com/" in url and contact.tiktok_url is none %} {%
+            set contact.tiktok_url = url %} {% elif "bsky.app/" in url and
+            contact.bluesky_url is none %} {% set contact.bluesky_url = url %}
+            {% elif ("youtube.com/" in url or "youtu.be/" in url) and
+            contact.youtube_url is none %} {% set contact.youtube_url = url %}
+            {% endif %} {% endfor %} {% set has_contact_icons =
+            contact.email_url is not none or contact.discord_url is not none or
+            contact.twitch_url is not none or contact.youtube_url is not none or
+            contact.x_url is not none or contact.instagram_url is not none or
+            contact.tiktok_url is not none or contact.bluesky_url is not none %}
+            <tr
+                class="prospect-row prospect-row--{{ prospect.workflow.status }}"
+                data-prospect-row
+                data-account-id="{{ prospect.profile.account_id }}"
+                data-current-status="{{ prospect.workflow.status }}"
+            >
                 <td class="col-rank">
                     {{ (page - 1) * page_size + loop.index }}
                 </td>
@@ -540,6 +589,25 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                                         />
                                     </svg>
                                 </a>
+                                {% endif %} {% if contact.tiktok_url %}
+                                <a
+                                    class="contact-icon contact-icon--tiktok"
+                                    href="{{ contact.tiktok_url }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    title="TikTok"
+                                >
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1 0-5.78 2.92 2.92 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.57 6.33 6.33 0 0 0 9.37 22a6.33 6.33 0 0 0 6.38-6.22V9.4a8.16 8.16 0 0 0 3.84.96V7.1a4.85 4.85 0 0 1-.01-.4z"
+                                        />
+                                    </svg>
+                                </a>
                                 {% endif %} {% if contact.bluesky_url %}
                                 <a
                                     class="contact-icon contact-icon--bluesky"
@@ -560,6 +628,185 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                                     </svg>
                                 </a>
                                 {% endif %}
+                            </div>
+                            {% endif %} {% if workflow_unlocked %}
+                            <div class="prospect-workflow-row">
+                                <div class="prospect-workflow-actions-row">
+                                    <details
+                                        class="prospect-workflow-menu"
+                                        data-prospect-workflow
+                                    >
+                                        <summary
+                                            class="prospect-status-pill {{ status_pill_class(prospect.workflow.status) }}"
+                                            data-prospect-status-summary
+                                        >
+                                            <span data-prospect-status-label
+                                                >{% if prospect.workflow.status
+                                                == "new" %}Status: New{% else
+                                                %}{{
+                                                prospect_status_labels[prospect.workflow.status]
+                                                }}{% endif %}</span
+                                            >
+                                            {% if prospect.workflow.has_notes %}
+                                            <span
+                                                class="prospect-status-note-dot"
+                                                data-prospect-note-dot
+                                            ></span>
+                                            {% else %}
+                                            <span
+                                                class="prospect-status-note-dot"
+                                                data-prospect-note-dot
+                                                hidden
+                                            ></span>
+                                            {% endif %}
+                                        </summary>
+                                        <div class="prospect-workflow-panel">
+                                            <p class="prospect-workflow-label">
+                                                Set status
+                                            </p>
+                                            <div
+                                                class="prospect-workflow-statuses"
+                                            >
+                                                {% for option in
+                                                prospect_status_options %}
+                                                <button
+                                                    type="button"
+                                                    class="prospect-status-option {% if prospect.workflow.status == option.value %}is-active{% endif %}"
+                                                    data-prospect-status-option
+                                                    data-status-value="{{ option.value }}"
+                                                >
+                                                    {{
+                                                    prospect_status_labels[option.value]
+                                                    }}
+                                                </button>
+                                                {% endfor %}
+                                            </div>
+                                            <label
+                                                class="prospect-workflow-label"
+                                                for="prospect-note-{{ prospect.profile.account_id }}"
+                                                >Notes</label
+                                            >
+                                            <textarea
+                                                id="prospect-note-{{ prospect.profile.account_id }}"
+                                                class="prospect-note-input"
+                                                data-prospect-note
+                                                rows="3"
+                                                placeholder="Optional notes about outreach, timing, or access."
+                                            >
+{{ prospect.workflow.notes }}</textarea
+                                            >
+                                            <div
+                                                class="prospect-workflow-actions"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    class="button secondary prospect-note-save"
+                                                    data-prospect-save-note
+                                                >
+                                                    Save note
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </details>
+                                    <button
+                                        type="button"
+                                        class="prospect-quick-skip {% if prospect.workflow.status == 'not_pursuing' %}is-active{% endif %}"
+                                        data-prospect-quick-status
+                                        data-status-value="{% if prospect.workflow.status == 'not_pursuing' %}new{% else %}not_pursuing{% endif %}"
+                                        aria-label="{% if prospect.workflow.status == 'not_pursuing' %}Move back to New{% else %}Move to Not Pursuing{% endif %}"
+                                        title="{% if prospect.workflow.status == 'not_pursuing' %}Move back to New{% else %}Not Pursuing{% endif %}"
+                                    >
+                                        <span
+                                            class="prospect-quick-skip-icon prospect-quick-skip-icon--skip"
+                                            aria-hidden="true"
+                                        >
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2.25"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <path d="M18 6 6 18" />
+                                                <path d="m6 6 12 12" />
+                                            </svg>
+                                        </span>
+                                        <span
+                                            class="prospect-quick-skip-icon prospect-quick-skip-icon--undo"
+                                            aria-hidden="true"
+                                        >
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2.25"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <path d="M9 14 4 9l5-5" />
+                                                <path
+                                                    d="M4 9h9a7 7 0 1 1 0 14h-2"
+                                                />
+                                            </svg>
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="prospect-workflow-row">
+                                <div class="prospect-workflow-actions-row">
+                                    <button
+                                        class="prospect-status-pill {{ status_pill_class(prospect.workflow.status) }} is-disabled"
+                                        type="button"
+                                        aria-disabled="true"
+                                        title="Disabled during trial"
+                                        data-tooltip="Disabled during trial"
+                                        tabindex="-1"
+                                    >
+                                        <span data-prospect-status-label
+                                            >{% if prospect.workflow.status ==
+                                            "new" %}Status: New{% else %}{{
+                                            prospect_status_labels[prospect.workflow.status]
+                                            }}{% endif %}</span
+                                        >
+                                        {% if prospect.workflow.has_notes %}
+                                        <span
+                                            class="prospect-status-note-dot"
+                                        ></span>
+                                        {% endif %}
+                                    </button>
+                                    <span
+                                        class="prospect-quick-skip is-disabled"
+                                        aria-disabled="true"
+                                        aria-label="Disabled during trial"
+                                        title="Disabled during trial"
+                                        data-tooltip="Disabled during trial"
+                                    >
+                                        <span
+                                            class="prospect-quick-skip-icon prospect-quick-skip-icon--skip"
+                                            aria-hidden="true"
+                                        >
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2.25"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <path d="M18 6 6 18" />
+                                                <path d="m6 6 12 12" />
+                                            </svg>
+                                        </span>
+                                    </span>
+                                </div>
                             </div>
                             {% endif %}
                         </div>
@@ -658,20 +905,390 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
 <script>
     (function () {
         var tip = document.getElementById("game-tooltip");
+        document.querySelectorAll("[data-tooltip]").forEach(function (el) {
+            el.addEventListener("mouseenter", function (e) {
+                tip.textContent = el.getAttribute("data-tooltip");
+                tip.style.opacity = "1";
+            });
+            el.addEventListener("mousemove", function (e) {
+                var offset = 12;
+                var tipWidth = tip.offsetWidth;
+                var tipHeight = tip.offsetHeight;
+                var maxLeft = window.innerWidth - tipWidth - 8;
+                var desiredLeft = e.clientX + offset;
+                var left = Math.min(desiredLeft, Math.max(8, maxLeft));
+                var desiredTop = e.clientY - tipHeight - offset;
+                var top =
+                    desiredTop >= 8
+                        ? desiredTop
+                        : Math.min(
+                              e.clientY + offset,
+                              window.innerHeight - tipHeight - 8,
+                          );
+                tip.style.left = left + "px";
+                tip.style.top = top + "px";
+            });
+            el.addEventListener("mouseleave", function () {
+                tip.style.opacity = "0";
+            });
+        });
+    })();
+
+    (function () {
+        var statusTabs = document.querySelectorAll("[data-status-tab]");
+        var totalCountLabel = document.querySelector(
+            ".prospects-toolbar-count",
+        );
+
+        function updateStatusTabs(statusCounts) {
+            statusTabs.forEach(function (tab) {
+                var status = tab.getAttribute("data-status-tab");
+                var countNode = tab.querySelector(
+                    ".prospects-status-tab-count",
+                );
+                if (
+                    !countNode ||
+                    !statusCounts ||
+                    statusCounts[status] == null
+                ) {
+                    return;
+                }
+                var count = Number(statusCounts[status]) || 0;
+                countNode.textContent = String(count);
+                tab.classList.toggle("is-empty", count === 0);
+            });
+        }
+
+        function updateCountLabel(count) {
+            if (!totalCountLabel) {
+                return;
+            }
+            totalCountLabel.textContent =
+                count + " creator" + (count === 1 ? "" : "s") + " matched";
+        }
+
+        function displayStatusLabel(status, label) {
+            if (status === "new") {
+                return "Status: New";
+            }
+            return label;
+        }
+
+        function currentWorkflowContext() {
+            var params = new URLSearchParams(window.location.search);
+            return {
+                active_status: params.get("status") || "all",
+                min_reach: params.get("min_reach") || "",
+                max_reach: params.get("max_reach") || "",
+                min_overlap: params.get("min_overlap") || "",
+                max_overlap: params.get("max_overlap") || "",
+                min_games: params.get("min_games") || "",
+                max_games: params.get("max_games") || "",
+                reachable_via: params.getAll("reachable_via"),
+            };
+        }
+
+        function applyWorkflowResponse(row, menu, payload) {
+            row.dataset.currentStatus = payload.status;
+            [
+                "new",
+                "contacted",
+                "replied",
+                "access_shared",
+                "covered",
+                "not_pursuing",
+            ].forEach(function (statusName) {
+                row.classList.remove("prospect-row--" + statusName);
+            });
+            row.classList.add("prospect-row--" + payload.status);
+            var summary = row.querySelector("[data-prospect-status-summary]");
+            var label = row.querySelector("[data-prospect-status-label]");
+            if (summary) {
+                summary.className =
+                    "prospect-status-pill " + payload.status_class;
+            }
+            if (label) {
+                label.textContent = displayStatusLabel(
+                    payload.status,
+                    payload.status_label,
+                );
+            }
+            row.querySelectorAll("[data-prospect-status-option]").forEach(
+                function (button) {
+                    button.classList.toggle(
+                        "is-active",
+                        button.getAttribute("data-status-value") ===
+                            payload.status,
+                    );
+                },
+            );
+            var quickSkipButton = row.querySelector(
+                "[data-prospect-quick-status]",
+            );
+            if (quickSkipButton) {
+                quickSkipButton.classList.toggle(
+                    "is-active",
+                    payload.status === "not_pursuing",
+                );
+                if (payload.status === "not_pursuing") {
+                    quickSkipButton.setAttribute("data-status-value", "new");
+                    quickSkipButton.setAttribute(
+                        "aria-label",
+                        "Move back to New",
+                    );
+                    quickSkipButton.setAttribute("title", "Move back to New");
+                } else {
+                    quickSkipButton.setAttribute(
+                        "data-status-value",
+                        "not_pursuing",
+                    );
+                    quickSkipButton.setAttribute(
+                        "aria-label",
+                        "Move to Not Pursuing",
+                    );
+                    quickSkipButton.setAttribute("title", "Not Pursuing");
+                }
+            }
+            var noteInput = row.querySelector("[data-prospect-note]");
+            if (noteInput && noteInput.value !== payload.notes) {
+                noteInput.value = payload.notes;
+            }
+            var noteDot = row.querySelector("[data-prospect-note-dot]");
+            if (noteDot) {
+                noteDot.hidden = !payload.has_notes;
+            }
+            updateStatusTabs(payload.status_counts);
+            updateCountLabel(Number(payload.current_total_count) || 0);
+            if (!payload.visible) {
+                row.remove();
+                if (
+                    document.querySelectorAll("[data-prospect-row]").length ===
+                    0
+                ) {
+                    window.location.reload();
+                    return;
+                }
+            }
+            if (menu) {
+                menu.open = false;
+            }
+        }
+
         document
-            .querySelectorAll(".game-icon-wrap, .observed-tag[data-tooltip]")
-            .forEach(function (el) {
-                el.addEventListener("mouseenter", function (e) {
-                    tip.textContent = el.getAttribute("data-tooltip");
-                    tip.style.opacity = "1";
+            .querySelectorAll("[data-prospect-workflow]")
+            .forEach(function (menu) {
+                var row = menu.closest("[data-prospect-row]");
+                if (!row) {
+                    return;
+                }
+                var quickSkipButton = row.querySelector(
+                    "[data-prospect-quick-status]",
+                );
+                var panel = menu.querySelector(".prospect-workflow-panel");
+                var summary = menu.querySelector("summary");
+                var tableWrap = row.closest(".prospects-table-wrap");
+
+                function positionWorkflowMenu() {
+                    if (!panel || !summary || !menu.open) {
+                        menu.classList.remove("opens-up");
+                        return;
+                    }
+                    menu.classList.remove("opens-up");
+                    var summaryRect = summary.getBoundingClientRect();
+                    var panelHeight = panel.offsetHeight;
+                    var viewportHeight =
+                        window.innerHeight ||
+                        document.documentElement.clientHeight ||
+                        0;
+                    var boundaryTop = 0;
+                    var boundaryBottom = viewportHeight;
+                    if (tableWrap) {
+                        var wrapRect = tableWrap.getBoundingClientRect();
+                        boundaryTop = Math.max(boundaryTop, wrapRect.top);
+                        boundaryBottom = Math.min(
+                            boundaryBottom,
+                            wrapRect.bottom,
+                        );
+                    }
+                    var requiredSpace = panelHeight + 8;
+                    var spaceBelow = boundaryBottom - summaryRect.bottom;
+                    var spaceAbove = summaryRect.top - boundaryTop;
+                    if (spaceBelow < requiredSpace && spaceAbove > spaceBelow) {
+                        menu.classList.add("opens-up");
+                    }
+                }
+
+                function submitWorkflow(update) {
+                    var noteInput = row.querySelector("[data-prospect-note]");
+                    var payload = Object.assign(
+                        {
+                            status: update.status || row.dataset.currentStatus,
+                            notes: noteInput ? noteInput.value : "",
+                        },
+                        currentWorkflowContext(),
+                    );
+                    fetch(
+                        "/games/{{ game.slug }}/prospects/" +
+                            encodeURIComponent(row.dataset.accountId) +
+                            "/workflow",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                Accept: "application/json",
+                            },
+                            body: JSON.stringify(payload),
+                        },
+                    )
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error("Workflow update failed");
+                            }
+                            return response.json();
+                        })
+                        .then(function (payload) {
+                            applyWorkflowResponse(
+                                row,
+                                update.closeMenu ? menu : null,
+                                payload,
+                            );
+                        })
+                        .catch(function () {
+                            window.location.reload();
+                        });
+                }
+
+                menu.addEventListener("toggle", function () {
+                    if (menu.open) {
+                        requestAnimationFrame(positionWorkflowMenu);
+                        return;
+                    }
+                    menu.classList.remove("opens-up");
                 });
-                el.addEventListener("mousemove", function (e) {
-                    tip.style.left = e.clientX + 12 + "px";
-                    tip.style.top = e.clientY - 30 + "px";
+
+                menu.querySelectorAll("[data-prospect-status-option]").forEach(
+                    function (button) {
+                        button.addEventListener("click", function () {
+                            submitWorkflow({
+                                status: button.getAttribute(
+                                    "data-status-value",
+                                ),
+                                closeMenu: true,
+                            });
+                        });
+                    },
+                );
+                var saveNoteButton = menu.querySelector(
+                    "[data-prospect-save-note]",
+                );
+                if (saveNoteButton) {
+                    saveNoteButton.addEventListener("click", function () {
+                        submitWorkflow({
+                            closeMenu: false,
+                        });
+                    });
+                }
+                if (quickSkipButton) {
+                    quickSkipButton.addEventListener("click", function () {
+                        submitWorkflow({
+                            status: quickSkipButton.getAttribute(
+                                "data-status-value",
+                            ),
+                            closeMenu: true,
+                        });
+                    });
+                }
+            });
+
+        window.addEventListener("resize", function () {
+            document
+                .querySelectorAll("[data-prospect-workflow][open]")
+                .forEach(function (menu) {
+                    var panel = menu.querySelector(".prospect-workflow-panel");
+                    var summary = menu.querySelector("summary");
+                    var tableWrap = menu.closest(".prospects-table-wrap");
+                    if (!panel || !summary) {
+                        return;
+                    }
+                    menu.classList.remove("opens-up");
+                    var summaryRect = summary.getBoundingClientRect();
+                    var panelHeight = panel.offsetHeight;
+                    var viewportHeight =
+                        window.innerHeight ||
+                        document.documentElement.clientHeight ||
+                        0;
+                    var boundaryTop = 0;
+                    var boundaryBottom = viewportHeight;
+                    if (tableWrap) {
+                        var wrapRect = tableWrap.getBoundingClientRect();
+                        boundaryTop = Math.max(boundaryTop, wrapRect.top);
+                        boundaryBottom = Math.min(
+                            boundaryBottom,
+                            wrapRect.bottom,
+                        );
+                    }
+                    var requiredSpace = panelHeight + 8;
+                    var spaceBelow = boundaryBottom - summaryRect.bottom;
+                    var spaceAbove = summaryRect.top - boundaryTop;
+                    if (spaceBelow < requiredSpace && spaceAbove > spaceBelow) {
+                        menu.classList.add("opens-up");
+                    }
                 });
-                el.addEventListener("mouseleave", function () {
-                    tip.style.opacity = "0";
+        });
+
+        document.addEventListener("click", function (event) {
+            document
+                .querySelectorAll("[data-prospect-workflow]")
+                .forEach(function (menu) {
+                    if (!menu.contains(event.target)) {
+                        menu.open = false;
+                    }
                 });
+        });
+    })();
+
+    (function () {
+        document
+            .querySelectorAll(".prospects-contact-filter-chips")
+            .forEach(function (group) {
+                var chips = Array.from(
+                    group.querySelectorAll(".prospects-contact-filter-chip"),
+                );
+
+                function renderChipStates() {
+                    chips.forEach(function (chip) {
+                        var input = chip.querySelector(
+                            'input[type="checkbox"]',
+                        );
+                        if (!input) {
+                            return;
+                        }
+                        chip.classList.toggle("is-active", input.checked);
+                    });
+                }
+
+                chips.forEach(function (chip) {
+                    var input = chip.querySelector('input[type="checkbox"]');
+                    if (!input) {
+                        return;
+                    }
+
+                    input.addEventListener("change", renderChipStates);
+                    chip.addEventListener("dblclick", function () {
+                        chips.forEach(function (otherChip) {
+                            var otherInput = otherChip.querySelector(
+                                'input[type="checkbox"]',
+                            );
+                            if (!otherInput) {
+                                return;
+                            }
+                            otherInput.checked = otherChip === chip;
+                        });
+                        renderChipStates();
+                    });
+                });
+
+                renderChipStates();
             });
     })();
 

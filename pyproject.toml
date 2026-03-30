@@ -20,10 +20,10 @@ app = ["frontend/**/*", "sql/*.sql"]
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
-# [tool.pytest.ini_options]
-# testpaths = ["tests"]
-# timeout = 3
-# timeout_method = "thread"
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 30
+addopts = "-n auto"
 
 [tool.basedpyright]
 typeCheckingMode = "standard"

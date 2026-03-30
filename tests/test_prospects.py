@@ -165,6 +165,25 @@ def _insert_contact_point(
         )
 
 
+def _insert_prospect_status(
+    db_path: str,
+    customer_game_id: str,
+    account_id: str,
+    status: str,
+    notes: str = "",
+) -> None:
+    """Insert sparse workflow state for one prospect."""
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO prospect_statuses (
+                customer_game_id, account_id, status, notes, updated_at
+            ) VALUES (?, ?, ?, ?, datetime('now'))
+            """,
+            (customer_game_id, account_id, status, notes),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Scoring formula tests
 # ---------------------------------------------------------------------------
@@ -416,6 +435,49 @@ class TestProspectRepository:
 
         assert profiles["c3"].recent_audience == 143
 
+    def test_get_prospect_workflow_states_returns_sparse_rows(self, db_path):
+        _insert_creator(
+            db_path, "workflow-creator", "twitch", "Workflow Creator"
+        )
+        with get_connection(db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO users (user_id, email, password_hash)
+                VALUES ('workflow-user', 'workflow@example.com', 'x')
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO customer_games (
+                    customer_game_id, user_id, name, summary, description, slug
+                ) VALUES (
+                    'workflow-game',
+                    'workflow-user',
+                    'Workflow Game',
+                    'Summary',
+                    'Description',
+                    'workflow-game'
+                )
+                """
+            )
+        _insert_prospect_status(
+            db_path,
+            "workflow-game",
+            "workflow-creator",
+            "contacted",
+            "Worth reaching out",
+        )
+
+        repo = ProspectRepository(db_path)
+        states = repo.get_prospect_workflow_states(
+            customer_game_id="workflow-game",
+            account_ids=("workflow-creator", "missing-creator"),
+        )
+
+        assert states["workflow-creator"].status == "contacted"
+        assert states["workflow-creator"].notes == "Worth reaching out"
+        assert "missing-creator" not in states
+
 
 # ---------------------------------------------------------------------------
 # Service integration tests
@@ -496,7 +558,7 @@ class TestProspectRankingService:
         _insert_game_play(db_path, "broad", "Game E", 104)
 
         service = ProspectRankingService(db_path)
-        prospects, total = service.rank_prospects(game)
+        prospects, total, _ = service.rank_prospects(game)
 
         assert len(prospects) == 2
         assert prospects[0].profile.account_id == "broad"
@@ -519,7 +581,18 @@ class TestProspectRankingService:
             igdb_genre_ids=[9],  # Puzzle
         )
         service = ProspectRankingService(db_path)
-        assert service.rank_prospects(game) == ([], 0)
+        assert service.rank_prospects(game) == (
+            [],
+            0,
+            {
+                "new": 0,
+                "contacted": 0,
+                "replied": 0,
+                "access_shared": 0,
+                "covered": 0,
+                "not_pursuing": 0,
+            },
+        )
 
     def test_same_game_multiple_sessions_no_inflation(
         self, db_path, game_service, registered_user
@@ -554,7 +627,7 @@ class TestProspectRankingService:
             )
 
         service = ProspectRankingService(db_path)
-        prospects, total = service.rank_prospects(game)
+        prospects, total, _ = service.rank_prospects(game)
         assert len(prospects) == 1
         # One matching distinct game gives strong but not complete evidence.
         assert prospects[0].coverage_score == pytest.approx(0.93, abs=0.01)
@@ -588,7 +661,9 @@ class TestProspectRankingService:
         _insert_creator(db_path, "bucketed", "twitch", "BucketedTags")
         _insert_game_play(db_path, "bucketed", "Keyword Match", 100)
 
-        prospects, total = ProspectRankingService(db_path).rank_prospects(game)
+        prospects, total, _ = ProspectRankingService(db_path).rank_prospects(
+            game
+        )
 
         assert len(prospects) == 1
         assert prospects[0].overlap_tags == (
@@ -646,7 +721,7 @@ class TestProspectRankingService:
         )
         _insert_game_play(db_path, "weak", "Strong Match A", 100)
 
-        prospects, total = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _ = ProspectRankingService(db_path).rank_prospects(
             game,
             min_reach=1000,
             max_reach=10000,
@@ -704,7 +779,7 @@ class TestProspectRankingService:
         )
         _insert_game_play(db_path, "mid-reach", "Max Match A", 200)
 
-        prospects, total = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _ = ProspectRankingService(db_path).rank_prospects(
             game,
             max_reach=100_000,
             min_overlap_score=0.0,
@@ -747,7 +822,7 @@ class TestProspectRankingService:
         _insert_game_play(db_path, "two-games", "Match One", 300)
         _insert_game_play(db_path, "two-games", "Match Two", 301)
 
-        prospects, total = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _ = ProspectRankingService(db_path).rank_prospects(
             game,
             min_relevant_games=2,
         )
@@ -792,7 +867,7 @@ class TestProspectRankingService:
             "https://discord.gg/example",
         )
 
-        prospects, total = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _ = ProspectRankingService(db_path).rank_prospects(
             game,
             contact_methods=("email", "discord"),
         )
@@ -836,7 +911,7 @@ class TestProspectRankingService:
         _insert_game_play(db_path, "two-games-max", "Relevant One", 500)
         _insert_game_play(db_path, "two-games-max", "Relevant Two", 501)
 
-        prospects, total = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _ = ProspectRankingService(db_path).rank_prospects(
             game,
             max_relevant_games=1,
         )
@@ -845,3 +920,88 @@ class TestProspectRankingService:
         assert len(prospects) == 1
         assert prospects[0].profile.account_id == "one-game-max"
         assert prospects[0].relevant_game_count == 1
+
+    def test_rank_prospects_excludes_not_pursuing_from_all(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Workflow Prospect Game",
+            summary="Tactical RPG",
+            description="Tactical RPG",
+            website_url=None,
+            igdb_genre_ids=[12],
+        )
+        _insert_igdb_game(
+            db_path,
+            900,
+            "Workflow Match",
+            "workflow-match",
+            genre_tags=[(12, "Role-playing (RPG)")],
+        )
+        _insert_creator(
+            db_path, "creator-visible", "twitch", "Visible Creator"
+        )
+        _insert_creator(db_path, "creator-hidden", "twitch", "Hidden Creator")
+        _insert_game_play(db_path, "creator-visible", "Workflow Match", 900)
+        _insert_game_play(db_path, "creator-hidden", "Workflow Match", 900)
+        _insert_prospect_status(
+            db_path,
+            game.customer_game_id,
+            "creator-hidden",
+            "not_pursuing",
+        )
+
+        prospects, total, status_counts = ProspectRankingService(
+            db_path
+        ).rank_prospects(game)
+
+        assert total == 1
+        assert [p.profile.account_id for p in prospects] == ["creator-visible"]
+        assert status_counts["new"] == 1
+        assert status_counts["not_pursuing"] == 1
+
+    def test_rank_prospects_filters_by_status(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Workflow Status Filter Game",
+            summary="Tactical RPG",
+            description="Tactical RPG",
+            website_url=None,
+            igdb_genre_ids=[12],
+        )
+        _insert_igdb_game(
+            db_path,
+            901,
+            "Workflow Status Match",
+            "workflow-status-match",
+            genre_tags=[(12, "Role-playing (RPG)")],
+        )
+        _insert_creator(db_path, "creator-new", "twitch", "New Creator")
+        _insert_creator(
+            db_path, "creator-contacted", "twitch", "Contacted Creator"
+        )
+        _insert_game_play(db_path, "creator-new", "Workflow Status Match", 901)
+        _insert_game_play(
+            db_path, "creator-contacted", "Workflow Status Match", 901
+        )
+        _insert_prospect_status(
+            db_path,
+            game.customer_game_id,
+            "creator-contacted",
+            "contacted",
+        )
+
+        prospects, total, status_counts = ProspectRankingService(
+            db_path
+        ).rank_prospects(game, status_filter="contacted")
+
+        assert total == 1
+        assert [p.profile.account_id for p in prospects] == [
+            "creator-contacted"
+        ]
+        assert prospects[0].workflow.status == "contacted"
+        assert status_counts["new"] == 1
+        assert status_counts["contacted"] == 1

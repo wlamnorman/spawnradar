@@ -10,8 +10,11 @@ from app.creator_index.matching import (
 )
 from app.games.models import CustomerGame
 from app.prospects.models import (
+    PROSPECT_WORKFLOW_STATUS_ORDER,
     CreatorRankingProfile,
     ObservedTag,
+    ProspectWorkflowState,
+    ProspectWorkflowStatus,
     RankedProspect,
 )
 from app.prospects.repository import ProspectRepository
@@ -65,6 +68,11 @@ def _profile_has_contact_method(
         return _social_link_matches(
             profile.contact_social_links,
             domains=("instagram.com",),
+        )
+    if contact_method == "tiktok":
+        return _social_link_matches(
+            profile.contact_social_links,
+            domains=("tiktok.com",),
         )
     if contact_method == "bluesky":
         return _social_link_matches(
@@ -141,11 +149,18 @@ class ProspectRankingService:
         min_relevant_games: int = 0,
         max_relevant_games: int | None = None,
         contact_methods: tuple[str, ...] = (),
-    ) -> tuple[list[RankedProspect], int]:
+        status_filter: str = "all",
+    ) -> tuple[
+        list[RankedProspect],
+        int,
+        dict[ProspectWorkflowStatus, int],
+    ]:
         """Return ranked creator prospects for one customer game.
 
-        Returns ``(prospects, total_count)`` where *total_count* is the
-        number of creators with coverage > 0 (before pagination).
+        Returns ``(prospects, total_count, status_counts)`` where *total_count*
+        is the number of creators in the current status view and
+        *status_counts* reflects the available workflow counts after the
+        numeric/contact filters but before status pagination.
 
         1. Query per-creator tag counts from resolved game plays.
         2. Score each creator using coverage of the customer game's tags.
@@ -154,43 +169,27 @@ class ProspectRankingService:
         """
         game_tags = customer_game_tag_keys(customer_game)
         if not game_tags:
-            return [], 0
-        unfiltered = (
-            max_reach is None
-            and min_overlap_score <= 0.0
-            and max_overlap_score >= 1.0
-            and min_relevant_games <= 0
-            and max_relevant_games is None
-            and not contact_methods
-        )
-        true_total_count = (
-            self._repo.count_creators_with_overlap(
-                game_tags=game_tags,
-                min_reach=min_reach,
+            return (
+                [],
+                0,
+                dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0),
             )
-            if unfiltered
-            else None
-        )
 
         # Fetch enough creators to cover the requested page.
         # Over-fetch substantially since scoring and filters remove some out.
-        fetch_limit = max((offset + limit) * 4, 1000)
-        if (
-            min_reach > 0
-            or max_reach is not None
-            or min_overlap_score > 0.0
-            or max_overlap_score < 1.0
-            or min_relevant_games > 0
-            or max_relevant_games is not None
-            or bool(contact_methods)
-        ):
-            fetch_limit = max(fetch_limit, 5000)
+        # Keep this large enough to support workflow counts over the current
+        # candidate set without introducing a second heavy score pass.
+        fetch_limit = max((offset + limit) * 4, 5000)
         creator_tag_counts = self._repo.query_creator_tag_counts(
             game_tags=game_tags,
             limit=fetch_limit,
         )
         if not creator_tag_counts:
-            return [], 0
+            return (
+                [],
+                0,
+                dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0),
+            )
 
         # Score each creator
         scored: list[tuple[str, float, tuple[tuple[str, int | str], ...]]] = []
@@ -218,7 +217,11 @@ class ProspectRankingService:
         ]
 
         if not filtered_scored:
-            return [], 0
+            return (
+                [],
+                0,
+                dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0),
+            )
 
         # Count relevant games per creator
         filtered_ids = [item[0] for item in filtered_scored]
@@ -239,13 +242,43 @@ class ProspectRankingService:
                 profiles[item[0]], contact_methods
             )
         ]
-        total_count = (
-            true_total_count
-            if true_total_count is not None
-            else len(filtered_scored)
-        )
         if not filtered_scored:
-            return [], 0
+            return (
+                [],
+                0,
+                dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0),
+            )
+
+        filtered_ids = [item[0] for item in filtered_scored]
+        workflow_states = self._repo.get_prospect_workflow_states(
+            customer_game_id=customer_game.customer_game_id,
+            account_ids=filtered_ids,
+        )
+        status_counts = dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0)
+        for account_id in filtered_ids:
+            workflow_status = workflow_states.get(
+                account_id, ProspectWorkflowState()
+            ).status
+            status_counts[workflow_status] += 1
+
+        if status_filter == "all":
+            filtered_scored = [
+                item
+                for item in filtered_scored
+                if workflow_states.get(item[0], ProspectWorkflowState()).status
+                != "not_pursuing"
+            ]
+        else:
+            filtered_scored = [
+                item
+                for item in filtered_scored
+                if workflow_states.get(item[0], ProspectWorkflowState()).status
+                == status_filter
+            ]
+
+        total_count = len(filtered_scored)
+        if not filtered_scored:
+            return [], 0, status_counts
 
         # Sort by score, then reach. account_id as deterministic tiebreaker
         # so pagination is stable across requests.
@@ -289,7 +322,26 @@ class ProspectRankingService:
                     relevant_game_count=relevant_game_counts.get(
                         account_id, 0
                     ),
+                    workflow=workflow_states.get(
+                        account_id, ProspectWorkflowState()
+                    ),
                     relevant_games=tuple(relevant_games.get(account_id, [])),
                 )
             )
-        return results, total_count
+        return results, total_count, status_counts
+
+    def update_prospect_workflow(
+        self,
+        customer_game: CustomerGame,
+        *,
+        account_id: str,
+        status: ProspectWorkflowStatus,
+        notes: str,
+    ) -> ProspectWorkflowState:
+        """Persist workflow state for one prospect on one customer game."""
+        return self._repo.upsert_prospect_workflow_state(
+            customer_game_id=customer_game.customer_game_id,
+            account_id=account_id,
+            status=status,
+            notes=notes,
+        )

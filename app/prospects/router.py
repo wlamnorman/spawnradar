@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from typing import cast
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_product_access
@@ -20,6 +26,10 @@ from app.dependencies import (
 )
 from app.games.repository import CustomerGameRepository
 from app.igdb.taxonomy import IGDBGenre, IGDBTheme, keyword_label_for_value
+from app.prospects.models import (
+    PROSPECT_WORKFLOW_STATUS_LABELS,
+    ProspectWorkflowStatus,
+)
 from app.prospects.service import ProspectRankingService
 from app.security import RateLimitRule, consume_rate_limit
 
@@ -50,10 +60,18 @@ _CONTACT_METHOD_OPTIONS = (
         "icon_class": "contact-icon--instagram",
     },
     {
+        "value": "tiktok",
+        "label": "TikTok",
+        "icon_class": "contact-icon--tiktok",
+    },
+    {
         "value": "bluesky",
         "label": "Bluesky",
         "icon_class": "contact-icon--bluesky",
     },
+)
+_ALL_CONTACT_METHOD_VALUES = tuple(
+    str(option["value"]) for option in _CONTACT_METHOD_OPTIONS
 )
 
 
@@ -91,6 +109,45 @@ def _tag_observation_title(observed_game_count: int) -> str:
 
 
 _PAGE_SIZE = 50
+_STATUS_FILTER_OPTIONS = (
+    {"value": "all", "label": "All"},
+    {"value": "new", "label": "New"},
+    {"value": "contacted", "label": "Contacted"},
+    {"value": "replied", "label": "Replied"},
+    {"value": "access_shared", "label": "Access Shared"},
+    {"value": "covered", "label": "Covered"},
+    {"value": "not_pursuing", "label": "Not Pursuing"},
+)
+
+
+def _status_pill_class(status: str) -> str:
+    """Map workflow statuses to shared CSS modifier classes."""
+    return f"prospect-status--{status}"
+
+
+def _all_status_total(
+    status_counts: dict[ProspectWorkflowStatus, int],
+) -> int:
+    """Return the default All tab count, excluding Not Pursuing."""
+    return sum(
+        count
+        for status, count in status_counts.items()
+        if status != "not_pursuing"
+    )
+
+
+def _safe_int(value: object, default: int) -> int:
+    """Parse an integer-like value from a JSON payload safely."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value) if value else default
+        except ValueError:
+            return default
+    return default
 
 
 @router.get("/games/{slug}/prospects", response_class=HTMLResponse)
@@ -98,6 +155,7 @@ def game_prospects_page(
     slug: str,
     request: Request,
     page: int = 1,
+    status: str = "all",
     min_reach: int = 0,
     max_reach: int | None = None,
     min_overlap: int = 0,
@@ -111,13 +169,13 @@ def game_prospects_page(
     templates: Jinja2Templates = Depends(get_templates),
 ) -> Response:
     """Render ranked creator prospects for a customer game."""
-    # Rate limit: 10 requests/minute per user (generous for page browsing)
+    # Rate limit: generous enough for active filtering and workflow updates.
     allowed = consume_rate_limit(
         settings.db_path,
         "prospects_view",
         [
             RateLimitRule(
-                key=f"user:{user.user_id}", limit=10, window_seconds=60
+                key=f"user:{user.user_id}", limit=40, window_seconds=60
             )
         ],
     )
@@ -145,6 +203,11 @@ def game_prospects_page(
         pass
 
     service = ProspectRankingService(settings.db_path)
+    valid_status_filters = {
+        option["value"] for option in _STATUS_FILTER_OPTIONS
+    }
+    if status not in valid_status_filters:
+        raise HTTPException(status_code=400, detail="Invalid status filter.")
     default_min_reach = settings.creator_index_twitch_min_followers
     reach_filter_max = max(
         default_min_reach,
@@ -166,13 +229,22 @@ def game_prospects_page(
     valid_contact_methods = {
         option["value"] for option in _CONTACT_METHOD_OPTIONS
     }
-    reachable_via = tuple(
+    requested_reachable_via = tuple(
         value
         for value in request.query_params.getlist("reachable_via")
         if value in valid_contact_methods
     )
     # Keep stable order and remove duplicates.
-    reachable_via = tuple(dict.fromkeys(reachable_via))
+    requested_reachable_via = tuple(dict.fromkeys(requested_reachable_via))
+    if not requested_reachable_via:
+        reachable_via = _ALL_CONTACT_METHOD_VALUES
+        contact_methods: tuple[str, ...] = ()
+    elif set(requested_reachable_via) == set(_ALL_CONTACT_METHOD_VALUES):
+        reachable_via = _ALL_CONTACT_METHOD_VALUES
+        contact_methods = ()
+    else:
+        reachable_via = requested_reachable_via
+        contact_methods = requested_reachable_via
     if min_reach > max_reach:
         min_reach, max_reach = max_reach, min_reach
     if min_overlap > max_overlap:
@@ -192,13 +264,18 @@ def game_prospects_page(
         filter_params["min_games"] = min_games
     if max_games < games_filter_max:
         filter_params["max_games"] = max_games
-    if reachable_via:
+    if contact_methods:
         filter_params["reachable_via"] = list(reachable_via)
     filter_query = urlencode(filter_params, doseq=True)
-    filter_query_suffix = f"&{filter_query}" if filter_query else ""
+    navigation_params: dict[str, int | str | list[str]] = dict(filter_params)
+    if status != "all":
+        navigation_params["status"] = status
+    navigation_query = urlencode(navigation_params, doseq=True)
+    filter_query_suffix = f"&{navigation_query}" if navigation_query else ""
     subscription = billing_service.get_or_create_subscription(user.user_id)
     if subscription.is_trialing:
-        if page > 1 or filter_query:
+        status = "all"
+        if page > 1 or filter_query or request.query_params.get("status"):
             return RedirectResponse(
                 url=f"/games/{slug}/prospects",
                 status_code=303,
@@ -214,7 +291,7 @@ def game_prospects_page(
         filter_query_suffix = ""
     offset = (page - 1) * _PAGE_SIZE
 
-    prospects, total_count = service.rank_prospects(
+    prospects, total_count, status_counts = service.rank_prospects(
         game,
         limit=_PAGE_SIZE,
         offset=offset,
@@ -226,8 +303,42 @@ def game_prospects_page(
         max_relevant_games=(
             max_games if max_games < games_filter_max else None
         ),
-        contact_methods=reachable_via,
+        contact_methods=contact_methods,
+        status_filter=status,
     )
+
+    status_tab_links: list[dict[str, object]] = []
+    for option in _STATUS_FILTER_OPTIONS:
+        option_value = str(option["value"])
+        count = (
+            _all_status_total(status_counts)
+            if option_value == "all"
+            else int(
+                status_counts.get(
+                    cast(ProspectWorkflowStatus, option_value),
+                    0,
+                )
+            )
+        )
+        tab_params: dict[str, int | str | list[str]] = dict(filter_params)
+        if option_value != "all":
+            tab_params["status"] = option_value
+        href_query = urlencode(tab_params, doseq=True)
+        href = (
+            f"/games/{slug}/prospects?{href_query}"
+            if href_query
+            else f"/games/{slug}/prospects"
+        )
+        status_tab_links.append(
+            {
+                "value": option_value,
+                "label": str(option["label"]),
+                "count": count,
+                "href": href,
+                "active": option_value == status,
+                "is_empty": count == 0,
+            }
+        )
 
     total_pages = (
         (total_count + _PAGE_SIZE - 1) // _PAGE_SIZE if total_count > 0 else 1
@@ -244,12 +355,18 @@ def game_prospects_page(
             "tag_label": _tag_label,
             "tag_pill_class": _tag_pill_class,
             "tag_observation_title": _tag_observation_title,
+            "status_pill_class": _status_pill_class,
+            "prospect_status_labels": PROSPECT_WORKFLOW_STATUS_LABELS,
+            "prospect_status_options": _STATUS_FILTER_OPTIONS[1:-1],
+            "status_tab_links": status_tab_links,
+            "active_status_filter": status,
             "page": page,
             "total_pages": total_pages,
             "total_count": total_count,
             "page_size": _PAGE_SIZE,
             "trial_page_locked": trial_page_locked,
             "filters_unlocked": not subscription.is_trialing,
+            "workflow_unlocked": not subscription.is_trialing,
             "min_reach": min_reach,
             "max_reach": max_reach,
             "default_min_reach": default_min_reach,
@@ -266,10 +383,131 @@ def game_prospects_page(
             or max_overlap < _OVERLAP_FILTER_MAX,
             "games_filter_active": min_games > 0
             or max_games < games_filter_max,
-            "contact_filter_active": bool(reachable_via),
+            "contact_filter_active": bool(contact_methods),
             "reach_filter_max": reach_filter_max,
             "overlap_filter_max": _OVERLAP_FILTER_MAX,
             "games_filter_max": games_filter_max,
             "filter_query_suffix": filter_query_suffix,
         },
+    )
+
+
+@router.post("/games/{slug}/prospects/{account_id}/workflow")
+async def update_prospect_workflow(
+    slug: str,
+    account_id: str,
+    request: Request,
+    user: User = Depends(require_product_access),
+    billing_service: BillingService = Depends(get_billing_service),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    settings: Settings = Depends(get_settings),
+) -> JSONResponse:
+    """Persist workflow state for a prospect row without a page reload."""
+    game = game_repo.get_by_slug(slug)
+    if game is None or game.user_id != user.user_id:
+        raise HTTPException(status_code=404, detail="Game not found.")
+    subscription = billing_service.get_or_create_subscription(user.user_id)
+    if subscription.is_trialing:
+        raise HTTPException(
+            status_code=403,
+            detail="Prospect workflow tools require a subscription.",
+        )
+
+    payload = await request.json()
+    status = cast(ProspectWorkflowStatus, str(payload.get("status") or "new"))
+    if status not in PROSPECT_WORKFLOW_STATUS_LABELS:
+        raise HTTPException(status_code=400, detail="Invalid prospect status.")
+    notes = str(payload.get("notes") or "")
+
+    service = ProspectRankingService(settings.db_path)
+    state = service.update_prospect_workflow(
+        game,
+        account_id=account_id,
+        status=status,
+        notes=notes,
+    )
+
+    active_status = str(payload.get("active_status") or "all")
+    if active_status not in {
+        option["value"] for option in _STATUS_FILTER_OPTIONS
+    }:
+        active_status = "all"
+    default_min_reach = settings.creator_index_twitch_min_followers
+    current_min_reach = max(
+        default_min_reach,
+        _safe_int(payload.get("min_reach"), default_min_reach),
+    )
+    current_max_reach_raw = payload.get("max_reach")
+    current_min_overlap = max(
+        0, min(100, _safe_int(payload.get("min_overlap"), 0))
+    )
+    current_max_overlap = max(
+        0, min(100, _safe_int(payload.get("max_overlap"), 100))
+    )
+    current_min_games = max(0, _safe_int(payload.get("min_games"), 0))
+    current_max_games_raw = payload.get("max_games")
+    reachable_via_payload = payload.get("reachable_via") or []
+    reachable_via = tuple(
+        value
+        for value in reachable_via_payload
+        if value in {option["value"] for option in _CONTACT_METHOD_OPTIONS}
+    )
+
+    reach_filter_max = max(
+        default_min_reach,
+        service.max_reach(game, min_reach=default_min_reach),
+    )
+    games_filter_max = max(
+        1,
+        service.max_relevant_games(game, min_reach=default_min_reach),
+    )
+    current_max_reach = (
+        None
+        if current_max_reach_raw in (None, "", reach_filter_max)
+        else min(
+            reach_filter_max,
+            max(0, _safe_int(current_max_reach_raw, reach_filter_max)),
+        )
+    )
+    current_max_games = (
+        None
+        if current_max_games_raw in (None, "", games_filter_max)
+        else min(
+            games_filter_max,
+            max(0, _safe_int(current_max_games_raw, games_filter_max)),
+        )
+    )
+
+    _, current_total_count, status_counts = service.rank_prospects(
+        game,
+        limit=1,
+        offset=0,
+        min_reach=current_min_reach,
+        max_reach=current_max_reach,
+        min_overlap_score=current_min_overlap / 100,
+        max_overlap_score=current_max_overlap / 100,
+        min_relevant_games=current_min_games,
+        max_relevant_games=current_max_games,
+        contact_methods=reachable_via,
+        status_filter=active_status,
+    )
+    visible = (
+        state.status != "not_pursuing"
+        if active_status == "all"
+        else state.status == active_status
+    )
+    return JSONResponse(
+        {
+            "status": state.status,
+            "status_label": PROSPECT_WORKFLOW_STATUS_LABELS[state.status],
+            "status_class": _status_pill_class(state.status),
+            "notes": state.notes,
+            "has_notes": state.has_notes,
+            "status_counts": {
+                **status_counts,
+                "all": _all_status_total(status_counts),
+            },
+            "visible": visible,
+            "current_total_count": current_total_count,
+        }
     )

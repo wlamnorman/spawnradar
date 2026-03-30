@@ -224,6 +224,22 @@ def _activate_paid_subscription(db_path: str, email: str) -> str:
         return str(row["user_id"])
 
 
+def _grant_comped_access(db_path: str, email: str) -> str:
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT user_id FROM users WHERE email = ?",
+            (email,),
+        ).fetchone()
+        assert row is not None
+    user_id = str(row["user_id"])
+    billing = BillingService(
+        SubscriptionRepository(db_path),
+        CustomerGameRepository(db_path),
+    )
+    billing.grant_comped_access(user_id)
+    return user_id
+
+
 def _seed_ranked_prospects(
     db_path: str,
     *,
@@ -308,6 +324,29 @@ def _seed_ranked_prospects(
                 ),
             )
     return game_slug
+
+
+def _insert_prospect_status(
+    db_path: str,
+    customer_game_name: str,
+    account_id: str,
+    status: str,
+    notes: str = "",
+) -> None:
+    with get_connection(db_path) as conn:
+        game_row = conn.execute(
+            "SELECT customer_game_id FROM customer_games WHERE name = ?",
+            (customer_game_name,),
+        ).fetchone()
+        assert game_row is not None
+        conn.execute(
+            """
+            INSERT INTO prospect_statuses (
+                customer_game_id, account_id, status, notes, updated_at
+            ) VALUES (?, ?, ?, ?, datetime('now'))
+            """,
+            (str(game_row["customer_game_id"]), account_id, status, notes),
+        )
 
 
 def _signed_paddle_webhook(
@@ -1045,8 +1084,16 @@ class TestGameRoutes:
         assert (
             "Showing the top 50 creator matches during trial." in response.text
         )
-        assert 'href="/billing"' in response.text
-        assert '<details class="prospects-filter-menu">' not in response.text
+        assert 'title="Disabled during trial"' in response.text
+        assert 'class="button secondary is-disabled"' in response.text
+        assert "data-status-tab=" not in response.text
+        assert 'class="prospects-status-tab is-disabled' in response.text
+        assert 'class="prospect-workflow-menu"' not in response.text
+        assert (
+            'class="prospect-status-pill prospect-status--new is-disabled"'
+            in response.text
+        )
+        assert 'class="prospect-quick-skip is-disabled"' in response.text
         assert "Next →" not in response.text
 
     def test_prospects_page_shows_true_total_above_fetch_cap(
@@ -1127,6 +1174,101 @@ class TestGameRoutes:
         assert response.status_code == 303
         assert response.headers["location"] == f"/games/{game_slug}/prospects"
 
+    def test_trial_prospects_workflow_endpoint_is_forbidden(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-trial-workflow@example.com", "testpass"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Trial Workflow Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=2,
+                customer_game_name="Trial Workflow Game",
+                game_name="Trial Workflow Match",
+            )
+
+            response = _post_json(
+                client,
+                get_path=f"/games/{game_slug}/prospects",
+                post_path=f"/games/{game_slug}/prospects/prospect-000/workflow",
+                json_body={
+                    "status": "contacted",
+                    "notes": "Should be blocked",
+                    "active_status": "all",
+                },
+                follow_redirects=False,
+                headers={"accept": "application/json"},
+            )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == (
+            "Prospect workflow tools require a subscription."
+        )
+
+    def test_comped_user_has_full_prospects_workflow_access(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-comped@example.com", "testpass"
+            )
+            _grant_comped_access(db_path, "prospects-comped@example.com")
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Comped Workflow Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=2,
+                customer_game_name="Comped Workflow Game",
+                game_name="Comped Workflow Match",
+            )
+
+            page = client.get(f"/games/{game_slug}/prospects")
+            response = _post_json(
+                client,
+                get_path=f"/games/{game_slug}/prospects",
+                post_path=f"/games/{game_slug}/prospects/prospect-000/workflow",
+                json_body={
+                    "status": "contacted",
+                    "notes": "Comped user workflow",
+                    "active_status": "all",
+                },
+                follow_redirects=False,
+                headers={"accept": "application/json"},
+            )
+
+        assert page.status_code == 200
+        assert 'data-status-tab="contacted"' in page.text
+        assert 'class="prospect-workflow-menu"' in page.text
+        assert response.status_code == 200
+        assert response.json()["status"] == "contacted"
+
     def test_paid_user_can_access_second_prospects_page(
         self, monkeypatch, tmp_path
     ):
@@ -1167,6 +1309,173 @@ class TestGameRoutes:
         assert "Next →" not in response.text
         assert "← Previous" in response.text
         assert "data-range-filter-form" in response.text
+
+    def test_prospects_page_shows_status_tabs_and_hides_not_pursuing_by_default(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-status-tabs@example.com", "testpass"
+            )
+            _activate_paid_subscription(
+                db_path, "prospects-status-tabs@example.com"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Workflow Route Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=3,
+                customer_game_name="Workflow Route Game",
+                game_name="Workflow Route Match",
+            )
+            _insert_prospect_status(
+                db_path,
+                "Workflow Route Game",
+                "prospect-001",
+                "contacted",
+            )
+            _insert_prospect_status(
+                db_path,
+                "Workflow Route Game",
+                "prospect-002",
+                "not_pursuing",
+            )
+
+            response = client.get(f"/games/{game_slug}/prospects")
+
+        assert response.status_code == 200
+        assert 'data-status-tab="shortlisted"' not in response.text
+        assert 'data-status-tab="contacted"' in response.text
+        assert 'data-status-tab="not_pursuing"' in response.text
+        assert "data-prospect-status-summary" in response.text
+        assert "Prospect 000" in response.text
+        assert "Prospect 001" in response.text
+        assert "Prospect 002" not in response.text
+
+    def test_status_filtered_prospects_page_shows_only_that_status(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-status-filter@example.com", "testpass"
+            )
+            _activate_paid_subscription(
+                db_path, "prospects-status-filter@example.com"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Workflow Filter Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=3,
+                customer_game_name="Workflow Filter Game",
+                game_name="Workflow Filter Match",
+            )
+            _insert_prospect_status(
+                db_path,
+                "Workflow Filter Game",
+                "prospect-001",
+                "contacted",
+            )
+
+            response = client.get(
+                f"/games/{game_slug}/prospects?status=contacted"
+            )
+
+        assert response.status_code == 200
+        assert "Prospect 001" in response.text
+        assert "Prospect 000" not in response.text
+        assert "Prospect 002" not in response.text
+
+    def test_update_prospect_workflow_endpoint_persists_status_and_notes(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-workflow-update@example.com", "testpass"
+            )
+            _activate_paid_subscription(
+                db_path, "prospects-workflow-update@example.com"
+            )
+            _post_form(
+                client,
+                get_path="/games/new",
+                post_path="/games",
+                data={
+                    "name": "Workflow Update Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            game_slug = _seed_ranked_prospects(
+                db_path,
+                count=2,
+                customer_game_name="Workflow Update Game",
+                game_name="Workflow Update Match",
+            )
+
+            response = _post_json(
+                client,
+                get_path=f"/games/{game_slug}/prospects",
+                post_path=f"/games/{game_slug}/prospects/prospect-000/workflow",
+                json_body={
+                    "status": "contacted",
+                    "notes": "Sent Discord message",
+                    "active_status": "all",
+                    "min_reach": 50,
+                },
+                follow_redirects=False,
+                headers={"accept": "application/json"},
+            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "contacted"
+        assert payload["status_label"] == "Contacted"
+        assert payload["has_notes"] is True
+        assert payload["status_counts"]["contacted"] == 1
+        assert payload["status_counts"]["all"] == 2
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT ps.status, ps.notes
+                FROM prospect_statuses ps
+                JOIN customer_games cg
+                    ON cg.customer_game_id = ps.customer_game_id
+                WHERE cg.name = ? AND ps.account_id = ?
+                """,
+                ("Workflow Update Game", "prospect-000"),
+            ).fetchone()
+        assert row is not None
+        assert row["status"] == "contacted"
+        assert row["notes"] == "Sent Discord message"
 
 
 # ---------------------------------------------------------------------------

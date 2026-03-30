@@ -10,7 +10,14 @@ from collections.abc import Sequence
 
 from app.creator_index.matching import TagCounts, TagKey
 from app.database import get_connection
-from app.prospects.models import CreatorRankingProfile, RelevantGame
+from app.prospects.models import (
+    PROSPECT_DEFAULT_STATUS,
+    PROSPECT_WORKFLOW_STATUS_ORDER,
+    CreatorRankingProfile,
+    ProspectWorkflowState,
+    ProspectWorkflowStatus,
+    RelevantGame,
+)
 
 
 def _game_tags_cte(
@@ -374,3 +381,117 @@ class ProspectRepository:
                 ),
             )
         return result
+
+    def get_prospect_workflow_states(
+        self,
+        *,
+        customer_game_id: str,
+        account_ids: Sequence[str],
+    ) -> dict[str, ProspectWorkflowState]:
+        """Return saved workflow state for a set of prospects."""
+        if not account_ids:
+            return {}
+
+        placeholders = ",".join("?" for _ in account_ids)
+        sql = f"""
+            SELECT account_id, status, notes, updated_at
+            FROM prospect_statuses
+            WHERE customer_game_id = ?
+              AND account_id IN ({placeholders})
+        """
+        params: list[object] = [customer_game_id, *account_ids]
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(sql, params).fetchall()
+
+        return {
+            str(row["account_id"]): ProspectWorkflowState(
+                status=self._workflow_status_from_row(row["status"]),
+                notes=str(row["notes"] or ""),
+                updated_at=(
+                    str(row["updated_at"]) if row["updated_at"] else None
+                ),
+            )
+            for row in rows
+        }
+
+    def upsert_prospect_workflow_state(
+        self,
+        *,
+        customer_game_id: str,
+        account_id: str,
+        status: ProspectWorkflowStatus,
+        notes: str,
+    ) -> ProspectWorkflowState:
+        """Create or update sparse workflow state for one prospect."""
+        clean_notes = notes.strip()
+        with get_connection(self._db_path) as conn:
+            if status == PROSPECT_DEFAULT_STATUS and not clean_notes:
+                conn.execute(
+                    """
+                    DELETE FROM prospect_statuses
+                    WHERE customer_game_id = ? AND account_id = ?
+                    """,
+                    (customer_game_id, account_id),
+                )
+                return ProspectWorkflowState()
+
+            conn.execute(
+                """
+                INSERT INTO prospect_statuses (
+                    customer_game_id,
+                    account_id,
+                    status,
+                    notes,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, datetime('now'))
+                ON CONFLICT(customer_game_id, account_id) DO UPDATE SET
+                    status = excluded.status,
+                    notes = excluded.notes,
+                    updated_at = datetime('now')
+                """,
+                (customer_game_id, account_id, status, clean_notes),
+            )
+            row = conn.execute(
+                """
+                SELECT status, notes, updated_at
+                FROM prospect_statuses
+                WHERE customer_game_id = ? AND account_id = ?
+                """,
+                (customer_game_id, account_id),
+            ).fetchone()
+
+        if row is None:
+            return ProspectWorkflowState()
+        return ProspectWorkflowState(
+            status=self._workflow_status_from_row(row["status"]),
+            notes=str(row["notes"] or ""),
+            updated_at=str(row["updated_at"]) if row["updated_at"] else None,
+        )
+
+    def count_workflow_statuses(
+        self,
+        *,
+        customer_game_id: str,
+        account_ids: Sequence[str],
+    ) -> dict[ProspectWorkflowStatus, int]:
+        """Count saved statuses for the supplied prospect account ids."""
+        counts = dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0)
+        if not account_ids:
+            return counts
+
+        states = self.get_prospect_workflow_states(
+            customer_game_id=customer_game_id,
+            account_ids=account_ids,
+        )
+        for account_id in account_ids:
+            status = states.get(account_id, ProspectWorkflowState()).status
+            counts[status] += 1
+        return counts
+
+    @staticmethod
+    def _workflow_status_from_row(value: object) -> ProspectWorkflowStatus:
+        """Normalize persisted workflow status values from SQLite rows."""
+        raw = str(value)
+        if raw in PROSPECT_WORKFLOW_STATUS_ORDER:
+            return raw
+        return PROSPECT_DEFAULT_STATUS

@@ -25,8 +25,8 @@ endblock %} {% block content %}
                 <div class="billing-status-row">
                     <span class="billing-status-label">Status</span>
                     <span class="billing-status-value"
-                        >Trial — {{ subscription.trial_days_remaining }} day{%
-                        if subscription.trial_days_remaining != 1 %}s{% endif %}
+                        >Trial: {{ subscription.trial_days_remaining }} day{% if
+                        subscription.trial_days_remaining != 1 %}s{% endif %}
                         left</span
                     >
                 </div>
@@ -51,9 +51,8 @@ endblock %} {% block content %}
                 Taxes handled at checkout based on your location.
             </p>
             <p class="pricing-note">
-                Don't want to continue? Just let the trial expire. No payment
-                method is on file and you will not be charged unless you choose
-                to subscribe.
+                Don't want to continue? Just let the trial expire. You won't be
+                charged unless you actively choose to subscribe.
             </p>
             {% else %}
             <div class="billing-status-rows">

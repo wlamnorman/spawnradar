@@ -2262,6 +2262,55 @@ button.tag-pill-button {
     margin-bottom: 8px;
 }
 
+.prospects-status-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 16px;
+}
+
+.prospects-status-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border: 1px solid #d8e1ef;
+    border-radius: 999px;
+    background: #fff;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition:
+        border-color 0.15s ease,
+        background-color 0.15s ease,
+        color 0.15s ease;
+}
+
+.prospects-status-tab:hover {
+    border-color: #c7d2fe;
+    background: #f8faff;
+}
+
+.prospects-status-tab.is-active {
+    border-color: #6366f1;
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.prospects-status-tab.is-empty {
+    color: #94a3b8;
+}
+
+.prospects-status-tab.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.9;
+}
+
+.prospects-status-tab-count {
+    font-variant-numeric: tabular-nums;
+}
+
 .prospects-filter-menu {
     position: relative;
 }
@@ -2276,6 +2325,11 @@ button.tag-pill-button {
 
 .prospects-filter-menu summary::-webkit-details-marker {
     display: none;
+}
+
+.button.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.9;
 }
 
 .prospects-filter-badge {
@@ -2552,7 +2606,12 @@ button.tag-pill-button {
 }
 
 .prospects-table tbody tr {
+    position: relative;
     transition: background 0.15s ease;
+}
+
+.prospects-table tbody tr:has(.prospect-workflow-menu[open]) {
+    z-index: 30;
 }
 
 .prospects-table td {
@@ -2562,6 +2621,27 @@ button.tag-pill-button {
 }
 
 .prospects-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.prospect-row--contacted {
+    box-shadow: inset 3px 0 0 #f97316;
+}
+
+.prospect-row--replied {
+    box-shadow: inset 3px 0 0 #22c55e;
+}
+
+.prospect-row--access_shared {
+    box-shadow: inset 3px 0 0 #8b5cf6;
+}
+
+.prospect-row--covered {
+    box-shadow: inset 3px 0 0 #eab308;
+}
+
+.prospect-row--not_pursuing {
+    box-shadow: inset 3px 0 0 #cbd5e1;
     background: #f8fafc;
 }
 
@@ -2677,6 +2757,222 @@ button.tag-pill-button {
     gap: 0;
 }
 
+.prospect-workflow-row {
+    margin-top: 2px;
+}
+
+.prospect-workflow-actions-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.prospect-workflow-menu {
+    position: relative;
+    z-index: 1;
+}
+
+.prospect-workflow-menu[open] {
+    z-index: 40;
+}
+
+.prospect-workflow-menu summary {
+    list-style: none;
+}
+
+.prospect-workflow-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.prospect-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid #d8e1ef;
+    border-radius: 999px;
+    background: #fff;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.prospect-status-pill.is-disabled {
+    cursor: not-allowed;
+}
+
+.prospect-status-note-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.prospect-status--new {
+    border-color: #d8e1ef;
+    color: #475569;
+}
+
+.prospect-status--contacted {
+    border-color: #fdba74;
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.prospect-status--replied {
+    border-color: #86efac;
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+.prospect-status--access_shared {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+
+.prospect-status--covered {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #a16207;
+}
+
+.prospect-status--not_pursuing {
+    border-color: #d8e1ef;
+    background: #f8fafc;
+    color: #64748b;
+}
+
+.prospect-workflow-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 260px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+    z-index: 20;
+}
+
+.prospect-workflow-menu.opens-up .prospect-workflow-panel {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+
+.prospect-workflow-label {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.prospect-workflow-statuses {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.prospect-status-option {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 9px;
+    border: 1px solid #d8e1ef;
+    border-radius: 999px;
+    background: #fff;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    cursor: pointer;
+}
+
+.prospect-status-option.is-active {
+    border-color: #6366f1;
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.prospect-quick-skip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    background: #fff1f2;
+    color: #dc2626;
+    cursor: pointer;
+    transition:
+        border-color 0.15s ease,
+        background-color 0.15s ease,
+        color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.prospect-quick-skip.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.9;
+}
+
+.prospect-quick-skip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.prospect-quick-skip-icon--undo {
+    display: none;
+}
+
+.prospect-quick-skip:hover {
+    border-color: #f87171;
+    background: #ffe4e6;
+}
+
+.prospect-quick-skip.is-active {
+    border-color: #22c55e;
+    background: #f0fdf4;
+    color: #16a34a;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.12);
+}
+
+.prospect-quick-skip.is-active .prospect-quick-skip-icon--skip {
+    display: none;
+}
+
+.prospect-quick-skip.is-active .prospect-quick-skip-icon--undo {
+    display: inline-flex;
+}
+
+.prospect-note-input {
+    width: 100%;
+    min-height: 76px;
+    padding: 10px 11px;
+    border: 1px solid #d8e1ef;
+    border-radius: 12px;
+    resize: vertical;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.prospect-workflow-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.prospect-note-save {
+    padding: 7px 12px;
+    font-size: 12px;
+}
+
 .prospects-table .contact-icon,
 .prospects-filter-panel .contact-icon {
     display: inline-flex;
@@ -2724,6 +3020,10 @@ button.tag-pill-button {
 .prospects-filter-panel .contact-icon--instagram {
     color: #e1306c;
 }
+.prospects-table .contact-icon--tiktok,
+.prospects-filter-panel .contact-icon--tiktok {
+    color: #000000;
+}
 .prospects-table .contact-icon--bluesky,
 .prospects-filter-panel .contact-icon--bluesky {
     color: #0085ff;
@@ -2762,6 +3062,12 @@ button.tag-pill-button {
 }
 
 @media (max-width: 720px) {
+    .prospects-status-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
     .prospects-header h1 {
         font-size: 24px;
         line-height: 1.2;
@@ -2867,6 +3173,13 @@ button.tag-pill-button {
     .prospects-table .creator-cell {
         align-items: flex-start;
         gap: 10px;
+    }
+
+    .prospect-workflow-panel {
+        position: static;
+        width: 100%;
+        margin-top: 8px;
+        box-shadow: none;
     }
 
     .prospects-table .creator-avatar {

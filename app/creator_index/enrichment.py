@@ -267,6 +267,7 @@ _SOCIAL_LINK_DOMAINS = (
     "twitter.com/",
     "x.com/",
     "instagram.com/",
+    "tiktok.com/",
     "bsky.app/",
     "youtube.com/",
     "youtu.be/",

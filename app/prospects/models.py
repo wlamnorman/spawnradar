@@ -2,7 +2,37 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal
+
+type ProspectWorkflowStatus = Literal[
+    "new",
+    "contacted",
+    "replied",
+    "access_shared",
+    "covered",
+    "not_pursuing",
+]
+
+PROSPECT_WORKFLOW_STATUS_ORDER: tuple[ProspectWorkflowStatus, ...] = (
+    "new",
+    "contacted",
+    "replied",
+    "access_shared",
+    "covered",
+    "not_pursuing",
+)
+
+PROSPECT_DEFAULT_STATUS: ProspectWorkflowStatus = "new"
+
+PROSPECT_WORKFLOW_STATUS_LABELS: dict[ProspectWorkflowStatus, str] = {
+    "new": "New",
+    "contacted": "Contacted",
+    "replied": "Replied",
+    "access_shared": "Access Shared",
+    "covered": "Covered",
+    "not_pursuing": "Not Pursuing",
+}
 
 
 @dataclass(frozen=True)
@@ -41,6 +71,19 @@ class ObservedTag:
 
 
 @dataclass(frozen=True)
+class ProspectWorkflowState:
+    """Customer-managed workflow state for a prospect."""
+
+    status: ProspectWorkflowStatus = PROSPECT_DEFAULT_STATUS
+    notes: str = ""
+    updated_at: str | None = None
+
+    @property
+    def has_notes(self) -> bool:
+        return bool(self.notes.strip())
+
+
+@dataclass(frozen=True)
 class RankedProspect:
     """One scored creator for a CustomerGame."""
 
@@ -49,6 +92,9 @@ class RankedProspect:
     overlap_tags: tuple[tuple[str, int | str], ...]
     observed_tags: tuple[ObservedTag, ...]
     relevant_game_count: int
+    workflow: ProspectWorkflowState = field(
+        default_factory=ProspectWorkflowState
+    )
     relevant_games: tuple[RelevantGame, ...] = ()
 
     @property

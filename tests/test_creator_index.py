@@ -565,7 +565,7 @@ def test_async_persisted_creator_becomes_rankable_prospect(db_path):
         llm_similar_game_names=[],
     )
 
-    prospects, total = ProspectRankingService(db_path).rank_prospects(game)
+    prospects, total, _ = ProspectRankingService(db_path).rank_prospects(game)
 
     assert len(prospects) == 1
     assert prospects[0].profile.handle == "prospect-tv"
