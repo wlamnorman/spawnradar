@@ -2760,3 +2760,146 @@ button.tag-pill-button {
 .text-muted {
     color: #64748b;
 }
+
+@media (max-width: 720px) {
+    .prospects-header h1 {
+        font-size: 24px;
+        line-height: 1.2;
+    }
+
+    .prospects-toolbar {
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .prospects-filter-menu {
+        margin-left: auto;
+    }
+
+    .prospects-filter-panel {
+        width: min(360px, calc(100vw - 32px));
+        max-height: min(78vh, 640px);
+        overflow-y: auto;
+    }
+
+    .prospects-table-wrap {
+        overflow-x: visible;
+    }
+
+    .prospects-table {
+        display: block;
+    }
+
+    .prospects-table thead {
+        display: none;
+    }
+
+    .prospects-table tbody {
+        display: block;
+    }
+
+    .prospects-table tbody tr {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr);
+        gap: 10px 12px;
+        padding: 16px 0;
+        border-bottom: 1px solid #dbe4f0;
+    }
+
+    .prospects-table td {
+        display: block;
+        padding: 0;
+        border-bottom: 0;
+        min-width: 0;
+    }
+
+    .prospects-table .col-rank {
+        grid-column: 1;
+        grid-row: 1 / span 5;
+        width: auto;
+        padding-top: 6px;
+        text-align: center;
+    }
+
+    .prospects-table .col-creator,
+    .prospects-table .col-games,
+    .prospects-table .col-tags,
+    .prospects-table .col-score,
+    .prospects-table .col-reach {
+        grid-column: 2;
+    }
+
+    .prospects-table .col-games::before,
+    .prospects-table .col-tags::before,
+    .prospects-table .col-score::before,
+    .prospects-table .col-reach::before {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+
+    .prospects-table .col-games::before {
+        content: "Played Games";
+    }
+
+    .prospects-table .col-tags::before {
+        content: "Observed Tags";
+    }
+
+    .prospects-table .col-score::before {
+        content: "Evidenced Interest Overlap";
+    }
+
+    .prospects-table .col-reach::before {
+        content: "Reach";
+    }
+
+    .prospects-table td.col-score,
+    .prospects-table td.col-reach {
+        text-align: left;
+    }
+
+    .prospects-table .creator-cell {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .prospects-table .creator-avatar {
+        width: 52px;
+        height: 52px;
+        min-width: 52px;
+        min-height: 52px;
+        max-width: 52px;
+        max-height: 52px;
+    }
+
+    .prospects-table .creator-name {
+        font-size: 0.98rem;
+    }
+
+    .prospects-table .creator-contact-row {
+        gap: 2px;
+    }
+
+    .prospects-table .col-games {
+        min-width: 0;
+    }
+
+    .prospects-table .game-icons {
+        gap: 3px;
+    }
+
+    .prospects-table .game-icon {
+        width: 32px;
+        height: 43px;
+    }
+
+    .prospects-table .col-tags .tag-pill {
+        margin: 2px 4px 2px 0;
+    }
+}
