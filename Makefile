@@ -1,4 +1,4 @@
-.PHONY: install check lint test typecheck dev run help deploy set-fly-secrets-production grant-comp-production
+.PHONY: install check lint test typecheck dev run help deploy set-fly-secrets-production grant-comp-production pull-prod-db
 
 PYTHON  := .venv/bin/python
 UVICORN := .venv/bin/uvicorn
@@ -11,6 +11,8 @@ PORT := 8000
 URL  := http://localhost:$(PORT)
 DEV_START_URL  := $(URL)/auth/dev-login
 RUN_START_URL  := $(URL)/auth/register
+PROD_DB_LOCAL ?= data/production-copy.sqlite3
+PROD_DB_REMOTE_TMP ?= /data/spawnradar-copy.sqlite3
 
 install:
 	pip3 install -r dev-requirements.txt
@@ -65,6 +67,19 @@ grant-comp-production:
 		RESET_FLAG="--send-reset"; \
 	fi; \
 	flyctl ssh console -a spawnradar -C "sh -lc 'cd /app && python -m app.devtools.cli --db-path /data/spawnradar.sqlite3 grant-comp --create-missing $$RESET_FLAG $(EMAILS)'"
+
+## Download a consistent production SQLite copy. Usage: make pull-prod-db [PROD_DB_LOCAL=data/production-copy.sqlite3]
+pull-prod-db:
+	@set -e; \
+	if ! command -v flyctl >/dev/null 2>&1; then \
+		echo "flyctl is not installed. Install it first: brew install flyctl"; \
+		exit 1; \
+	fi; \
+	mkdir -p "$$(dirname '$(PROD_DB_LOCAL)')"; \
+	flyctl ssh console -a spawnradar -C "python -c \"import sqlite3; src=sqlite3.connect('/data/spawnradar.sqlite3'); dst=sqlite3.connect('$(PROD_DB_REMOTE_TMP)'); src.backup(dst); dst.close(); src.close()\""; \
+	flyctl ssh sftp get -a spawnradar "$(PROD_DB_REMOTE_TMP)" "$(PROD_DB_LOCAL)"; \
+	flyctl ssh console -a spawnradar -C "rm -f '$(PROD_DB_REMOTE_TMP)'"; \
+	echo "Downloaded production DB to $(PROD_DB_LOCAL)"
 
 define OPEN_BROWSER_DEV
 	( sleep 1; \

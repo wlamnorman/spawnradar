@@ -37,6 +37,8 @@ from app.igdb.repository import IGDBRepository
 from app.igdb.sync import IGDBSyncService
 from app.runtime import SourceRuntime
 
+from app.reports.cli import register_subparser as register_genre_report, run_genre_report_command
+
 PRESET_KEYS = (
     "wikiquests",
     "strife-of-stars",
@@ -209,14 +211,18 @@ def _seed_preset_game(
 
 def build_parser() -> argparse.ArgumentParser:
     """Create the top-level parser for the `sr` CLI."""
-    parser = argparse.ArgumentParser(prog="sr")
+    parser = argparse.ArgumentParser(
+        prog="sr", formatter_class=argparse.RawTextHelpFormatter
+    )
     parser.add_argument(
         "--db-path",
         default=Settings.from_env().db_path,
         help="SQLite database path. Defaults to DB_PATH or the local dev DB.",
     )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command", required=True, metavar="command"
+    )
     subparsers.add_parser(
         "wikiquests",
         help="Create or update the local WikiQuests game under the dev account.",
@@ -367,6 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fetch one IGDB game by ID into the local igdb_games table.",
     )
     igdb_fetch.add_argument("igdb_game_id", type=int)
+    register_genre_report(subparsers)
     return parser
 
 
@@ -1378,6 +1385,8 @@ def main(argv: list[str] | None = None) -> int:
             args.db_path,
             igdb_game_id=args.igdb_game_id,
         )
+    elif args.command == "genre-report":
+        result = run_genre_report_command(args)
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 
