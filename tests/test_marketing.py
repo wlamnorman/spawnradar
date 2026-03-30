@@ -31,7 +31,7 @@ def test_root_renders_public_landing_page(monkeypatch, tmp_path):
     assert 'href="/terms"' in response.text
     assert 'href="/privacy"' in response.text
     assert 'href="/refunds"' in response.text
-    assert "https://bsky.app/profile/spawnradar.bsky.social" in response.text
+    assert "https://bsky.app/profile/spawnradar.com" in response.text
     assert "https://discord.gg/XwGbqFHy" in response.text
     assert "mailto:contact@spawnradar.com" in response.text
 

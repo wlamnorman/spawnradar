@@ -125,7 +125,8 @@ def test_dashboard_game_cards_include_run_discovery_action(
     assert "/prospects" in response.text
     assert "Arcade racing across collapsing star lanes." in response.text
     assert "PC / Steam" in response.text
-    assert "Slay the Spire" in response.text
+    # Similar games are no longer shown on the dashboard card
+    assert "Slay the Spire" not in response.text
     assert (
         "A longer internal description that should not appear on the dashboard card."
         not in response.text
@@ -225,4 +226,4 @@ def test_dev_login_creates_session_when_enabled(monkeypatch, tmp_path):
     assert response.headers["location"] == "/"
     assert "session_id" in response.cookies
     assert home_response.status_code == 200
-    assert "dev@spawnradar.local" in home_response.text
+    assert "My Account" in home_response.text

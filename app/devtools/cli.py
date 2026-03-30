@@ -37,7 +37,12 @@ from app.igdb.repository import IGDBRepository
 from app.igdb.sync import IGDBSyncService
 from app.runtime import SourceRuntime
 
-PRESET_KEYS = ("wikiquests", "strife-of-stars", "forgetting-hour")
+PRESET_KEYS = (
+    "wikiquests",
+    "strife-of-stars",
+    "forgetting-hour",
+    "volgarr-the-viking-ii",
+)
 
 
 @dataclass(frozen=True)
@@ -225,6 +230,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Create or update the local The Forgetting Hour game under the dev account.",
     )
     subparsers.add_parser(
+        "volgarr-the-viking-ii",
+        help="Create or update the local Volgarr the Viking II game under the dev account.",
+    )
+    subparsers.add_parser(
         "seed-test-user",
         help="Create a test user (vvilliamnorman@gmail.com) with Strife Of Stars.",
     )
@@ -234,10 +243,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     snapshot_game_preset.add_argument(
         "preset_key",
-        nargs="?",
         choices=PRESET_KEYS,
-        default=PRESET_KEYS[0],
-        help=f"Preset to update (default: {PRESET_KEYS[0]}).",
+        help="Preset to update.",
     )
     snapshot_game_preset.add_argument(
         "--game",
@@ -441,6 +448,11 @@ def run_strife_of_stars(db_path: str) -> CommandResult:
 def run_forgetting_hour(db_path: str) -> CommandResult:
     """Seed or refresh The Forgetting Hour game for the local dev user."""
     return _seed_preset_game(db_path, "forgetting-hour")
+
+
+def run_volgarr_the_viking_ii(db_path: str) -> CommandResult:
+    """Seed or refresh Volgarr the Viking II for the local dev user."""
+    return _seed_preset_game(db_path, "volgarr-the-viking-ii")
 
 
 def run_seed_test_user(db_path: str) -> CommandResult:
@@ -1311,6 +1323,8 @@ def main(argv: list[str] | None = None) -> int:
         result = run_strife_of_stars(args.db_path)
     elif args.command == "forgetting-hour":
         result = run_forgetting_hour(args.db_path)
+    elif args.command == "volgarr-the-viking-ii":
+        result = run_volgarr_the_viking_ii(args.db_path)
     elif args.command == "seed-test-user":
         result = run_seed_test_user(args.db_path)
     elif args.command == "snapshot-game-preset":

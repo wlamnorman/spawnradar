@@ -1,15 +1,4 @@
 {
-  "wikiquests": {
-    "name": "WikiQuests",
-    "summary": "WikiQuests is a competitive Wikipedia speedrun game where you race from one article to another using only the links on the page.",
-    "description": "WikiQuests is a competitive Wikipedia speedrun game where you race from one article to another using only the links on the page. Every run is timed, every click counts.\r\n\r\nPlay the daily challenge to compete against everyone on the same article pair and earn your place on the leaderboard, or run custom speedruns to practice routes, test your knowledge and compare your best times against other players.",
-    "igdb_genre_ids": [
-      26,
-      9
-    ],
-    "igdb_theme_ids": [],
-    "website_url": "https://wikiquests.com"
-  },
   "strife-of-stars": {
     "name": "Strife Of Stars",
     "summary": "Command a fleet in tactical turn-based combat.  Build your fleet, upgrade your ships and fight your way across the galaxy in this tactical roguelite.",
@@ -47,5 +36,27 @@
       27,
       43
     ]
+  },
+  "volgarr-the-viking-ii": {
+    "name": "Volgarr the Viking II",
+    "summary": "Return to the Golden Age of arcades with a hardcore 2D action platformer with precise controls, high challenge and meticulous design.",
+    "description": "The Return of the Viking\r\n\r\nMore than a decade after the chaotic and gritty debut of Volgarr the Viking, the barbarian king's tale continues in a new, uncompromising form.\r\n\r\nVolgarr the Viking II is a hardcore 2D action platformer where precision is key and one misstep can mean a brutal death. Those who played the original game will feel right at home on this relentless journey, even with the addition of new power-ups, new forms of magic, new enemy types and a new soundtrack that will hit your chest.\r\n\r\nWith new and larger worlds inspired by Norse mythology, multiple endings, and a variety of ruthless bosses to fight, Volgarr the Viking II is bigger and better than the original in every way",
+    "website_url": null,
+    "platforms": [
+      "pc"
+    ],
+    "igdb_genre_ids": [
+      31,
+      33,
+      32,
+      8
+    ],
+    "igdb_theme_ids": [
+      1
+    ],
+    "igdb_keyword_ids": [
+      "soulslike"
+    ],
+    "similar_game_names": []
   }
 }

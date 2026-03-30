@@ -1,0 +1,14 @@
+{
+  "customer_game_name": "Volgarr the Viking II",
+  "customer_game_slug_hint": "volgarr-the-viking-ii",
+  "baseline_summary": "Return to the Golden Age of arcades with a hardcore 2D action platformer with precise controls, high challenge and meticulous design.",
+  "broad_igdb_genres": [
+    { "id": 31, "label": "Adventure" },
+    { "id": 33, "label": "Arcade" },
+    { "id": 32, "label": "Indie" },
+    { "id": 8, "label": "Platform" }
+  ],
+  "broad_igdb_themes": [{ "id": 1, "label": "Action" }],
+  "required_game_modes": [{ "id": 1, "label": "Single player" }],
+  "extra_custom_tags": ["soulslike"]
+}

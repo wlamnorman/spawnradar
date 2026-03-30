@@ -78,7 +78,10 @@ class TestLoadCatalogGame:
         }
         path = _write_definition(tmp_path, "with_anchors", data)
         game = load_catalog_game(path)
-        assert game.similar_game_names == ["Stardew Valley", "Story of Seasons"]
+        assert game.similar_game_names == [
+            "Stardew Valley",
+            "Story of Seasons",
+        ]
 
     def test_no_anchor_games(self, tmp_path: Path):
         path = _write_definition(tmp_path, "patchwork", PATCHWORK_ACRES)
@@ -138,8 +141,10 @@ class TestLoadRealSandboxDefinitions:
     )
 
     @pytest.mark.skipif(
-        not (_SANDBOX_DIR := Path(__file__).resolve().parent.parent
-             / "sandbox/crawl_experiments/initial_experiments/game_defs").exists(),
+        not (
+            _SANDBOX_DIR := Path(__file__).resolve().parent.parent
+            / "sandbox/crawl_experiments/initial_experiments/game_defs"
+        ).exists(),
         reason="Sandbox definitions not present",
     )
     def test_loads_sandbox_definitions(self):
@@ -155,3 +160,23 @@ class TestLoadRealSandboxDefinitions:
         for game in games:
             assert game.user_id == _CATALOG_USER_ID
             assert game.igdb_genre_ids  # all definitions have genres
+
+
+class TestLoadRealAppCatalogDefinitions:
+    def test_loads_app_catalog_definitions(self):
+        catalog_dir = Path(__file__).resolve().parent.parent / "app/catalog"
+        games = load_catalog_games(catalog_dir)
+        names = {g.name for g in games}
+
+        assert "Volgarr the Viking II" in names
+
+        volgarr = next(g for g in games if g.name == "Volgarr the Viking II")
+        assert volgarr.slug == "volgarr-the-viking-ii"
+        assert volgarr.summary.startswith(  # pyright: ignore[reportOptionalMemberAccess]
+            "Return to the Golden Age of arcades"
+        )
+        assert volgarr.igdb_genre_ids == [31, 33, 32, 8]
+        assert volgarr.igdb_theme_ids == [1]
+        assert volgarr.igdb_game_mode_ids == [1]
+        assert volgarr.igdb_keyword_ids == ["soulslike"]
+        assert volgarr.similar_game_names == []

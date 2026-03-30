@@ -509,13 +509,13 @@ async def update_game_post(
             description=description,
             website_url=website_url or None,
             summary=summary,
-            platforms=platforms or None,
-            igdb_genre_ids=igdb_genre_ids or None,
-            igdb_theme_ids=igdb_theme_ids or None,
-            igdb_game_mode_ids=igdb_game_mode_ids or None,
-            igdb_player_perspective_ids=igdb_player_perspective_ids or None,
-            igdb_keyword_ids=igdb_keyword_ids or None,
-            similar_game_names=similar_game_names or None,
+            platforms=platforms,
+            igdb_genre_ids=igdb_genre_ids,
+            igdb_theme_ids=igdb_theme_ids,
+            igdb_game_mode_ids=igdb_game_mode_ids,
+            igdb_player_perspective_ids=igdb_player_perspective_ids,
+            igdb_keyword_ids=igdb_keyword_ids,
+            similar_game_names=similar_game_names,
         )
     except ValueError as exc:
         return templates.TemplateResponse(

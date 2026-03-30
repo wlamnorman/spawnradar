@@ -73,7 +73,7 @@ def create_scheduler(
         minutes=30,
     )
 
-    # -- Catalog discovery: every 24 hours (if a catalog dir is configured)
+    # -- Catalog discovery: every 6 hours (if a catalog dir is configured)
     if catalog_dir:
         scheduler.add_job(
             run_catalog_discovery,
@@ -88,7 +88,7 @@ def create_scheduler(
             coalesce=True,
             max_instances=1,
             replace_existing=True,
-            hours=24,
+            hours=6,
         )
 
     return scheduler
