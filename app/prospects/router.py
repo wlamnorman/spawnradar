@@ -27,14 +27,33 @@ router = APIRouter(tags=["prospects"])
 
 _OVERLAP_FILTER_MAX = 100
 _CONTACT_METHOD_OPTIONS = (
-    ("", "Any"),
-    ("email", "Email"),
-    ("discord", "Discord"),
-    ("twitch", "Twitch"),
-    ("youtube", "YouTube"),
-    ("x", "X / Twitter"),
-    ("instagram", "Instagram"),
-    ("bluesky", "Bluesky"),
+    {"value": "email", "label": "Email", "icon_class": "contact-icon--email"},
+    {
+        "value": "discord",
+        "label": "Discord",
+        "icon_class": "contact-icon--discord",
+    },
+    {
+        "value": "twitch",
+        "label": "Twitch",
+        "icon_class": "contact-icon--twitch",
+    },
+    {
+        "value": "youtube",
+        "label": "YouTube",
+        "icon_class": "contact-icon--youtube",
+    },
+    {"value": "x", "label": "X / Twitter", "icon_class": "contact-icon--x"},
+    {
+        "value": "instagram",
+        "label": "Instagram",
+        "icon_class": "contact-icon--instagram",
+    },
+    {
+        "value": "bluesky",
+        "label": "Bluesky",
+        "icon_class": "contact-icon--bluesky",
+    },
 )
 
 
@@ -85,7 +104,6 @@ def game_prospects_page(
     max_overlap: int = _OVERLAP_FILTER_MAX,
     min_games: int = 0,
     max_games: int | None = None,
-    contact_method: str = "",
     user: User = Depends(require_product_access),
     billing_service: BillingService = Depends(get_billing_service),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
@@ -146,18 +164,22 @@ def game_prospects_page(
     max_games = games_filter_max if max_games is None else max(0, max_games)
     max_games = min(games_filter_max, max_games)
     valid_contact_methods = {
-        value for value, _ in _CONTACT_METHOD_OPTIONS if value
+        option["value"] for option in _CONTACT_METHOD_OPTIONS
     }
-    contact_method = (
-        contact_method if contact_method in valid_contact_methods else ""
+    reachable_via = tuple(
+        value
+        for value in request.query_params.getlist("reachable_via")
+        if value in valid_contact_methods
     )
+    # Keep stable order and remove duplicates.
+    reachable_via = tuple(dict.fromkeys(reachable_via))
     if min_reach > max_reach:
         min_reach, max_reach = max_reach, min_reach
     if min_overlap > max_overlap:
         min_overlap, max_overlap = max_overlap, min_overlap
     if min_games > max_games:
         min_games, max_games = max_games, min_games
-    filter_params: dict[str, int | str] = {}
+    filter_params: dict[str, int | str | list[str]] = {}
     if min_reach > default_min_reach:
         filter_params["min_reach"] = min_reach
     if max_reach < reach_filter_max:
@@ -170,9 +192,9 @@ def game_prospects_page(
         filter_params["min_games"] = min_games
     if max_games < games_filter_max:
         filter_params["max_games"] = max_games
-    if contact_method:
-        filter_params["contact_method"] = contact_method
-    filter_query = urlencode(filter_params)
+    if reachable_via:
+        filter_params["reachable_via"] = list(reachable_via)
+    filter_query = urlencode(filter_params, doseq=True)
     filter_query_suffix = f"&{filter_query}" if filter_query else ""
     subscription = billing_service.get_or_create_subscription(user.user_id)
     if subscription.is_trialing:
@@ -187,7 +209,7 @@ def game_prospects_page(
         max_overlap = _OVERLAP_FILTER_MAX
         min_games = 0
         max_games = games_filter_max
-        contact_method = ""
+        reachable_via = ()
         filter_params = {}
         filter_query_suffix = ""
     offset = (page - 1) * _PAGE_SIZE
@@ -204,7 +226,7 @@ def game_prospects_page(
         max_relevant_games=(
             max_games if max_games < games_filter_max else None
         ),
-        contact_method=(contact_method or None),
+        contact_methods=reachable_via,
     )
 
     total_pages = (
@@ -235,7 +257,7 @@ def game_prospects_page(
             "max_overlap": max_overlap,
             "min_games": min_games,
             "max_games": max_games,
-            "contact_method": contact_method,
+            "reachable_via": reachable_via,
             "contact_method_options": _CONTACT_METHOD_OPTIONS,
             "filters_active": bool(filter_params),
             "reach_filter_active": min_reach > default_min_reach
@@ -244,7 +266,7 @@ def game_prospects_page(
             or max_overlap < _OVERLAP_FILTER_MAX,
             "games_filter_active": min_games > 0
             or max_games < games_filter_max,
-            "contact_filter_active": bool(contact_method),
+            "contact_filter_active": bool(reachable_via),
             "reach_filter_max": reach_filter_max,
             "overlap_filter_max": _OVERLAP_FILTER_MAX,
             "games_filter_max": games_filter_max,

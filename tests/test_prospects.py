@@ -757,7 +757,7 @@ class TestProspectRankingService:
         assert prospects[0].profile.account_id == "two-games"
         assert prospects[0].relevant_game_count == 2
 
-    def test_rank_prospects_applies_contact_method_filter(
+    def test_rank_prospects_applies_reachable_via_filter_with_or_semantics(
         self, db_path, game_service, registered_user
     ):
         game = game_service.create_game(
@@ -794,12 +794,15 @@ class TestProspectRankingService:
 
         prospects, total = ProspectRankingService(db_path).rank_prospects(
             game,
-            contact_method="email",
+            contact_methods=("email", "discord"),
         )
 
-        assert total == 1
-        assert len(prospects) == 1
-        assert prospects[0].profile.account_id == "email-creator"
+        assert total == 2
+        assert len(prospects) == 2
+        assert {prospect.profile.account_id for prospect in prospects} == {
+            "email-creator",
+            "discord-creator",
+        }
 
     def test_rank_prospects_applies_max_relevant_games_filter(
         self, db_path, game_service, registered_user

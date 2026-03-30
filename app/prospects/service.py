@@ -71,7 +71,19 @@ def _profile_has_contact_method(
             profile.contact_social_links,
             domains=("bsky.app",),
         )
-    return True
+    return False
+
+
+def _profile_has_any_contact_method(
+    profile: CreatorRankingProfile, contact_methods: tuple[str, ...]
+) -> bool:
+    """Return whether a creator matches any selected contact method."""
+    if not contact_methods:
+        return True
+    return any(
+        _profile_has_contact_method(profile, contact_method)
+        for contact_method in contact_methods
+    )
 
 
 class ProspectRankingService:
@@ -128,7 +140,7 @@ class ProspectRankingService:
         max_overlap_score: float = 1.0,
         min_relevant_games: int = 0,
         max_relevant_games: int | None = None,
-        contact_method: str | None = None,
+        contact_methods: tuple[str, ...] = (),
     ) -> tuple[list[RankedProspect], int]:
         """Return ranked creator prospects for one customer game.
 
@@ -149,7 +161,7 @@ class ProspectRankingService:
             and max_overlap_score >= 1.0
             and min_relevant_games <= 0
             and max_relevant_games is None
-            and not contact_method
+            and not contact_methods
         )
         true_total_count = (
             self._repo.count_creators_with_overlap(
@@ -170,7 +182,7 @@ class ProspectRankingService:
             or max_overlap_score < 1.0
             or min_relevant_games > 0
             or max_relevant_games is not None
-            or bool(contact_method)
+            or bool(contact_methods)
         ):
             fetch_limit = max(fetch_limit, 5000)
         creator_tag_counts = self._repo.query_creator_tag_counts(
@@ -223,11 +235,8 @@ class ProspectRankingService:
                 max_relevant_games is None
                 or relevant_game_counts.get(item[0], 0) <= max_relevant_games
             )
-            and (
-                not contact_method
-                or _profile_has_contact_method(
-                    profiles[item[0]], contact_method
-                )
+            and _profile_has_any_contact_method(
+                profiles[item[0]], contact_methods
             )
         ]
         total_count = (

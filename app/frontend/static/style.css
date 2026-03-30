@@ -167,8 +167,8 @@ pre {
 }
 
 .nav-user {
-    font-size: 13px;
-    color: var(--color-text-faint);
+    font-size: 14px;
+    color: var(--color-text-soft);
     font-weight: 500;
 }
 
@@ -2371,6 +2371,80 @@ button.tag-pill-button {
     font-family: var(--font-sans);
 }
 
+.prospects-contact-filter-chips {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.prospects-contact-filter-chip {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #f8fafc;
+    cursor: pointer;
+    line-height: 0;
+    transition:
+        border-color 0.15s ease,
+        background-color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.prospects-contact-filter-chip:hover {
+    border-color: #c7d2fe;
+    background: #eef2ff;
+}
+
+.prospects-contact-filter-chip.is-active {
+    border-color: #6366f1;
+    background: #e0e7ff;
+    box-shadow:
+        inset 0 0 0 1px rgba(99, 102, 241, 0.2),
+        0 0 0 2px rgba(99, 102, 241, 0.14);
+}
+
+.prospects-contact-filter-chip:has(input:checked) {
+    border-color: #6366f1;
+    background: #e0e7ff;
+    box-shadow:
+        inset 0 0 0 1px rgba(99, 102, 241, 0.2),
+        0 0 0 2px rgba(99, 102, 241, 0.14);
+}
+
+.prospects-contact-filter-chip input {
+    display: none;
+}
+
+.prospects-filter-panel .prospects-contact-filter-chip .contact-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    line-height: 0;
+    flex: none;
+    transform: none;
+}
+
+.prospects-filter-panel .prospects-contact-filter-chip .contact-icon svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+    margin: auto;
+    flex: none;
+}
+
 .prospects-dual-range {
     --range-start: 0%;
     --range-end: 100%;
@@ -2603,7 +2677,8 @@ button.tag-pill-button {
     gap: 0;
 }
 
-.prospects-table .contact-icon {
+.prospects-table .contact-icon,
+.prospects-filter-panel .contact-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2615,36 +2690,67 @@ button.tag-pill-button {
     transition: opacity 0.15s;
 }
 
-.prospects-table .contact-icon:hover {
+.prospects-table .contact-icon:hover,
+.prospects-filter-panel .contact-icon:hover {
     opacity: 0.7;
 }
 
-.prospects-table .contact-icon--email {
+.prospects-table .contact-icon--email,
+.prospects-filter-panel .contact-icon--email {
     color: #64748b;
 }
-.prospects-table .contact-icon--discord {
+.prospects-table .contact-icon--discord,
+.prospects-filter-panel .contact-icon--discord {
     color: #5865f2;
 }
 .prospects-table .contact-icon.contact-icon--twitch,
-.prospects-table .contact-icon.contact-icon--twitch:visited {
+.prospects-table .contact-icon.contact-icon--twitch:visited,
+.prospects-filter-panel .contact-icon.contact-icon--twitch,
+.prospects-filter-panel .contact-icon.contact-icon--twitch:visited {
     color: #9146ff;
 }
 .prospects-table .contact-icon.contact-icon--twitch svg,
-.prospects-table .contact-icon.contact-icon--twitch:visited svg {
+.prospects-table .contact-icon.contact-icon--twitch:visited svg,
+.prospects-filter-panel .contact-icon.contact-icon--twitch svg,
+.prospects-filter-panel .contact-icon.contact-icon--twitch:visited svg {
     color: #9146ff;
     fill: #9146ff;
 }
-.prospects-table .contact-icon--x {
+.prospects-table .contact-icon--x,
+.prospects-filter-panel .contact-icon--x {
     color: #000;
 }
-.prospects-table .contact-icon--instagram {
+.prospects-table .contact-icon--instagram,
+.prospects-filter-panel .contact-icon--instagram {
     color: #e1306c;
 }
-.prospects-table .contact-icon--bluesky {
+.prospects-table .contact-icon--bluesky,
+.prospects-filter-panel .contact-icon--bluesky {
     color: #0085ff;
 }
-.prospects-table .contact-icon--youtube {
+.prospects-table .contact-icon--youtube,
+.prospects-filter-panel .contact-icon--youtube {
     color: #ff0000;
+}
+
+.prospects-filter-panel .prospects-contact-filter-chip .contact-icon {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    border-radius: 999px;
+    line-height: 0;
+}
+
+.prospects-filter-panel .prospects-contact-filter-chip .contact-icon svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+    margin: 0;
 }
 
 .text-sm {
