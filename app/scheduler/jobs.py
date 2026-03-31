@@ -13,6 +13,7 @@ from pathlib import Path
 from app.creator_index.service import CreatorIndexService
 from app.games.repository import CustomerGameRepository
 from app.runtime import SourceRuntime
+from app.steam_enrichment.service import SteamTagEnrichmentService
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ async def run_scheduled_creator_index_sync(
         from app.config import Settings
 
         settings = Settings.from_env()
-        if settings.anthropic_api_key:
+        if settings.llm_game_suggestions_enabled:
             repo = CustomerGameRepository(db_path)
             for game in repo.list_active():
                 if not game.llm_similar_game_names:
@@ -165,7 +166,10 @@ async def run_game_discovery(
 
     # Generate LLM game suggestions if API key available and not yet generated
     settings = Settings.from_env()
-    if settings.anthropic_api_key and not customer_game.llm_similar_game_names:
+    if (
+        settings.llm_game_suggestions_enabled
+        and not customer_game.llm_similar_game_names
+    ):
         from app.llm.game_suggestions import generate_game_suggestions
 
         try:
@@ -207,3 +211,24 @@ async def run_game_discovery(
                 "On-demand discovery failed for game %s",
                 customer_game_id,
             )
+
+
+async def run_steam_tag_backfill(
+    db_path: str,
+    *,
+    limit: int = 25,
+) -> None:
+    """Scheduled job: backfill Steam links/tags for cached IGDB games."""
+
+    service = SteamTagEnrichmentService(db_path=db_path)
+    try:
+        summary = await service.backfill(limit=limit)
+        logger.info(
+            "Steam tag backfill: attempted=%d linked=%d no_match=%d errored=%d",
+            summary.attempted,
+            summary.linked,
+            summary.no_match,
+            summary.errored,
+        )
+    except Exception:
+        logger.exception("Steam tag backfill job failed")

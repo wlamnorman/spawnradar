@@ -98,3 +98,39 @@ def test_settings_load_creator_index_scope_options(monkeypatch):
     assert settings.creator_index_twitch_min_live_viewers == 10
     assert settings.creator_index_twitch_min_followers == 50
     assert settings.creator_index_customer_game_twitch_probe_limit == 10
+
+
+def test_llm_game_suggestions_disabled_by_default_on_local(monkeypatch):
+    monkeypatch.setenv("BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.delenv("LOCAL_LLM_GAME_SUGGESTIONS_ENABLED", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.llm_game_suggestions_enabled is False
+
+
+def test_llm_game_suggestions_can_be_enabled_on_local(monkeypatch):
+    monkeypatch.setenv("BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("LOCAL_LLM_GAME_SUGGESTIONS_ENABLED", "1")
+
+    settings = Settings.from_env()
+
+    assert settings.llm_game_suggestions_enabled is True
+
+
+def test_llm_game_suggestions_enabled_by_default_off_local(monkeypatch):
+    monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.delenv("LOCAL_LLM_GAME_SUGGESTIONS_ENABLED", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.llm_game_suggestions_enabled is True

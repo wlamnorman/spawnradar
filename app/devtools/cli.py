@@ -36,6 +36,7 @@ from app.games.service import CustomerGameService
 from app.igdb.repository import IGDBRepository
 from app.igdb.sync import IGDBSyncService
 from app.runtime import SourceRuntime
+from app.steam_enrichment.service import SteamTagEnrichmentService
 
 PRESET_KEYS = (
     "wikiquests",
@@ -296,6 +297,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--send-reset",
         action="store_true",
         help="Send a password reset email so the user can set their password.",
+    )
+    sync_steam_tags = subparsers.add_parser(
+        "sync-steam-tags",
+        help="Resolve Steam links and store Steam tags for cached IGDB games.",
+    )
+    sync_steam_tags.add_argument(
+        "--igdb-id",
+        type=int,
+        help="Sync one cached IGDB game by IGDB id.",
+    )
+    sync_steam_tags.add_argument(
+        "--limit",
+        type=int,
+        default=25,
+        help="Backfill batch size when syncing multiple games (default: 25).",
+    )
+    sync_steam_tags.add_argument(
+        "--include-no-match",
+        action="store_true",
+        help="Retry games previously marked as no_match.",
     )
     subparsers.add_parser(
         "customer-ids",
@@ -1348,6 +1369,75 @@ def run_igdb_fetch(
     )
 
 
+async def _run_sync_steam_tags_async(
+    db_path: str,
+    *,
+    igdb_id: int | None,
+    limit: int,
+    include_no_match: bool,
+) -> CommandResult:
+    initialize_database(db_path)
+    service = SteamTagEnrichmentService(db_path=db_path)
+    if igdb_id is not None:
+        result = await service.enrich_igdb_game(igdb_id)
+        if result.status == "linked" and result.resolved_link is not None:
+            return CommandResult(
+                message=(
+                    f"Linked igdb_id={igdb_id} to steam_app_id="
+                    f"{result.resolved_link.steam_app_id} "
+                    f"via {result.resolved_link.match_method}; "
+                    f"stored {len(result.raw_tags)} raw tags and "
+                    f"{len(result.mapped_tags)} mapped tags."
+                ),
+                created=True,
+            )
+        if result.status == "no_match":
+            return CommandResult(
+                message=(
+                    f"No Steam match accepted for igdb_id={igdb_id} "
+                    f"({result.rejection_reason or 'unresolved'})."
+                ),
+                created=False,
+            )
+        return CommandResult(
+            message=(
+                f"Steam sync failed for igdb_id={igdb_id}: "
+                f"{'; '.join(result.errors) or 'unknown error'}"
+            ),
+            created=False,
+        )
+
+    summary = await service.backfill(
+        limit=limit,
+        include_no_match=include_no_match,
+    )
+    return CommandResult(
+        message=(
+            "Steam tag backfill: "
+            f"attempted={summary.attempted} linked={summary.linked} "
+            f"no_match={summary.no_match} errored={summary.errored}"
+        ),
+        created=summary.linked > 0,
+    )
+
+
+def run_sync_steam_tags(
+    db_path: str,
+    *,
+    igdb_id: int | None = None,
+    limit: int = 25,
+    include_no_match: bool = False,
+) -> CommandResult:
+    return asyncio.run(
+        _run_sync_steam_tags_async(
+            db_path,
+            igdb_id=igdb_id,
+            limit=limit,
+            include_no_match=include_no_match,
+        )
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
     args = build_parser().parse_args(argv)
@@ -1381,6 +1471,13 @@ def main(argv: list[str] | None = None) -> int:
             args.emails,
             create_missing=args.create_missing,
             send_reset=args.send_reset,
+        )
+    elif args.command == "sync-steam-tags":
+        result = run_sync_steam_tags(
+            args.db_path,
+            igdb_id=args.igdb_id,
+            limit=args.limit,
+            include_no_match=args.include_no_match,
         )
     elif args.command == "customer-ids":
         result = run_customer_ids(args.db_path)

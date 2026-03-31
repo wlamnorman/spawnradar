@@ -12,6 +12,7 @@ from app.scheduler.jobs import (
     run_catalog_discovery,
     run_game_discovery,
     run_scheduled_creator_index_sync,
+    run_steam_tag_backfill,
     run_top_categories_crawl,
 )
 
@@ -37,6 +38,19 @@ def create_scheduler(
         kwargs={
             "db_path": db_path,
             "source_runtime": source_runtime,
+        },
+        replace_existing=True,
+    )
+
+    # -- Startup: immediate one-shot Steam tag backfill
+    scheduler.add_job(
+        run_steam_tag_backfill,
+        trigger="date",
+        run_date=datetime.now(UTC) + timedelta(seconds=1),
+        id="steam_tag_startup_backfill",
+        kwargs={
+            "db_path": db_path,
+            "limit": 25,
         },
         replace_existing=True,
     )
@@ -90,6 +104,22 @@ def create_scheduler(
             replace_existing=True,
             hours=6,
         )
+
+    # -- Steam tag backfill: every 15 minutes
+    scheduler.add_job(
+        run_steam_tag_backfill,
+        trigger="interval",
+        id="steam_tag_backfill",
+        kwargs={
+            "db_path": db_path,
+            "limit": 25,
+        },
+        jitter=60,
+        coalesce=True,
+        max_instances=1,
+        replace_existing=True,
+        minutes=15,
+    )
 
     return scheduler
 

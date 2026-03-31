@@ -78,6 +78,7 @@ class Settings:
     youtube_api_key: str
     youtube_cache_dir: str
     anthropic_api_key: str
+    local_llm_game_suggestions_enabled: bool
     scheduler_enabled: bool
     creator_index_game_names: tuple[str, ...]
     creator_index_bootstrap_enabled: bool
@@ -95,6 +96,22 @@ class Settings:
         parsed = urlparse(self.base_url)
         host = parsed.hostname or ""
         return host in {"localhost", "127.0.0.1"}
+
+    @property
+    def llm_game_suggestions_enabled(self) -> bool:
+        """Whether background LLM anchor-game suggestions should run.
+
+        Local development defaults this off even when an Anthropic API key is
+        present, to avoid accidental paid calls during normal `make dev` usage.
+        It can be explicitly re-enabled with
+        ``LOCAL_LLM_GAME_SUGGESTIONS_ENABLED=1``.
+        """
+        if not self.anthropic_api_key:
+            return False
+        return not (
+            self.is_local_base_url
+            and not self.local_llm_game_suggestions_enabled
+        )
 
     def validate(self) -> Settings:
         if not self.secret_key:
@@ -189,6 +206,9 @@ class Settings:
             youtube_api_key=_env_str("YOUTUBE_API_KEY"),
             youtube_cache_dir="data/yt_cache",
             anthropic_api_key=_env_str("ANTHROPIC_API_KEY"),
+            local_llm_game_suggestions_enabled=_env_bool(
+                "LOCAL_LLM_GAME_SUGGESTIONS_ENABLED"
+            ),
             scheduler_enabled=_env_bool("SCHEDULER_ENABLED"),
             creator_index_game_names=_env_csv("CREATOR_INDEX_GAME_NAMES"),
             creator_index_bootstrap_enabled=_env_bool(

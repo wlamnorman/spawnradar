@@ -324,6 +324,7 @@ CREATE TABLE IF NOT EXISTS igdb_games (
     summary             TEXT,
     first_release_date  INTEGER,
     cover_url           TEXT,
+    developer_names_json TEXT NOT NULL DEFAULT '[]',
     platform_ids_json   TEXT NOT NULL DEFAULT '[]',
     platform_names_json TEXT NOT NULL DEFAULT '[]',
     last_synced_at      TEXT NOT NULL
@@ -341,6 +342,53 @@ CREATE TABLE IF NOT EXISTS igdb_game_tags (
 
 CREATE INDEX IF NOT EXISTS idx_igdb_game_tags_type_id ON igdb_game_tags(tag_type, tag_id);
 CREATE INDEX IF NOT EXISTS idx_igdb_games_name_lower ON igdb_games(LOWER(name));
+
+-- ─── Steam Enrichment For Cached IGDB Games ──────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS steam_game_sync_state (
+    igdb_id            INTEGER PRIMARY KEY REFERENCES igdb_games(igdb_id) ON DELETE CASCADE,
+    sync_status        TEXT NOT NULL,  -- pending | linked | no_match | error
+    last_attempted_at  TEXT,
+    last_succeeded_at  TEXT,
+    updated_at         TEXT NOT NULL,
+    last_error         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS steam_game_links (
+    igdb_id        INTEGER PRIMARY KEY REFERENCES igdb_games(igdb_id) ON DELETE CASCADE,
+    steam_app_id   INTEGER NOT NULL UNIQUE,
+    store_url      TEXT NOT NULL,
+    match_method   TEXT NOT NULL,
+    resolved_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS steam_game_tags (
+    igdb_id          INTEGER NOT NULL REFERENCES igdb_games(igdb_id) ON DELETE CASCADE,
+    steam_app_id     INTEGER NOT NULL,
+    raw_tag          TEXT NOT NULL,
+    normalized_tag   TEXT NOT NULL,
+    tag_source       TEXT NOT NULL DEFAULT 'steam_store',
+    fetched_at       TEXT NOT NULL,
+    PRIMARY KEY (igdb_id, raw_tag)
+);
+
+CREATE TABLE IF NOT EXISTS steam_game_mapped_tags (
+    igdb_id           INTEGER NOT NULL REFERENCES igdb_games(igdb_id) ON DELETE CASCADE,
+    source_tag        TEXT NOT NULL,
+    mapped_tag_type   TEXT NOT NULL,
+    mapped_tag_id     TEXT NOT NULL,
+    mapped_tag_name   TEXT NOT NULL,
+    mapping_kind      TEXT NOT NULL,
+    mapped_at         TEXT NOT NULL,
+    PRIMARY KEY (igdb_id, source_tag, mapped_tag_type, mapped_tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_steam_game_sync_state_status_updated
+    ON steam_game_sync_state(sync_status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_steam_game_tags_normalized
+    ON steam_game_tags(normalized_tag);
+CREATE INDEX IF NOT EXISTS idx_steam_game_mapped_tags_lookup
+    ON steam_game_mapped_tags(mapped_tag_type, mapped_tag_id);
 
 -- ─── Cross-Platform Identity Links ────────────────────────────────────────────
 

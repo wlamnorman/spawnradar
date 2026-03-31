@@ -24,6 +24,7 @@ def initialize_database(db_path: str) -> None:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(schema_sql)
         _ensure_customer_games_compat(conn)
+        _ensure_igdb_games_compat(conn)
         conn.commit()
 
 
@@ -39,6 +40,14 @@ def _ensure_customer_games_compat(conn: sqlite3.Connection) -> None:
     if not _column_exists(conn, "customer_games", "platforms"):
         conn.execute(
             "ALTER TABLE customer_games ADD COLUMN platforms TEXT NOT NULL DEFAULT '[]'"
+        )
+
+
+def _ensure_igdb_games_compat(conn: sqlite3.Connection) -> None:
+    """Add newly introduced columns for existing cached IGDB games."""
+    if not _column_exists(conn, "igdb_games", "developer_names_json"):
+        conn.execute(
+            "ALTER TABLE igdb_games ADD COLUMN developer_names_json TEXT NOT NULL DEFAULT '[]'"
         )
 
 

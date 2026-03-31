@@ -9,6 +9,7 @@ from app.igdb.models import IGDBGame
 from app.igdb.repository import IGDBRepository
 from app.igdb.sync import IGDBSyncService
 from app.igdb.taxonomy import IGDBGenre, IGDBTheme
+from app.steam_enrichment.repository import SteamEnrichmentRepository
 
 
 def make_db():
@@ -36,9 +37,7 @@ def fake_game(igdb_id: int) -> IGDBGame:
 async def test_full_sync_paginates_until_empty():
     db = make_db()
     try:
-        service = IGDBSyncService(
-            db_path=db, client_id="x", client_secret="y"
-        )
+        service = IGDBSyncService(db_path=db, client_id="x", client_secret="y")
         page1 = [fake_game(i) for i in range(500)]
         page2 = [fake_game(i + 500) for i in range(200)]
         with patch.object(
@@ -57,9 +56,7 @@ async def test_full_sync_paginates_until_empty():
 async def test_fetch_game_persists_single_game():
     db = make_db()
     try:
-        service = IGDBSyncService(
-            db_path=db, client_id="x", client_secret="y"
-        )
+        service = IGDBSyncService(db_path=db, client_id="x", client_secret="y")
         with patch.object(
             service._client,
             "fetch_game_by_id",
@@ -71,5 +68,9 @@ async def test_fetch_game_persists_single_game():
         row = IGDBRepository(db).get(296831)
         assert row is not None
         assert row["name"] == "Game 296831"
+        candidates = SteamEnrichmentRepository(db).load_backfill_candidates(
+            limit=10
+        )
+        assert any(candidate.igdb_id == 296831 for candidate in candidates)
     finally:
         os.unlink(db)

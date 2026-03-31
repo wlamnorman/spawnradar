@@ -15,6 +15,7 @@ class IGDBGame:
     theme_ids: list[IGDBTheme]
     first_release_date: int | None
     cover_url: str | None = None
+    developer_names: list[str] = field(default_factory=list)
     platform_ids: list[int] = field(default_factory=list)
     platform_names: list[str] = field(default_factory=list)
     keyword_names: list[str] = field(default_factory=list)

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from app.igdb.client import IGDBClient
 from app.igdb.models import IGDBGame
 from app.igdb.repository import IGDBRepository
+from app.steam_enrichment.repository import SteamEnrichmentRepository
 
 log = logging.getLogger(__name__)
 _PAGE_SIZE = 500
@@ -24,6 +25,7 @@ class IGDBSyncService:
             client_id=client_id, client_secret=client_secret
         )
         self._repository = repository or IGDBRepository(db_path)
+        self._steam_enrichment_repository = SteamEnrichmentRepository(db_path)
 
     async def full_sync(self) -> int:
         total, offset = 0, 0
@@ -35,6 +37,7 @@ class IGDBSyncService:
                 break
             for game in games:
                 self._repository.upsert(game)
+                self._steam_enrichment_repository.mark_pending(game.igdb_id)
             total += len(games)
             log.info(
                 "IGDB sync: offset=%d stored=%d total=%d",
@@ -54,6 +57,7 @@ class IGDBSyncService:
             log.debug("IGDB fetch returned no game for %s", igdb_id)
             return False
         self._repository.upsert(game)
+        self._steam_enrichment_repository.mark_pending(game.igdb_id)
         log.debug("IGDB fetched game %s (%s)", game.igdb_id, game.name)
         return True
 
@@ -73,6 +77,7 @@ class IGDBSyncService:
         )
         for game in games:
             self._repository.upsert(game)
+            self._steam_enrichment_repository.mark_pending(game.igdb_id)
         log.info(
             "IGDB fetched %d games for tags genres=%s themes=%s",
             len(games),

@@ -24,15 +24,17 @@ class IGDBRepository:
                 """
                 INSERT INTO igdb_games
                     (igdb_id, name, slug, summary, first_release_date,
-                     cover_url, platform_ids_json, platform_names_json,
+                     cover_url, developer_names_json,
+                     platform_ids_json, platform_names_json,
                      last_synced_at)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(igdb_id) DO UPDATE SET
                     name               = excluded.name,
                     slug               = excluded.slug,
                     summary            = excluded.summary,
                     first_release_date = excluded.first_release_date,
                     cover_url          = excluded.cover_url,
+                    developer_names_json = excluded.developer_names_json,
                     platform_ids_json  = excluded.platform_ids_json,
                     platform_names_json = excluded.platform_names_json,
                     last_synced_at     = excluded.last_synced_at
@@ -44,6 +46,7 @@ class IGDBRepository:
                     game.summary,
                     game.first_release_date,
                     game.cover_url,
+                    json.dumps(game.developer_names),
                     json.dumps(game.platform_ids),
                     json.dumps(game.platform_names),
                     now,

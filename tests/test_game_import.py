@@ -315,7 +315,9 @@ def test_map_steam_tags_balatro_style_tags_include_keywords_not_arcade() -> (
     assert mapped.igdb_keyword_ids == ["roguelike", "deckbuilder", "roguelite"]
 
 
-def test_map_steam_tags_uses_description_text_as_keyword_fallback() -> None:
+def test_map_steam_tags_skips_description_text_keyword_fallback_after_one_mention() -> (
+    None
+):
     mapped = map_steam_tags_to_setup_fields(
         api_genre_labels=["Strategy", "Indie"],
         api_category_labels=["Single-player"],
@@ -326,7 +328,22 @@ def test_map_steam_tags_uses_description_text_as_keyword_fallback() -> None:
     )
 
     assert mapped.igdb_genre_ids == [15, 32, 35]
-    assert mapped.igdb_keyword_ids == ["roguelike", "deckbuilder"]
+    assert mapped.igdb_keyword_ids == []
+
+
+def test_map_steam_tags_uses_description_text_after_two_mentions() -> None:
+    mapped = map_steam_tags_to_setup_fields(
+        api_genre_labels=["Strategy", "Indie"],
+        api_category_labels=["Single-player"],
+        raw_tags=["Card Game"],
+        text_blobs=[
+            "The poker roguelike. Balatro is a hypnotically satisfying deckbuilder.",
+            "This deckbuilder roguelike rewards careful planning.",
+        ],
+    )
+
+    assert mapped.igdb_genre_ids == [15, 32, 35]
+    assert set(mapped.igdb_keyword_ids) == {"roguelike", "deckbuilder"}
 
 
 @pytest.mark.parametrize("case", STEAM_IMPORT_CASES)

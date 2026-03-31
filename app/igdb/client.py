@@ -35,7 +35,9 @@ class IGDBClient:
         resp.raise_for_status()
         self._token = resp.json()["access_token"]
         if not isinstance(self._token, str):
-            raise ValueError("IGDB token response did not include access_token.")
+            raise ValueError(
+                "IGDB token response did not include access_token."
+            )
         return self._token
 
     async def fetch_games(
@@ -151,6 +153,7 @@ class IGDBClient:
     _KEYWORD_FIELDS = (
         "fields id,name,slug,summary,cover.url,genres.id,genres.name,"
         "themes.id,themes.name,keywords.id,keywords.name,"
+        "involved_companies.developer,involved_companies.company.name,"
         "platforms.id,platforms.name,first_release_date"
     )
 
@@ -227,7 +230,9 @@ class IGDBClient:
             # tag-set equality: include games that have any of these genres,
             # even if they also have additional genres or themes.
             "fields id,name,slug,summary,cover.url,genres.id,genres.name,"
-            "themes.id,themes.name,platforms.id,platforms.name,first_release_date; "
+            "themes.id,themes.name,involved_companies.developer,"
+            "involved_companies.company.name,"
+            "platforms.id,platforms.name,first_release_date; "
             f"where genres = {genre_filter} & category = 0; "
             "sort first_release_date desc; "
             f"limit {limit}; offset {offset};"
@@ -237,7 +242,9 @@ class IGDBClient:
     def _build_single_game_query(igdb_id: int) -> str:
         return (
             "fields id,name,slug,summary,cover.url,genres.id,genres.name,"
-            "themes.id,themes.name,platforms.id,platforms.name,first_release_date; "
+            "themes.id,themes.name,involved_companies.developer,"
+            "involved_companies.company.name,"
+            "platforms.id,platforms.name,first_release_date; "
             f"where id = {igdb_id}; "
             "limit 1;"
         )
@@ -255,7 +262,9 @@ class IGDBClient:
             genre_filter = (
                 str(genre_ids[0])
                 if len(genre_ids) == 1
-                else "(" + ",".join(str(genre_id) for genre_id in genre_ids) + ")"
+                else "("
+                + ",".join(str(genre_id) for genre_id in genre_ids)
+                + ")"
             )
             # Genre filtering is intended as membership, not exact tag-set
             # equality: include games that have any of these genres.
@@ -264,7 +273,9 @@ class IGDBClient:
             theme_filter = (
                 str(theme_ids[0])
                 if len(theme_ids) == 1
-                else "(" + ",".join(str(theme_id) for theme_id in theme_ids) + ")"
+                else "("
+                + ",".join(str(theme_id) for theme_id in theme_ids)
+                + ")"
             )
             # Theme filtering is also membership-based: include games that
             # have any of these themes, even if other themes are present.
@@ -275,7 +286,9 @@ class IGDBClient:
             )
         return (
             "fields id,name,slug,summary,cover.url,genres.id,genres.name,"
-            "themes.id,themes.name,platforms.id,platforms.name,first_release_date; "
+            "themes.id,themes.name,involved_companies.developer,"
+            "involved_companies.company.name,"
+            "platforms.id,platforms.name,first_release_date; "
             f"where {' & '.join(conditions)}; "
             "sort first_release_date desc; "
             f"limit {limit}; offset {offset};"
@@ -286,19 +299,43 @@ class IGDBClient:
         genres = item.get("genres") or []
         themes = item.get("themes") or []
         platforms = item.get("platforms") or []
+        involved_companies = item.get("involved_companies") or []
         # IGDB returns cover.url as //images.igdb.com/... — normalise to https
         raw_cover = ((item.get("cover") or {}).get("url") or "").strip()
         cover_url: str | None = None
         if raw_cover:
-            url = raw_cover if raw_cover.startswith("http") else f"https:{raw_cover}"
+            url = (
+                raw_cover
+                if raw_cover.startswith("http")
+                else f"https:{raw_cover}"
+            )
             # Upgrade thumbnail to cover_big (264x374)
             cover_url = url.replace("/t_thumb/", "/t_cover_big/")
+        developer_names: list[str] = []
+        seen_developers: set[str] = set()
+        for company_link in involved_companies:
+            if not isinstance(company_link, dict):
+                continue
+            if not bool(company_link.get("developer")):
+                continue
+            company = company_link.get("company")
+            if not isinstance(company, dict):
+                continue
+            developer_name = str(company.get("name") or "").strip()
+            if not developer_name:
+                continue
+            key = developer_name.casefold()
+            if key in seen_developers:
+                continue
+            seen_developers.add(key)
+            developer_names.append(developer_name)
         return IGDBGame(
             igdb_id=item["id"],
             name=item["name"],
             slug=item.get("slug", ""),
             summary=item.get("summary"),
             cover_url=cover_url,
+            developer_names=developer_names,
             genre_ids=[
                 IGDBGenre(g["id"])
                 for g in genres
