@@ -2453,7 +2453,7 @@ class TestHealthRoute:
 
 
 class TestAccessGate:
-    def test_expired_trial_redirects_games_to_pricing(
+    def test_expired_trial_games_page_accessible(
         self, monkeypatch, tmp_path
     ):
         db = str(tmp_path / "test.sqlite3")
@@ -2463,10 +2463,9 @@ class TestAccessGate:
 
             resp = client.get("/games", follow_redirects=False)
 
-        assert resp.status_code == 307
-        assert resp.headers["location"] == "/pricing"
+        assert resp.status_code == 200
 
-    def test_ended_paid_subscription_redirects_games_to_pricing(
+    def test_ended_paid_subscription_games_page_accessible(
         self, monkeypatch, tmp_path
     ):
         db = str(tmp_path / "test.sqlite3")
@@ -2476,10 +2475,9 @@ class TestAccessGate:
 
             resp = client.get("/games", follow_redirects=False)
 
-        assert resp.status_code == 307
-        assert resp.headers["location"] == "/pricing"
+        assert resp.status_code == 200
 
-    def test_expired_trial_redirects_games_new_to_pricing(
+    def test_expired_trial_setup_page_accessible(
         self, monkeypatch, tmp_path
     ):
         db = str(tmp_path / "test.sqlite3")
@@ -2489,10 +2487,9 @@ class TestAccessGate:
 
             resp = client.get("/games/setup", follow_redirects=False)
 
-        assert resp.status_code == 307
-        assert resp.headers["location"] == "/pricing"
+        assert resp.status_code == 200
 
-    def test_expired_trial_redirects_setup_to_pricing(
+    def test_expired_trial_game_edit_page_accessible(
         self, monkeypatch, tmp_path
     ):
         db = str(tmp_path / "test.sqlite3")
@@ -2501,9 +2498,16 @@ class TestAccessGate:
             _create_game_for_user(client, "Setup Game")
             _expire_trial(db, "setupexpired@example.com")
 
+            with get_connection(db) as conn:
+                row = conn.execute(
+                    "SELECT slug FROM customer_games WHERE name = ?",
+                    ("Setup Game",),
+                ).fetchone()
+            assert row is not None
+            game_slug = str(row["slug"])
+
             resp = client.get(
-                "/games/setup-game/setup", follow_redirects=False
+                f"/games/{game_slug}/setup", follow_redirects=False
             )
 
-        assert resp.status_code == 307
-        assert resp.headers["location"] == "/pricing"
+        assert resp.status_code == 200

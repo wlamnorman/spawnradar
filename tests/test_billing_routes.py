@@ -599,9 +599,9 @@ class TestBillingNav:
             _register_and_verify(client, db_path)
             response = client.get("/pricing")
         assert 'href="/pricing"' in response.text or response.status_code in (200,)
-        # Free users are redirected to /pricing from /games; pricing page is accessible
+        # Game routes are now open to all users — free users see the page, not a redirect
         games_response = client.get("/games", follow_redirects=False)
-        assert games_response.status_code in (302, 303, 307)
+        assert games_response.status_code == 200
 
     def test_active_subscriber_sees_billing_in_nav(
         self, monkeypatch, tmp_path

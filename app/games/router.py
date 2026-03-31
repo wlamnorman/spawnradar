@@ -16,7 +16,7 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from app.auth.dependencies import require_product_access
+from app.auth.dependencies import require_product_access, require_user_or_anonymous
 from app.auth.models import User
 from app.billing.models import FREE_LIMITS, TIER_LIMITS
 from app.billing.service import BillingService
@@ -46,7 +46,7 @@ from app.igdb.taxonomy import (
     keyword_label_for_value,
 )
 from app.prospects.service import ProspectRankingService
-from app.security import require_csrf_form
+from app.security import RateLimitRule, client_ip_key, consume_rate_limit, require_csrf_form
 
 router = APIRouter(tags=["games"])
 
@@ -258,7 +258,7 @@ def _platform_values_from_import(platform_labels: list[str]) -> list[str]:
 @router.get("/games", response_class=HTMLResponse)
 def list_games(
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     billing_service: BillingService = Depends(get_billing_service),
     settings: Settings = Depends(get_settings),
@@ -270,10 +270,11 @@ def list_games(
     subscription = billing_service.get_subscription(user.user_id)
     can_add_game = billing_service.check_game_limit(user.user_id)
     max_game_slots = max(limit["games"] for limit in TIER_LIMITS.values())
+    is_limited = subscription is None or not subscription.has_access
     current_game_limit = (
-        TIER_LIMITS[subscription.effective_tier]["games"]
-        if subscription is not None and subscription.has_access
-        else FREE_LIMITS["games"]
+        FREE_LIMITS["games"]
+        if is_limited
+        else TIER_LIMITS[subscription.effective_tier]["games"]
     )
     prospect_service = ProspectRankingService(settings.db_path)
     game_match_counts = {
@@ -297,6 +298,7 @@ def list_games(
             "game_match_counts": game_match_counts,
             "placeholder_slots": placeholder_slots,
             "unlocked_placeholder_slots": unlocked_placeholder_slots,
+            "is_limited": is_limited,
         },
     )
 
@@ -304,7 +306,7 @@ def list_games(
 @router.get("/games/igdb-search")
 def search_cached_igdb_games(
     q: str,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     settings: Settings = Depends(get_settings),
 ) -> list[dict[str, object]]:
     """Return cached IGDB game name suggestions for similar-games inputs."""
@@ -323,7 +325,7 @@ def search_cached_igdb_games(
 @router.post("/games/import-url")
 async def import_url_json(
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     game_import_service: GameImportService = Depends(get_game_import_service),
 ) -> dict[str, object]:
     """Return imported game data as JSON for client-side form filling."""
@@ -416,7 +418,7 @@ def new_game_redirect() -> Response:
 @router.get("/games/setup", response_class=HTMLResponse)
 def new_game_setup_page(
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the setup page for a new game (empty form)."""
@@ -436,13 +438,14 @@ def new_game_setup_page(
 @router.post("/games/setup")
 async def create_game_post(
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     name: str = Form(default=""),
     summary: str = Form(default=""),
     description: str = Form(default=""),
     website_url: str = Form(default=""),
     billing_service: BillingService = Depends(get_billing_service),
     game_service: CustomerGameService = Depends(get_customer_game_service),
+    settings: Settings = Depends(get_settings),
     templates: Jinja2Templates = Depends(get_templates),
     _csrf: None = Depends(require_csrf_form),
 ) -> Response:
@@ -454,6 +457,13 @@ async def create_game_post(
             form, name=name, summary=summary, description=description,
             website_url=website_url,
         )
+
+    # Rate-limit anonymous game creation
+    if user.is_anonymous:
+        if not consume_rate_limit(settings.db_path, "game_create_anon", [
+            RateLimitRule(key=client_ip_key(request), limit=3, window_seconds=3600),
+        ]):
+            raise HTTPException(status_code=429, detail="Too many games created. Please try again later.")
 
     # Check subscription limit
     if not billing_service.check_game_limit(user.user_id):
@@ -502,7 +512,7 @@ async def create_game_post(
 def game_setup_page(
     slug: str,
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
@@ -551,7 +561,7 @@ def _render_game_setup_form(
 async def update_game_post(
     slug: str,
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     name: str = Form(default=""),
     summary: str = Form(default=""),
     description: str = Form(default=""),
@@ -614,7 +624,7 @@ async def update_game_post(
 def duplicate_game_post(
     slug: str,
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     game_service: CustomerGameService = Depends(get_customer_game_service),
     billing_service: BillingService = Depends(get_billing_service),
@@ -637,7 +647,7 @@ def duplicate_game_post(
 def delete_game_post(
     slug: str,
     request: Request,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     game_service: CustomerGameService = Depends(get_customer_game_service),
     _csrf: None = Depends(require_csrf_form),
