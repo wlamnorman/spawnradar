@@ -921,6 +921,87 @@ class TestProspectRankingService:
         assert prospects[0].profile.account_id == "one-game-max"
         assert prospects[0].relevant_game_count == 1
 
+    def test_rank_prospect_counts_matches_ranked_status_counts(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Workflow Count Game",
+            summary="Tactical RPG",
+            description="Tactical RPG",
+            website_url=None,
+            igdb_genre_ids=[12],
+        )
+        _insert_igdb_game(
+            db_path,
+            700,
+            "Workflow Count Match",
+            "workflow-count-match",
+            genre_tags=[(12, "Role-playing (RPG)")],
+        )
+        _insert_creator(db_path, "creator-a", "twitch", "CreatorA")
+        _insert_creator(db_path, "creator-b", "twitch", "CreatorB")
+        _insert_creator(db_path, "creator-c", "twitch", "CreatorC")
+        _insert_game_play(db_path, "creator-a", "Workflow Count Match", 700)
+        _insert_game_play(db_path, "creator-b", "Workflow Count Match", 700)
+        _insert_game_play(db_path, "creator-c", "Workflow Count Match", 700)
+        _insert_prospect_status(
+            db_path, game.customer_game_id, "creator-a", "contacted"
+        )
+        _insert_prospect_status(
+            db_path, game.customer_game_id, "creator-b", "not_pursuing"
+        )
+
+        service = ProspectRankingService(db_path)
+        _prospects, total, status_counts = service.rank_prospects(game)
+        count_total, count_statuses = service.count_ranked_prospects(game)
+
+        assert count_total == total
+        assert count_statuses == status_counts
+
+    def test_rank_prospects_limits_relevant_games_to_ten_per_creator(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Relevant Games Limit Game",
+            summary="Tactical RPG",
+            description="Tactical RPG",
+            website_url=None,
+            igdb_genre_ids=[12],
+        )
+        _insert_creator(
+            db_path,
+            "many-games",
+            "twitch",
+            "ManyGames",
+            followers=5_000,
+            avg_viewers=200,
+        )
+        for igdb_id in range(800, 812):
+            _insert_igdb_game(
+                db_path,
+                igdb_id,
+                f"Relevant Game {igdb_id}",
+                f"relevant-game-{igdb_id}",
+                genre_tags=[(12, "Role-playing (RPG)")],
+            )
+            _insert_game_play(
+                db_path,
+                "many-games",
+                f"Relevant Game {igdb_id}",
+                igdb_id,
+            )
+
+        prospects, total, _ = ProspectRankingService(db_path).rank_prospects(
+            game
+        )
+
+        assert total == 1
+        assert len(prospects) == 1
+        assert prospects[0].relevant_game_count == 12
+        assert len(prospects[0].relevant_games) == 10
+
     def test_rank_prospects_excludes_not_pursuing_from_all(
         self, db_path, game_service, registered_user
     ):

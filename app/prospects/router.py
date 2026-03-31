@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import cast
 from urllib.parse import urlencode
 
@@ -37,6 +39,7 @@ from app.prospects.service import ProspectRankingService
 from app.security import RateLimitRule, client_ip_key, consume_rate_limit
 
 router = APIRouter(tags=["prospects"])
+log = logging.getLogger(__name__)
 
 _OVERLAP_FILTER_MAX = 100
 _CONTACT_METHOD_OPTIONS = (
@@ -172,14 +175,25 @@ def game_prospects_page(
     templates: Jinja2Templates = Depends(get_templates),
 ) -> Response:
     """Render ranked creator prospects for a customer game."""
+    started_at = time.perf_counter()
     # Rate limit: generous enough for active filtering and workflow updates.
     if user.is_anonymous:
-        rules = [RateLimitRule(key=client_ip_key(request), limit=20, window_seconds=60)]
+        rules = [
+            RateLimitRule(
+                key=client_ip_key(request), limit=20, window_seconds=60
+            )
+        ]
     elif not user.is_admin:
-        rules = [RateLimitRule(key=f"user:{user.user_id}", limit=40, window_seconds=60)]
+        rules = [
+            RateLimitRule(
+                key=f"user:{user.user_id}", limit=40, window_seconds=60
+            )
+        ]
     else:
         rules = []
-    if rules and not consume_rate_limit(settings.db_path, "prospects_page", rules):
+    if rules and not consume_rate_limit(
+        settings.db_path, "prospects_page", rules
+    ):
         raise HTTPException(status_code=429, detail="Too many requests.")
 
     game = game_repo.get_by_slug(slug)
@@ -307,6 +321,16 @@ def game_prospects_page(
         contact_methods=contact_methods,
         status_filter=status,
     )
+    log.info(
+        "[prospects] GET slug=%s user_id=%s page=%s status=%s total=%s rendered=%s elapsed_ms=%.1f",
+        slug,
+        user.user_id,
+        page,
+        status,
+        total_count,
+        len(prospects),
+        (time.perf_counter() - started_at) * 1000,
+    )
 
     status_tab_links: list[dict[str, object]] = []
     for option in _STATUS_FILTER_OPTIONS:
@@ -404,6 +428,7 @@ async def update_prospect_workflow(
     settings: Settings = Depends(get_settings),
 ) -> JSONResponse:
     """Persist workflow state for a prospect row without a page reload."""
+    started_at = time.perf_counter()
     game = game_repo.get_by_slug(slug)
     if game is None or (game.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Game not found.")
@@ -455,35 +480,19 @@ async def update_prospect_workflow(
         if value in {option["value"] for option in _CONTACT_METHOD_OPTIONS}
     )
 
-    reach_filter_max = max(
-        default_min_reach,
-        service.max_reach(game, min_reach=default_min_reach),
-    )
-    games_filter_max = max(
-        1,
-        service.max_relevant_games(game, min_reach=default_min_reach),
-    )
     current_max_reach = (
         None
-        if current_max_reach_raw in (None, "", reach_filter_max)
-        else min(
-            reach_filter_max,
-            max(0, _safe_int(current_max_reach_raw, reach_filter_max)),
-        )
+        if current_max_reach_raw in (None, "")
+        else max(0, _safe_int(current_max_reach_raw, 0))
     )
     current_max_games = (
         None
-        if current_max_games_raw in (None, "", games_filter_max)
-        else min(
-            games_filter_max,
-            max(0, _safe_int(current_max_games_raw, games_filter_max)),
-        )
+        if current_max_games_raw in (None, "")
+        else max(0, _safe_int(current_max_games_raw, 0))
     )
 
-    _, current_total_count, status_counts = service.rank_prospects(
+    current_total_count, status_counts = service.count_ranked_prospects(
         game,
-        limit=1,
-        offset=0,
         min_reach=current_min_reach,
         max_reach=current_max_reach,
         min_overlap_score=current_min_overlap / 100,
@@ -497,6 +506,17 @@ async def update_prospect_workflow(
         state.status != "not_pursuing"
         if active_status == "all"
         else state.status == active_status
+    )
+    log.info(
+        "[prospects] workflow slug=%s user_id=%s account_id=%s status=%s active_status=%s visible=%s total=%s elapsed_ms=%.1f",
+        slug,
+        user.user_id,
+        account_id,
+        state.status,
+        active_status,
+        visible,
+        current_total_count,
+        (time.perf_counter() - started_at) * 1000,
     )
     return JSONResponse(
         {

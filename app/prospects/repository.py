@@ -261,9 +261,11 @@ class ProspectRepository:
         self,
         account_ids: list[str],
         game_tags: Sequence[TagKey],
+        *,
+        per_account_limit: int = 10,
     ) -> dict[str, list[RelevantGame]]:
         """Fetch relevant game names + cover art for each creator."""
-        if not account_ids or not game_tags:
+        if not account_ids or not game_tags or per_account_limit <= 0:
             return {}
 
         game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
@@ -272,19 +274,35 @@ class ProspectRepository:
         sql = f"""
             WITH game_tags AS (
                 {game_tags_sql}
+            ),
+            ranked_games AS (
+                SELECT
+                    cgp.account_id,
+                    ig.name,
+                    ig.cover_url,
+                    COUNT(DISTINCT gt.tag_id) AS tag_overlap,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY cgp.account_id
+                        ORDER BY COUNT(DISTINCT gt.tag_id) DESC, ig.name
+                    ) AS rank_in_account
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type AND gt.tag_id = igt.tag_id
+                JOIN igdb_games ig ON ig.igdb_id = cgp.igdb_game_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+                  AND cgp.account_id IN ({placeholders})
+                GROUP BY cgp.account_id, cgp.igdb_game_id
             )
-            SELECT cgp.account_id, ig.name, ig.cover_url,
-                   COUNT(DISTINCT gt.tag_id) AS tag_overlap
-            FROM creator_games_played cgp
-            JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-            JOIN game_tags gt ON gt.tag_type = igt.tag_type AND gt.tag_id = igt.tag_id
-            JOIN igdb_games ig ON ig.igdb_id = cgp.igdb_game_id
-            WHERE cgp.igdb_game_id IS NOT NULL
-              AND cgp.account_id IN ({placeholders})
-            GROUP BY cgp.account_id, cgp.igdb_game_id
-            ORDER BY cgp.account_id, tag_overlap DESC, ig.name
+            SELECT account_id, name, cover_url
+            FROM ranked_games
+            WHERE rank_in_account <= ?
+            ORDER BY account_id, rank_in_account
         """
-        params: list[object] = [*game_tags_params, *account_ids]
+        params: list[object] = [
+            *game_tags_params,
+            *account_ids,
+            per_account_limit,
+        ]
         with get_connection(self._db_path) as conn:
             rows = conn.execute(sql, params).fetchall()
 
