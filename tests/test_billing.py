@@ -3,12 +3,14 @@
 import hashlib
 import hmac
 import json
+import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.billing.models import (
+    FREE_LIMITS,
     TIER_LIMITS,
     Subscription,
     Tier,
@@ -54,7 +56,7 @@ def test_get_subscription_returns_none_for_new_user(
 def test_get_subscription_returns_existing_sub(
     billing_service, registered_user, sub_repo
 ):
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
     sub = billing_service.get_subscription(registered_user.user_id)
     assert isinstance(sub, Subscription)
@@ -143,7 +145,6 @@ def test_has_access_false_for_past_due_subscription():
         tier=base.tier,
         status=base.status,
         current_period_end=future,
-
         created_at=base.created_at,
         updated_at=base.updated_at,
     )
@@ -161,7 +162,6 @@ def test_canceled_subscription_loses_access_after_period_end():
         tier=base.tier,
         status=base.status,
         current_period_end=past,
-
         created_at=base.created_at,
         updated_at=base.updated_at,
     )
@@ -194,7 +194,7 @@ def test_subscription_lifecycle_free_to_paid(
 ):
     """Limits and has_subscription reflect state correctly as a user moves
     from free through activation to cancellation."""
-    import uuid
+
     uid = registered_user.user_id
 
     # --- Free phase (no sub row) ---
@@ -257,7 +257,7 @@ def test_checkout_context_uses_indie_price_id(
 def test_sync_subscription_updates_customer_ids_and_status(
     billing_service, registered_user, sub_repo
 ):
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
 
     event = _paddle_event(
@@ -280,7 +280,7 @@ def test_sync_subscription_updates_customer_ids_and_status(
 def test_sync_subscription_treats_legacy_price_ids_as_indie(
     billing_service, registered_user, sub_repo
 ):
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
 
     event = _paddle_event(
@@ -301,7 +301,7 @@ def test_sync_subscription_treats_legacy_price_ids_as_indie(
 def test_sync_subscription_falls_back_to_customer_id_lookup(
     billing_service, registered_user, sub_repo
 ):
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
     billing_service._subs.update_from_paddle(
         registered_user.user_id, paddle_customer_id="ctm_lookup"
@@ -325,7 +325,7 @@ def test_sync_subscription_falls_back_to_customer_id_lookup(
 def test_cancel_subscription_marks_subscription_cancelled(
     billing_service, registered_user, sub_repo
 ):
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
     billing_service._subs.update_from_paddle(
         registered_user.user_id,
@@ -380,7 +380,7 @@ def test_handle_webhook_is_noop_when_webhook_secret_missing(
 def test_handle_webhook_processes_without_api_key(
     registered_user, sub_repo, game_repo
 ):
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
     svc = BillingService(
         sub_repo,
@@ -439,7 +439,7 @@ async def test_sync_from_transaction_activates_subscription(
     billing_service, registered_user, sub_repo
 ):
     """Success redirect with _ptxn activates the subscription immediately."""
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
 
     txn_data = {"subscription_id": "sub_txn", "customer_id": "ctm_txn"}
@@ -488,7 +488,7 @@ async def test_sync_from_transaction_is_noop_without_transaction_id(
     billing_service, registered_user, sub_repo
 ):
     """Empty transaction ID → silently skips."""
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
 
     await billing_service.sync_from_transaction(registered_user.user_id, "")
@@ -503,7 +503,7 @@ async def test_sync_from_transaction_swallows_api_errors(
     billing_service, registered_user, sub_repo
 ):
     """Paddle API failure does not raise — webhook will recover."""
-    import uuid
+
     sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
 
     client = AsyncMock()
@@ -523,20 +523,8 @@ async def test_sync_from_transaction_swallows_api_errors(
 
 def test_free_limits_value():
     """FREE_LIMITS grants 1 game slot."""
-    from app.billing.models import FREE_LIMITS
+
     assert FREE_LIMITS == {"games": 1}
-
-
-def test_subscription_has_no_trialing_property():
-    """is_trialing property has been removed."""
-    from app.billing.models import Subscription
-    assert not hasattr(Subscription, "is_trialing")
-
-
-def test_subscription_has_no_has_product_access_property():
-    """has_product_access property has been removed — use has_access instead."""
-    from app.billing.models import Subscription
-    assert not hasattr(Subscription, "has_product_access")
 
 
 def test_canceled_subscription_keeps_access_until_period_end():

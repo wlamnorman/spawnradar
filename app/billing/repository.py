@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+import uuid as _uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -88,8 +90,7 @@ class SubscriptionRepository:
         arrived before any other action created the row), one is created first.
         If the user does not exist (FK violation) the upsert is skipped silently.
         """
-        import sqlite3
-        import uuid as _uuid
+
         sub = self.get_by_user(user_id)
         if sub is None:
             try:
@@ -129,7 +130,9 @@ class SubscriptionRepository:
     def delete_by_user(self, user_id: str) -> None:
         """Delete all subscriptions for a user."""
         with get_connection(self._db_path) as conn:
-            conn.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
+            conn.execute(
+                "DELETE FROM subscriptions WHERE user_id = ?", (user_id,)
+            )
 
     def grant_comped_access(
         self, user_id: str, tier: Tier = Tier.INDIE
@@ -169,6 +172,8 @@ class SubscriptionRepository:
                 )
 
         return self.get_by_user(user_id)
+
+
 def _row_to_subscription(row: Any) -> Subscription:
     return Subscription(
         subscription_id=row["subscription_id"],
