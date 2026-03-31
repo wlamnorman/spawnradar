@@ -3,7 +3,6 @@
 import asyncio
 
 import pytest
-from fastapi import Response
 from unittest.mock import MagicMock
 
 from app.auth.dependencies import require_user_or_anonymous
@@ -47,32 +46,29 @@ def test_anonymous_user_has_no_password(auth_service):
 def test_dependency_returns_existing_user_for_valid_session(auth_service, registered_user):
     """If session cookie maps to a real user, return that user."""
     session = auth_service.create_session_for_user(registered_user.user_id)
-    response = Response()
-    settings = MagicMock(base_url="http://localhost:8000")
+    mock_request = MagicMock()
+    mock_request.state = MagicMock(spec=[])  # no new_session_id attribute
     user = asyncio.run(require_user_or_anonymous(
-        request=MagicMock(),
-        response=response,
+        request=mock_request,
         session_id=session.session_id,
         auth_service=auth_service,
-        settings=settings,
     ))
     assert user.user_id == registered_user.user_id
     assert user.is_anonymous is False
 
 
 def test_dependency_creates_anonymous_user_when_no_session(auth_service):
-    """If no session cookie, create anonymous user and set cookie on response."""
-    response = Response()
-    settings = MagicMock(base_url="http://localhost:8000")
+    """If no session cookie, create anonymous user and mark request.state for middleware."""
+    mock_request = MagicMock()
     user = asyncio.run(require_user_or_anonymous(
-        request=MagicMock(),
-        response=response,
+        request=mock_request,
         session_id=None,
         auth_service=auth_service,
-        settings=settings,
     ))
     assert user.is_anonymous is True
-    assert "session_id" in response.headers.get("set-cookie", "")
+    # The dependency sets new_session_id on request.state for the middleware
+    assert hasattr(mock_request.state, "new_session_id")
+    assert mock_request.state.new_session_id is not None
 
 
 def test_transfer_game_ownership(game_repo, user_repo):
