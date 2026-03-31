@@ -274,7 +274,12 @@ def build_parser() -> argparse.ArgumentParser:
         "grant-admin",
         help="Grant admin access to a user by email.",
     )
-    grant_admin.add_argument("email", help="Email address of the user.")
+    grant_admin.add_argument(
+        "email",
+        nargs="?",
+        default=DEV_EMAIL,
+        help=f"Email address of the user. Defaults to {DEV_EMAIL}.",
+    )
     grant_comp = subparsers.add_parser(
         "grant-comp",
         help="Grant complimentary access to one or more users by email.",
@@ -655,9 +660,11 @@ def run_grant_comp(
     )
 
 
-def run_grant_admin(db_path: str, email: str) -> CommandResult:
+def run_grant_admin(db_path: str, email: str = DEV_EMAIL) -> CommandResult:
     """Grant admin access to a user by email."""
     initialize_database(db_path)
+    if email == DEV_EMAIL:
+        ensure_dev_user(db_path)
     user_repo = UserRepository(db_path)
     user = user_repo.get_by_email(email)
     if user is None:

@@ -427,6 +427,15 @@ def test_main_volgarr_the_viking_ii_returns_zero_and_writes_game(db_path):
     assert any(game.name == "Volgarr the Viking II" for game in games)
 
 
+def test_main_grant_admin_defaults_to_dev_account(db_path):
+    exit_code = main(["--db-path", db_path, "grant-admin"])
+
+    user = UserRepository(db_path).get_by_email(DEV_EMAIL)
+    assert user is not None
+    assert exit_code == 0
+    assert user.is_admin is True
+
+
 def test_run_inspect_twitch_igdb_delegates_to_async_helper(
     db_path, monkeypatch
 ):
