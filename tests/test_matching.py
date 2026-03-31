@@ -15,6 +15,7 @@ from app.creator_index.matching import (
     tag_weight,
 )
 from app.games.models import CustomerGame
+from app.igdb.taxonomy import canonical_keyword_for_igdb_name
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -83,6 +84,14 @@ class TestCustomerGameTagCountsKeywords:
         assert len(counts) == 2
         assert ("genre", 1) in counts
         assert ("theme", 10) in counts
+
+    def test_platformer_variants_are_not_curated_keywords(self):
+        assert canonical_keyword_for_igdb_name("2d platformer") is None
+        assert canonical_keyword_for_igdb_name("3d platformer") is None
+
+    def test_sparse_keywords_are_not_curated_keywords(self):
+        assert canonical_keyword_for_igdb_name("logic puzzle") is None
+        assert canonical_keyword_for_igdb_name("narrative adventure") is None
 
 
 # ---------------------------------------------------------------------------

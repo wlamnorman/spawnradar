@@ -142,14 +142,14 @@ def test_game_limit_returns_false_after_trial_limit(
     assert billing_service.check_game_limit(registered_user.user_id) is False
 
 
-def test_create_game_rejects_summary_longer_than_150_characters(
+def test_create_game_rejects_summary_longer_than_200_characters(
     game_service, registered_user
 ):
-    with pytest.raises(ValueError, match="150 characters or fewer"):
+    with pytest.raises(ValueError, match="200 characters or fewer"):
         game_service.create_game(
             user_id=registered_user.user_id,
             name="Summary Limit",
-            summary="x" * 151,
+            summary="x" * 201,
             description="Valid description",
             website_url=None,
         )
@@ -178,3 +178,18 @@ def test_create_game_rejects_missing_summary(game_service, registered_user):
             description="Valid description",
             website_url=None,
         )
+
+
+def test_create_game_allows_blank_description(game_service, registered_user):
+    game = game_service.create_game(
+        user_id=registered_user.user_id,
+        name="Optional Description",
+        summary="A summary is enough for setup.",
+        description="",
+        website_url=None,
+        igdb_genre_ids=[12],
+    )
+
+    assert game.description == ""
+
+

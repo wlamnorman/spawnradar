@@ -7,7 +7,7 @@
   ],
   "broad_igdb_themes": [{ "id": 27, "label": "Comedy" }],
   "required_game_modes": [{ "id": 1, "label": "Single player" }],
-  "extra_custom_tags": ["cozy", "farm", "life simulation"],
+  "extra_custom_tags": ["cozy", "casual", "time management", "crafting"],
   "anchor_games": [
     "Stardew Valley",
     "Animal Crossing: New Horizons",

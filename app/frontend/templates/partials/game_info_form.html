@@ -11,11 +11,58 @@
     >
         Tell us about your game such that we can find content creators for you.
         Take your time to find the tags that best describe your game's core
-        identity. Using fewer, more accurate tags tends to produce better
-        matches than selecting everything that vaguely applies.
+        identity. Using fewer, more accurate tags is better than selecting
+        everything that vaguely applies.
     </p>
 
     <div class="form-section">
+        <div class="form-group">
+            <details
+                class="game-import-menu"
+            >
+                <summary class="button secondary">
+                    <span>Import from URL</span>
+                    <span class="game-import-chevron" aria-hidden="true"
+                        >▾</span
+                    >
+                </summary>
+                <div class="game-import-panel">
+                    <div class="game-import-panel-copy">
+                        <label for="import_url">Paste a supported URL</label>
+                        <div class="field-hint game-import-supported">
+                            <span>Supported:</span>
+                            <ul class="game-import-supported-list">
+                                <li>
+                                    <strong>steam</strong>
+                                    <code
+                                        >example:
+                                        https://store.steampowered.com/app/2379780/Balatro/</code
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="game-import-actions">
+                        <input
+                            type="url"
+                            id="import_url"
+                            name="import_url"
+                            value="{{ form_state.import_url_value | default('') }}"
+                            placeholder=""
+                        />
+                        <button
+                            type="button"
+                            class="button secondary"
+                            id="import-url-btn"
+                        >
+                            Import
+                        </button>
+                    </div>
+                    <div id="import-status" hidden></div>
+                </div>
+            </details>
+        </div>
+
         <div class="form-group">
             <label for="name">Game name <span class="required">*</span></label>
             <input
@@ -35,7 +82,7 @@
                 class="textarea-compact"
                 rows="2"
                 required
-                maxlength="150"
+                maxlength="{{ summary_max_length | default(200) }}"
                 placeholder="One-sentence pitch for your game and who it is for."
                 data-char-count="summary-chars"
             >
@@ -44,20 +91,17 @@
             <p class="field-hint summary-char-hint">
                 <span id="summary-chars">
                     {{ (summary_value | default('')) | length }} </span
-                >/150
+                >/{{ summary_max_length | default(200) }}
             </p>
         </div>
 
         <div class="form-group">
-            <label for="description"
-                >Description <span class="required">*</span></label
-            >
+            <label for="description">Description</label>
             <textarea
                 id="description"
                 name="description"
-                required
                 rows="{{ description_rows | default(10) }}"
-                maxlength="1000"
+                maxlength="{{ description_max_length | default(1000) }}"
                 placeholder="Describe your game, what makes it distinct and who it is for."
                 data-char-count="description-chars"
             >
@@ -66,7 +110,7 @@
             <p class="field-hint summary-char-hint">
                 <span id="description-chars">
                     {{ (description_value | default('')) | length }} </span
-                >/1000
+                >/{{ description_max_length | default(1000) }}
             </p>
         </div>
 
@@ -349,10 +393,7 @@
 
         <div class="form-group">
             <label>Game modes</label>
-            <p class="field-hint">
-                Store the ways your game is played, even if we do not use them
-                in matching yet.
-            </p>
+
             <div class="checkbox-group">
                 {% for value, label in igdb_game_modes %}
                 <label class="checkbox-label">
@@ -379,9 +420,6 @@
 
         <div class="form-group">
             <label>Player perspectives</label>
-            <p class="field-hint">
-                Store the camera or presentation perspective for the game.
-            </p>
             <div class="checkbox-group">
                 {% for value, label in igdb_player_perspectives %}
                 <label class="checkbox-label">
@@ -408,7 +446,9 @@
     </div>
 
     <div class="form-actions">
-        <button type="submit" class="button">{{ submit_label }}</button>
+        <button type="submit" class="button" name="form_action" value="save">
+            {{ submit_label }}
+        </button>
         {% if cancel_href %}
         <a href="{{ cancel_href }}" class="button secondary"
             >{{ cancel_label | default('Cancel') }}</a

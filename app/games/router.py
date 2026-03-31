@@ -25,9 +25,12 @@ from app.dependencies import (
     get_billing_service,
     get_customer_game_repo,
     get_customer_game_service,
+    get_game_import_service,
     get_settings,
     get_templates,
 )
+from app.game_import.service import GameImportService
+from app.games.constants import MAX_DESCRIPTION_LENGTH, MAX_SUMMARY_LENGTH
 from app.games.repository import CustomerGameRepository
 from app.games.service import CustomerGameService
 from app.igdb.platforms import PLATFORM_OPTIONS
@@ -57,6 +60,7 @@ _ALLOWED_IGDB_KEYWORD_IDS = frozenset(
 )
 _PLATFORM_OPTIONS = PLATFORM_OPTIONS
 _ALLOWED_PLATFORM_VALUES = frozenset(value for value, _ in _PLATFORM_OPTIONS)
+_PC_IMPORT_PLATFORM_LABELS = frozenset({"Windows", "macOS", "Linux"})
 
 
 def _keyword_option_label(canonical: str) -> str:
@@ -137,6 +141,8 @@ def _igdb_form_context() -> dict[str, object]:
         for value, label in igdb_mechanic_keywords
     ]
     return {
+        "description_max_length": MAX_DESCRIPTION_LENGTH,
+        "summary_max_length": MAX_SUMMARY_LENGTH,
         "platform_options": _PLATFORM_OPTIONS,
         "igdb_genres": igdb_genres,
         "igdb_themes": igdb_themes,
@@ -237,6 +243,13 @@ def _game_form_state_from_game(game: object) -> dict[str, object]:
     )
 
 
+def _platform_values_from_import(platform_labels: list[str]) -> list[str]:
+    """Map imported platform labels into the current form platform values."""
+    if any(label in _PC_IMPORT_PLATFORM_LABELS for label in platform_labels):
+        return ["pc"]
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Game list / dashboard
 # ---------------------------------------------------------------------------
@@ -307,45 +320,53 @@ def search_cached_igdb_games(
     ]
 
 
-# ---------------------------------------------------------------------------
-# Create game
-# ---------------------------------------------------------------------------
-
-
-@router.get("/games/new", response_class=HTMLResponse)
-def new_game_page(
+@router.post("/games/import-url")
+async def import_url_json(
     request: Request,
     user: User = Depends(require_product_access),
-    templates: Jinja2Templates = Depends(get_templates),
-) -> HTMLResponse:
-    """Render the new game form."""
-    return templates.TemplateResponse(
-        request,
-        "games/create.html",
-        {
-            "user": user,
-            "error": None,
-            "form_state": _game_form_state(),
-            **_igdb_form_context(),
-        },
-    )
+    game_import_service: GameImportService = Depends(get_game_import_service),
+) -> dict[str, object]:
+    """Return imported game data as JSON for client-side form filling."""
+    payload = await request.json()
+    url = str(payload.get("url") or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required.")
+    try:
+        preview = await game_import_service.import_url(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    draft = preview.draft
+    return {
+        "name": draft.name,
+        "summary": draft.summary,
+        "description": draft.description,
+        "website_url": draft.website_url or "",
+        "platform_labels": draft.platform_labels,
+        "platforms": _platform_values_from_import(draft.platform_labels),
+        "igdb_genre_ids": draft.igdb_genre_ids,
+        "igdb_theme_ids": draft.igdb_theme_ids,
+        "igdb_game_mode_ids": draft.igdb_game_mode_ids,
+        "igdb_keyword_ids": draft.igdb_keyword_ids,
+    }
 
 
-@router.post("/games")
-async def create_game_post(
-    request: Request,
-    user: User = Depends(require_product_access),
-    name: str = Form(...),
-    summary: str = Form(default=""),
-    description: str = Form(...),
-    website_url: str = Form(default=""),
-    billing_service: BillingService = Depends(get_billing_service),
-    game_service: CustomerGameService = Depends(get_customer_game_service),
-    templates: Jinja2Templates = Depends(get_templates),
-    _csrf: None = Depends(require_csrf_form),
-) -> RedirectResponse:
-    """Handle game creation form submission."""
-    form = await request.form()
+def _parse_game_form(
+    form: object,
+    *,
+    name: str,
+    summary: str,
+    description: str,
+    website_url: str,
+) -> tuple[
+    list[int], list[int], list[int], list[int],
+    list[str], list[str], list[str], dict[str, object],
+]:
+    """Parse multi-value form fields and build form state.
+
+    Returns (igdb_genre_ids, igdb_theme_ids, igdb_game_mode_ids,
+    igdb_player_perspective_ids, igdb_keyword_ids, platforms,
+    similar_game_names, form_state).
+    """
     igdb_genre_ids = _int_form_values(form, "igdb_genre_ids")
     igdb_theme_ids = _int_form_values(form, "igdb_theme_ids")
     igdb_game_mode_ids = _int_form_values(form, "igdb_game_mode_ids")
@@ -374,23 +395,81 @@ async def create_game_post(
         igdb_keyword_ids=igdb_keyword_ids,
         similar_game_names=similar_game_names,
     )
+    return (
+        igdb_genre_ids, igdb_theme_ids, igdb_game_mode_ids,
+        igdb_player_perspective_ids, igdb_keyword_ids, platforms,
+        similar_game_names, form_state,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Game setup (unified create + edit)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/games/new")
+def new_game_redirect() -> Response:
+    """Backward-compatible redirect from old create page."""
+    return RedirectResponse(url="/games/setup", status_code=301)
+
+
+@router.get("/games/setup", response_class=HTMLResponse)
+def new_game_setup_page(
+    request: Request,
+    user: User = Depends(require_product_access),
+    templates: Jinja2Templates = Depends(get_templates),
+) -> HTMLResponse:
+    """Render the setup page for a new game (empty form)."""
+    return templates.TemplateResponse(
+        request,
+        "games/setup.html",
+        {
+            "user": user,
+            "game": None,
+            "error": None,
+            "form_state": _game_form_state(),
+            **_igdb_form_context(),
+        },
+    )
+
+
+@router.post("/games/setup")
+async def create_game_post(
+    request: Request,
+    user: User = Depends(require_product_access),
+    name: str = Form(default=""),
+    summary: str = Form(default=""),
+    description: str = Form(default=""),
+    website_url: str = Form(default=""),
+    billing_service: BillingService = Depends(get_billing_service),
+    game_service: CustomerGameService = Depends(get_customer_game_service),
+    templates: Jinja2Templates = Depends(get_templates),
+    _csrf: None = Depends(require_csrf_form),
+) -> Response:
+    """Handle game creation form submission."""
+    form = await request.form()
+    igdb_genre_ids, igdb_theme_ids, igdb_game_mode_ids, \
+        igdb_player_perspective_ids, igdb_keyword_ids, platforms, \
+        similar_game_names, form_state = _parse_game_form(
+            form, name=name, summary=summary, description=description,
+            website_url=website_url,
+        )
 
     # Check subscription limit
     if not billing_service.check_game_limit(user.user_id):
-        return templates.TemplateResponse(
+        response = _render_game_setup_form(
             request,
-            "games/create.html",
-            {
-                "user": user,
-                "error": "You've reached your game limit. Upgrade your plan to add more games.",
-                "form_state": form_state,
-                **_igdb_form_context(),
-            },
-            status_code=400,
-        )  # type: ignore[return-value]
+            templates,
+            user,
+            None,
+            error="You've reached your game limit. Upgrade your plan to add more games.",
+            form_state=form_state,
+        )
+        response.status_code = 400
+        return response  # type: ignore[return-value]
 
     try:
-        game = game_service.create_game(
+        game_service.create_game(
             user_id=user.user_id,
             name=name,
             description=description,
@@ -405,24 +484,18 @@ async def create_game_post(
             similar_game_names=similar_game_names or None,
         )
     except ValueError as exc:
-        return templates.TemplateResponse(
+        response = _render_game_setup_form(
             request,
-            "games/create.html",
-            {
-                "user": user,
-                "error": str(exc),
-                "form_state": form_state,
-                **_igdb_form_context(),
-            },
-            status_code=400,
-        )  # type: ignore[return-value]
+            templates,
+            user,
+            None,
+            error=str(exc),
+            form_state=form_state,
+        )
+        response.status_code = 400
+        return response  # type: ignore[return-value]
 
-    return RedirectResponse(url=f"/games/{game.slug}/setup", status_code=303)
-
-
-# ---------------------------------------------------------------------------
-# Game setup
-# ---------------------------------------------------------------------------
+    return RedirectResponse(url="/games", status_code=303)
 
 
 @router.get("/games/{slug}/setup", response_class=HTMLResponse)
@@ -431,12 +504,11 @@ def game_setup_page(
     request: Request,
     user: User = Depends(require_product_access),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
-    game_service: CustomerGameService = Depends(get_customer_game_service),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the game setup page."""
     game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
+    if game is None or (game.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Game not found.")
 
     return templates.TemplateResponse(
@@ -452,14 +524,37 @@ def game_setup_page(
     )
 
 
-@router.post("/games/{slug}")
+def _render_game_setup_form(
+    request: Request,
+    templates: Jinja2Templates,
+    user: User,
+    game: object,
+    *,
+    error: str | None,
+    form_state: dict[str, object],
+) -> HTMLResponse:
+    """Render the game setup page with shared template context."""
+    return templates.TemplateResponse(
+        request,
+        "games/setup.html",
+        {
+            "user": user,
+            "game": game,
+            "error": error,
+            "form_state": form_state,
+            **_igdb_form_context(),
+        },
+    )
+
+
+@router.post("/games/{slug}/setup")
 async def update_game_post(
     slug: str,
     request: Request,
     user: User = Depends(require_product_access),
-    name: str = Form(...),
+    name: str = Form(default=""),
     summary: str = Form(default=""),
-    description: str = Form(...),
+    description: str = Form(default=""),
     website_url: str = Form(default=""),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     game_service: CustomerGameService = Depends(get_customer_game_service),
@@ -468,43 +563,21 @@ async def update_game_post(
 ) -> Response:
     """Handle game info update form submission."""
     form = await request.form()
-    igdb_genre_ids = _int_form_values(form, "igdb_genre_ids")
-    igdb_theme_ids = _int_form_values(form, "igdb_theme_ids")
-    igdb_game_mode_ids = _int_form_values(form, "igdb_game_mode_ids")
-    igdb_player_perspective_ids = _int_form_values(
-        form, "igdb_player_perspective_ids"
-    )
-    igdb_keyword_ids = _string_form_values(
-        form,
-        "igdb_keyword_ids",
-        allowed_values=_ALLOWED_IGDB_KEYWORD_IDS,
-    )
-    platforms = _string_form_values(
-        form, "platforms", allowed_values=_ALLOWED_PLATFORM_VALUES
-    )
-    similar_game_names = _string_form_values(form, "similar_game_names")
-    form_state = _game_form_state(
-        name=name,
-        summary=summary,
-        description=description,
-        website_url=website_url,
-        platforms=platforms,
-        igdb_genre_ids=igdb_genre_ids,
-        igdb_theme_ids=igdb_theme_ids,
-        igdb_game_mode_ids=igdb_game_mode_ids,
-        igdb_player_perspective_ids=igdb_player_perspective_ids,
-        igdb_keyword_ids=igdb_keyword_ids,
-        similar_game_names=similar_game_names,
-    )
+    igdb_genre_ids, igdb_theme_ids, igdb_game_mode_ids, \
+        igdb_player_perspective_ids, igdb_keyword_ids, platforms, \
+        similar_game_names, form_state = _parse_game_form(
+            form, name=name, summary=summary, description=description,
+            website_url=website_url,
+        )
 
     game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
+    if game is None or (game.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Game not found.")
 
     try:
         game_service.update_game(
             customer_game_id=game.customer_game_id,
-            user_id=user.user_id,
+            user_id=game.user_id,  # use owner's ID so service ownership check passes
             name=name,
             description=description,
             website_url=website_url or None,
@@ -518,18 +591,16 @@ async def update_game_post(
             similar_game_names=similar_game_names,
         )
     except ValueError as exc:
-        return templates.TemplateResponse(
+        response = _render_game_setup_form(
             request,
-            "games/setup.html",
-            {
-                "user": user,
-                "game": game,
-                "error": str(exc),
-                "form_state": form_state,
-                **_igdb_form_context(),
-            },
-            status_code=400,
+            templates,
+            user,
+            game,
+            error=str(exc),
+            form_state=form_state,
         )
+        response.status_code = 400
+        return response
 
     return RedirectResponse(url="/games", status_code=303)
 

@@ -84,6 +84,7 @@ class Settings:
     creator_index_twitch_min_live_viewers: int
     creator_index_twitch_min_followers: int
     creator_index_customer_game_twitch_probe_limit: int
+    admin_secret_key: str
 
     @property
     def uses_https(self) -> bool:
@@ -202,6 +203,7 @@ class Settings:
             creator_index_customer_game_twitch_probe_limit=_env_int(
                 "CREATOR_INDEX_CUSTOMER_GAME_TWITCH_PROBE_LIMIT", 10
             ),
+            admin_secret_key=_env_str("ADMIN_SECRET_KEY"),
         )
         try:
             return settings.validate()

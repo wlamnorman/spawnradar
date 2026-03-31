@@ -12,7 +12,7 @@
   "required_game_modes": [
     {"id": 1, "label": "Single player"}
   ],
-  "extra_custom_tags": ["colony simulator", "base building", "automation"],
+  "extra_custom_tags": ["base building", "automation", "resource management", "management"],
   "anchor_games": [
     "RimWorld",
     "Factorio",

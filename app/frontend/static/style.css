@@ -1427,6 +1427,94 @@ button.tag-pill-button {
     margin-bottom: 14px;
 }
 
+.game-import-menu {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 4px;
+    z-index: 30;
+}
+
+.game-import-menu summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.game-import-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.game-import-chevron {
+    font-size: 12px;
+    color: #8a97ad;
+    transition: transform 0.16s ease;
+}
+
+.game-import-menu[open] .game-import-chevron {
+    transform: rotate(180deg);
+}
+
+.game-import-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    width: min(560px, calc(100vw - 64px));
+    padding: 16px 18px;
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+}
+
+.game-import-panel-copy {
+    margin-bottom: 12px;
+}
+
+.game-import-supported {
+    margin: 6px 0 0;
+}
+
+.game-import-supported-list {
+    margin: 6px 0;
+    padding-left: 18px;
+}
+
+.game-import-supported-list li {
+    margin: 0;
+}
+
+.game-import-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.game-import-actions input[type="url"] {
+    flex: 1 1 360px;
+    min-width: 0;
+}
+
+.game-import-actions .button {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+    .game-import-menu summary {
+        justify-content: space-between;
+    }
+
+    .game-import-panel {
+        width: min(560px, calc(100vw - 32px));
+    }
+
+    .game-import-actions .button {
+        width: 100%;
+    }
+}
+
 .tag-picker-list {
     display: grid;
     gap: 16px;

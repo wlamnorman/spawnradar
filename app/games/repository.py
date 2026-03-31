@@ -401,56 +401,6 @@ def _replace_game_tags(
         )
 
 
-def _load_game_tags(
-    conn: sqlite3.Connection, customer_game_id: str
-) -> tuple[list[int], list[int], list[int], list[int], list[str]]:
-    """Read persisted customer-game tag IDs from the relational tag table.
-
-    Returns ``(genre_ids, theme_ids, game_mode_ids, player_perspective_ids, keyword_ids)``.
-    Keyword IDs are rebuilt from bucketed string tag rows, while official
-    IGDB genre/theme/mode/perspective rows remain numeric.
-    """
-    rows = conn.execute(
-        "SELECT tag_type, tag_id FROM customer_game_tags WHERE customer_game_id = ?",
-        (customer_game_id,),
-    ).fetchall()
-    genre_ids = sorted(
-        int(r["tag_id"])
-        for r in rows
-        if r["tag_type"] == "genre" and isinstance(r["tag_id"], int)
-    )
-    theme_ids = sorted(
-        int(r["tag_id"])
-        for r in rows
-        if r["tag_type"] == "theme" and isinstance(r["tag_id"], int)
-    )
-    game_mode_ids = sorted(
-        r["tag_id"] for r in rows if r["tag_type"] == "game_mode"
-    )
-    player_perspective_ids = sorted(
-        r["tag_id"] for r in rows if r["tag_type"] == "player_perspective"
-    )
-    keyword_ids = sorted(
-        str(r["tag_id"])
-        for r in rows
-        if (
-            r["tag_type"] == "keyword"
-            or r["tag_type"] == "mechanic"
-            or (
-                r["tag_type"] in {"genre", "theme"}
-                and not isinstance(r["tag_id"], int)
-            )
-        )
-    )
-    return (
-        genre_ids,
-        theme_ids,
-        game_mode_ids,
-        player_perspective_ids,
-        keyword_ids,
-    )
-
-
 # ---------------------------------------------------------------------------
 # Row converters
 # ---------------------------------------------------------------------------

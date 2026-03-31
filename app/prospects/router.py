@@ -170,20 +170,21 @@ def game_prospects_page(
 ) -> Response:
     """Render ranked creator prospects for a customer game."""
     # Rate limit: generous enough for active filtering and workflow updates.
-    allowed = consume_rate_limit(
-        settings.db_path,
-        "prospects_view",
-        [
-            RateLimitRule(
-                key=f"user:{user.user_id}", limit=40, window_seconds=60
-            )
-        ],
-    )
-    if not allowed:
-        raise HTTPException(status_code=429, detail="Too many requests.")
+    if not user.is_admin:
+        allowed = consume_rate_limit(
+            settings.db_path,
+            "prospects_view",
+            [
+                RateLimitRule(
+                    key=f"user:{user.user_id}", limit=40, window_seconds=60
+                )
+            ],
+        )
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Too many requests.")
 
     game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
+    if game is None or (game.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Game not found.")
 
     # Record page view metric (best-effort)
@@ -404,14 +405,15 @@ async def update_prospect_workflow(
 ) -> JSONResponse:
     """Persist workflow state for a prospect row without a page reload."""
     game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
+    if game is None or (game.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Game not found.")
-    subscription = billing_service.get_or_create_subscription(user.user_id)
-    if subscription.is_trialing:
-        raise HTTPException(
-            status_code=403,
-            detail="Prospect workflow tools require a subscription.",
-        )
+    if not user.is_admin:
+        subscription = billing_service.get_or_create_subscription(user.user_id)
+        if subscription.is_trialing:
+            raise HTTPException(
+                status_code=403,
+                detail="Prospect workflow tools require a subscription.",
+            )
 
     payload = await request.json()
     status = cast(ProspectWorkflowStatus, str(payload.get("status") or "new"))

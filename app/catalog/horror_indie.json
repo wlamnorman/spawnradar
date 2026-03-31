@@ -11,7 +11,7 @@
   "required_game_modes": [
     {"id": 1, "label": "Single player"}
   ],
-  "extra_custom_tags": ["first person horror", "psychological horror"],
+  "extra_custom_tags": ["psychological horror"],
   "anchor_games": [
     "Lethal Company",
     "Phasmophobia",

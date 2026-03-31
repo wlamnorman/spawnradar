@@ -1,4 +1,4 @@
-.PHONY: install check lint test typecheck dev run help deploy set-fly-secrets-production grant-comp-production pull-prod-db
+.PHONY: install check lint test typecheck dev run help deploy set-fly-secrets-production grant-comp-production grant-admin-production pull-prod-db
 
 PYTHON  := .venv/bin/python
 UVICORN := .venv/bin/uvicorn
@@ -67,6 +67,19 @@ grant-comp-production:
 		RESET_FLAG="--send-reset"; \
 	fi; \
 	flyctl ssh console -a spawnradar -C "sh -lc 'cd /app && python -m app.devtools.cli --db-path /data/spawnradar.sqlite3 grant-comp --create-missing $$RESET_FLAG $(EMAILS)'"
+
+## Grant admin access in production. Usage: make grant-admin-production EMAIL="you@example.com"
+grant-admin-production:
+	@set -e; \
+	if ! command -v flyctl >/dev/null 2>&1; then \
+		echo "flyctl is not installed. Install it first: brew install flyctl"; \
+		exit 1; \
+	fi; \
+	if [ -z "$(EMAIL)" ]; then \
+		echo 'Usage: make grant-admin-production EMAIL="you@example.com"'; \
+		exit 1; \
+	fi; \
+	flyctl ssh console -a spawnradar -C "sh -lc 'cd /app && python -m app.devtools.cli --db-path /data/spawnradar.sqlite3 grant-admin $(EMAIL)'"
 
 ## Download a consistent production SQLite copy. Usage: make pull-prod-db [PROD_DB_LOCAL=data/production-copy.sqlite3]
 pull-prod-db:

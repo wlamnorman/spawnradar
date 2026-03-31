@@ -8,19 +8,20 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from app.games.constants import MAX_DESCRIPTION_LENGTH, MAX_SUMMARY_LENGTH
 from app.games.models import CustomerGame
-from app.games.repository import CustomerGameRepository
+from app.games.repository import (
+    CustomerGameRepository,
+)
 
 if TYPE_CHECKING:
     from app.metrics.service import MetricsService
 
 log = logging.getLogger(__name__)
 
-MAX_SUMMARY_LENGTH = 150
-MAX_DESCRIPTION_LENGTH = 1000
-MAX_GENRES = 5      # IGDB genres + genre keywords combined
-MAX_THEMES = 2      # IGDB themes + theme keywords combined
-MAX_MECHANICS = 2
+MAX_GENRES = 5  # IGDB genres + genre keywords combined
+MAX_THEMES = 3  # IGDB themes + theme keywords combined
+MAX_MECHANICS = 3
 MAX_SIMILAR_GAMES = 8
 
 
@@ -45,8 +46,6 @@ def _validate_game_text_fields(
         raise ValueError("Game name is required.")
     if not normalized_summary:
         raise ValueError("Game summary is required.")
-    if not normalized_description:
-        raise ValueError("Game description is required.")
     if len(normalized_summary) > MAX_SUMMARY_LENGTH:
         raise ValueError(
             f"Game summary must be {MAX_SUMMARY_LENGTH} characters or fewer."
@@ -74,7 +73,9 @@ def _validate_tag_limits(
     from app.igdb.keyword_groups import IGDB_KEYWORD_GROUPS, IGDBKeywordBucket
 
     if similar_game_names and len(similar_game_names) > MAX_SIMILAR_GAMES:
-        raise ValueError(f"At most {MAX_SIMILAR_GAMES} similar games can be provided.")
+        raise ValueError(
+            f"At most {MAX_SIMILAR_GAMES} similar games can be provided."
+        )
 
     # Count keywords per bucket
     genre_kw = 0
@@ -96,9 +97,13 @@ def _validate_tag_limits(
     total_themes = len(igdb_theme_ids or []) + theme_kw
 
     if total_genres > MAX_GENRES:
-        raise ValueError(f"At most {MAX_GENRES} genres can be selected (you have {total_genres}).")
+        raise ValueError(
+            f"At most {MAX_GENRES} genres can be selected (you have {total_genres})."
+        )
     if total_themes > MAX_THEMES:
-        raise ValueError(f"At most {MAX_THEMES} themes can be selected (you have {total_themes}).")
+        raise ValueError(
+            f"At most {MAX_THEMES} themes can be selected (you have {total_themes})."
+        )
     if mechanic_kw > MAX_MECHANICS:
         raise ValueError(f"At most {MAX_MECHANICS} mechanics can be selected.")
 
@@ -140,16 +145,18 @@ class CustomerGameService:
         similar_game_names: list[str] | None = None,
     ) -> CustomerGame:
         """Create and persist a new customer game."""
+        genres = igdb_genre_ids or []
+        keywords = igdb_keyword_ids or []
         normalized_name, normalized_summary, normalized_description = (
             _validate_game_text_fields(name, summary, description)
         )
 
-        if not igdb_genre_ids:
+        if not genres:
             raise ValueError("At least one IGDB genre is required.")
         _validate_tag_limits(
-            igdb_genre_ids=igdb_genre_ids,
+            igdb_genre_ids=genres,
             igdb_theme_ids=igdb_theme_ids,
-            igdb_keyword_ids=igdb_keyword_ids,
+            igdb_keyword_ids=keywords,
             similar_game_names=similar_game_names,
         )
 
@@ -162,11 +169,11 @@ class CustomerGameService:
             description=normalized_description,
             website_url=_normalize_url(website_url),
             platforms=platforms,
-            igdb_genre_ids=igdb_genre_ids,
+            igdb_genre_ids=genres,
             igdb_theme_ids=igdb_theme_ids,
             igdb_game_mode_ids=igdb_game_mode_ids,
             igdb_player_perspective_ids=igdb_player_perspective_ids,
-            igdb_keyword_ids=igdb_keyword_ids,
+            igdb_keyword_ids=keywords,
             similar_game_names=similar_game_names,
         )
         if self._metrics is not None:
@@ -199,16 +206,18 @@ class CustomerGameService:
         if customer_game is None or customer_game.user_id != user_id:
             raise ValueError("Customer game not found or access denied.")
 
+        genres = igdb_genre_ids or []
+        keywords = igdb_keyword_ids or []
         normalized_name, normalized_summary, normalized_description = (
             _validate_game_text_fields(name, summary, description)
         )
 
-        if not igdb_genre_ids:
+        if not genres:
             raise ValueError("At least one IGDB genre is required.")
         _validate_tag_limits(
-            igdb_genre_ids=igdb_genre_ids,
+            igdb_genre_ids=genres,
             igdb_theme_ids=igdb_theme_ids,
-            igdb_keyword_ids=igdb_keyword_ids,
+            igdb_keyword_ids=keywords,
             similar_game_names=similar_game_names,
         )
 
@@ -219,11 +228,11 @@ class CustomerGameService:
             description=normalized_description,
             website_url=_normalize_url(website_url),
             platforms=platforms,
-            igdb_genre_ids=igdb_genre_ids,
+            igdb_genre_ids=genres,
             igdb_theme_ids=igdb_theme_ids,
             igdb_game_mode_ids=igdb_game_mode_ids,
             igdb_player_perspective_ids=igdb_player_perspective_ids,
-            igdb_keyword_ids=igdb_keyword_ids,
+            igdb_keyword_ids=keywords,
             similar_game_names=similar_game_names,
         )
         self._notify_game_changed(customer_game_id)

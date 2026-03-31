@@ -94,6 +94,197 @@
     sync();
   }
 
+  function initImportMenu(root) {
+    const menu = root.querySelector(".game-import-menu");
+    if (!menu) {
+      return;
+    }
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+      if (!menu.contains(event.target)) {
+        menu.removeAttribute("open");
+      }
+    });
+
+    const importBtn = root.querySelector("#import-url-btn");
+    const importUrlInput = root.querySelector("#import_url");
+    const statusEl = root.querySelector("#import-status");
+    if (!importBtn || !importUrlInput) {
+      return;
+    }
+
+    importBtn.addEventListener("click", async () => {
+      const url = importUrlInput.value.trim();
+      if (!url) {
+        showImportStatus("Please enter a URL.", true);
+        return;
+      }
+
+      importBtn.disabled = true;
+      importBtn.textContent = "Importing…";
+      showImportStatus("", false);
+
+      try {
+        const resp = await fetch("/games/import-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => null);
+          throw new Error(
+            (err && err.detail) || `Import failed (${resp.status})`,
+          );
+        }
+        const data = await resp.json();
+        fillFormFromImport(root, data);
+        showImportStatus(
+          "Imported! Review the fields below, then Save.",
+          false,
+        );
+      } catch (err) {
+        showImportStatus(err.message, true);
+      } finally {
+        importBtn.disabled = false;
+        importBtn.textContent = "Import";
+      }
+    });
+
+    function showImportStatus(msg, isError) {
+      if (!statusEl) return;
+      if (!msg) {
+        statusEl.hidden = true;
+        return;
+      }
+      statusEl.hidden = false;
+      statusEl.className = isError
+        ? "alert alert-error"
+        : "alert alert-success";
+      statusEl.textContent = msg;
+    }
+
+    function fillFormFromImport(formRoot, data) {
+      // Text fields
+      setInput(formRoot, "#name", data.name || "");
+      setInput(formRoot, "#summary", data.summary || "");
+      setInput(formRoot, "#description", data.description || "");
+      setInput(formRoot, "#website_url", data.website_url || "");
+
+      // Update character counters
+      formRoot.querySelectorAll("[data-char-count]").forEach((el) => {
+        const counter = document.getElementById(el.dataset.charCount);
+        if (counter) counter.textContent = el.value.length;
+      });
+
+      // Checkboxes: platforms
+      setCheckboxes(formRoot, 'input[name="platforms"]', data.platforms || []);
+
+      // Checkboxes: game modes
+      setCheckboxes(
+        formRoot,
+        'input[name="igdb_game_mode_ids"]',
+        (data.igdb_game_mode_ids || []).map(String),
+      );
+
+      // Tag pickers: clear and repopulate
+      setTagPicker(formRoot, "igdb_genre_ids", data.igdb_genre_ids || []);
+      setTagPicker(formRoot, "igdb_theme_ids", data.igdb_theme_ids || []);
+      setTagPicker(formRoot, "igdb_keyword_ids", data.igdb_keyword_ids || []);
+    }
+
+    function setInput(formRoot, selector, value) {
+      const el = formRoot.querySelector(selector);
+      if (el) el.value = value;
+    }
+
+    function setCheckboxes(formRoot, selector, values) {
+      formRoot.querySelectorAll(selector).forEach((cb) => {
+        cb.checked = values.includes(cb.value);
+      });
+    }
+
+    function setTagPicker(formRoot, fieldName, values) {
+      // Find the tag picker root that contains hidden inputs for this field
+      formRoot
+        .querySelectorAll("[data-tag-picker-root]")
+        .forEach((pickerRoot) => {
+          const hiddenInputs = pickerRoot.querySelector(
+            "[data-tag-picker-hidden-inputs]",
+          );
+          if (!hiddenInputs) return;
+
+          const pickerOptions = Array.isArray(pickerRoot._tagPickerOptions)
+            ? pickerRoot._tagPickerOptions
+            : Array.from(
+                pickerRoot.querySelectorAll("[data-tag-picker-suggestion]"),
+              ).map((button) => ({
+                name: button.dataset.fieldName || "",
+                value: button.dataset.fieldValue || "",
+                label: button.dataset.label || button.textContent || "",
+                pillClass: button.dataset.pillClass || "",
+              }));
+
+          // Check if this picker handles our field
+          const existingInputs = hiddenInputs.querySelectorAll("input[name]");
+          const handlesField =
+            Array.from(existingInputs).some(
+              (input) => input.name === fieldName,
+            ) || pickerOptions.some((option) => option.name === fieldName);
+          if (!handlesField) return;
+
+          // Clear only the existing hidden inputs for this specific field.
+          hiddenInputs
+            .querySelectorAll(`input[name="${fieldName}"]`)
+            .forEach((input) => input.remove());
+
+          // Add new values by matching against the picker's full option bank,
+          // not only the currently rendered suggestion subset.
+          const valStrings = values.map(String);
+          pickerOptions.forEach((option) => {
+            if (
+              option.name === fieldName &&
+              valStrings.includes(option.value)
+            ) {
+              const input = document.createElement("input");
+              input.type = "hidden";
+              input.name = option.name;
+              input.value = option.value;
+              input.dataset.label = option.label;
+              input.dataset.pillClass = option.pillClass;
+              hiddenInputs.appendChild(input);
+            }
+          });
+
+          // Re-render preview
+          const preview = pickerRoot.querySelector("[data-tag-picker-preview]");
+          if (preview) {
+            const entries = Array.from(
+              hiddenInputs.querySelectorAll("input[name]"),
+            ).map((input) => ({
+              name: input.name,
+              value: input.value,
+              label: input.dataset.label || input.value,
+              pillClass: input.dataset.pillClass || "",
+            }));
+            if (!entries.length) {
+              preview.innerHTML =
+                '<span class="text-muted">No tags selected yet.</span>';
+            } else {
+              preview.innerHTML = entries
+                .map(
+                  (e) =>
+                    `<button type="button" class="tag-pill tag-pill-button ${e.pillClass}" data-entry-name="${escapeHtml(e.name)}" data-entry-value="${escapeHtml(e.value)}" aria-label="Remove ${escapeHtml(e.label)}"><span class="tag-pill-label">${escapeHtml(e.label)}</span><span class="tag-remove">\u00d7</span></button>`,
+                )
+                .join("");
+            }
+          }
+        });
+    }
+  }
+
   function initTagPicker(root) {
     const searchInput = root.querySelector("[data-tag-picker-search]");
     const preview = root.querySelector("[data-tag-picker-preview]");
@@ -117,6 +308,7 @@
           pillClass: button.dataset.pillClass || "",
         }))
       : [];
+    root._tagPickerOptions = localSuggestionOptions;
     let activeRequest = null;
     let fetchTimer = null;
     let activeSuggestionIndex = -1;
@@ -516,6 +708,7 @@
 
   function initGameForm(root) {
     root.querySelectorAll("[data-char-count]").forEach(bindCharCounter);
+    initImportMenu(root);
     root.querySelectorAll("[data-tag-picker-root]").forEach(initTagPicker);
   }
 

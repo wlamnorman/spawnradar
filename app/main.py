@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.admin.router import router as admin_router
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.auth.repository import (
@@ -38,6 +39,7 @@ from app.config import Settings
 from app.database import initialize_database
 from app.dependencies import get_billing_service, get_templates
 from app.email.service import EmailService
+from app.game_import.service import GameImportService
 from app.games.repository import CustomerGameRepository
 from app.games.router import router as games_router
 from app.games.service import CustomerGameService
@@ -127,6 +129,7 @@ async def lifespan(app: FastAPI):
         customer_game_repo,
         metrics_service=metrics_service,
     )
+    game_import_service = GameImportService()
     billing_service = BillingService(
         sub_repo=sub_repo,
         customer_game_repo=customer_game_repo,
@@ -191,6 +194,7 @@ async def lifespan(app: FastAPI):
     app.state.auth_service = auth_service
     app.state.email_verification_token_repo = email_verification_token_repo
     app.state.customer_game_service = customer_game_service
+    app.state.game_import_service = game_import_service
     app.state.billing_service = billing_service
     app.state.metrics_service = metrics_service
     app.state.user_repo = user_repo
@@ -292,6 +296,7 @@ def create_app() -> FastAPI:
     app.include_router(games_router)
     app.include_router(prospects_router)
     app.include_router(billing_router)
+    app.include_router(admin_router)
 
     @app.get("/")
     async def root(

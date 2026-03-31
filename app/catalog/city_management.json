@@ -1,0 +1,20 @@
+{
+  "customer_game_name": "Catalog: City Management Sim",
+  "baseline_summary": "A city builder and management sim with micromanagement depth.",
+  "broad_igdb_genres": [
+    {"id": 13, "label": "Simulator"},
+    {"id": 15, "label": "Strategy"}
+  ],
+  "broad_igdb_themes": [],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["city builder", "micromanagement", "management", "world building"],
+  "anchor_games": [
+    "Cities: Skylines",
+    "Anno 1800",
+    "Tropico 6",
+    "Banished",
+    "Frostpunk"
+  ]
+}

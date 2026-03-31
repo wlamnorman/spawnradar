@@ -14,4 +14,3 @@ data/
 *.egg-info
 .worktrees/
 uv.lock
-reports/

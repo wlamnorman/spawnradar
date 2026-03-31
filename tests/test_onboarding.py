@@ -83,7 +83,7 @@ def test_empty_trial_dashboard_shows_add_card(monkeypatch, tmp_path):
         response = client.get("/games")
 
     assert response.status_code == 200
-    assert response.text.count('href="/games/new"') == 1
+    assert response.text.count('href="/games/setup"') == 1
     assert response.text.count("Locked during trial") == 2
     assert response.text.count("Add Game") == 3
     assert "Add game to get started!" not in response.text
@@ -105,8 +105,8 @@ def test_dashboard_game_cards_include_run_discovery_action(
         _verify_user_email(db_path, "runner@example.com")
         _post_form(
             client,
-            get_path="/games/new",
-            post_path="/games",
+            get_path="/games/setup",
+            post_path="/games/setup",
             data={
                 "name": "Orbit Drift",
                 "summary": "Arcade racing across collapsing star lanes.",
@@ -132,11 +132,11 @@ def test_dashboard_game_cards_include_run_discovery_action(
         not in response.text
     )
     assert response.text.count("Locked during trial") == 2
-    assert 'href="/games/new"' not in response.text
+    assert 'href="/games/setup"' not in response.text
     assert response.text.count("Add Game") == 2
 
 
-def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
+def test_create_game_redirects_to_dashboard(monkeypatch, tmp_path):
     db_path = str(tmp_path / "games-flow.sqlite3")
     with _make_client(monkeypatch, tmp_path) as client:
         _post_form(
@@ -147,11 +147,11 @@ def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
             follow_redirects=False,
         )
         _verify_user_email(db_path, "flow@example.com")
-        new_page = client.get("/games/new")
+        setup_page = client.get("/games/setup")
         response = _post_form(
             client,
-            get_path="/games/new",
-            post_path="/games",
+            get_path="/games/setup",
+            post_path="/games/setup",
             data={
                 "name": "Orbit Drift",
                 "summary": "Arcade racing across collapsing star lanes.",
@@ -161,19 +161,10 @@ def test_create_game_redirects_to_setup(monkeypatch, tmp_path):
             },
             follow_redirects=False,
         )
-        setup_response = client.get(response.headers["location"])
 
-    assert new_page.status_code == 200
-    assert "Discovery schedule" not in new_page.text
-    assert "Automatic discovery runs in the background" not in new_page.text
+    assert setup_page.status_code == 200
     assert response.status_code == 303
-    assert response.headers["location"].endswith("/setup")
-    assert "Orbit Drift — Settings" in setup_response.text
-    assert "Discovery schedule" not in setup_response.text
-    assert (
-        "Automatic discovery runs in the background" not in setup_response.text
-    )
-    assert "Onboarding wizard" not in setup_response.text
+    assert response.headers["location"] == "/games"
 
 
 def test_pricing_page_shows_single_subscription_offer(monkeypatch, tmp_path):

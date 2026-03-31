@@ -12,7 +12,7 @@
     {"id": 2, "label": "Multiplayer"},
     {"id": 3, "label": "Co-operative"}
   ],
-  "extra_custom_tags": ["arena shooter", "looter shooter"],
+  "extra_custom_tags": ["looter shooter", "asymmetrical multiplayer"],
   "anchor_games": [
     "Deep Rock Galactic",
     "Lethal Company",

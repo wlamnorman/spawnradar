@@ -20,6 +20,12 @@ from fastapi.testclient import TestClient
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.database import get_connection
+from app.dependencies import get_game_import_service
+from app.game_import.models import (
+    ImportedGameDraft,
+    ImportedGamePreview,
+    ImportedGameSourceData,
+)
 from app.games.repository import CustomerGameRepository
 from app.main import create_app
 
@@ -41,6 +47,42 @@ def _make_client(monkeypatch, tmp_path) -> TestClient:
         monkeypatch.setenv(key, os.environ.get(key, ""))
     monkeypatch.setenv("RESEND_API_KEY", "")
     return TestClient(create_app(), raise_server_exceptions=True)
+
+
+def _sample_import_preview() -> ImportedGamePreview:
+    return ImportedGamePreview(
+        source=ImportedGameSourceData(
+            source_kind="steam",
+            source_url="https://store.steampowered.com/app/4309620/",
+            source_id="4309620",
+            name="Strife of Stars",
+            short_description="A tactical sci-fi deckbuilder.",
+            full_description="Build a squad and climb the tower.",
+            platform_labels=["Windows"],
+            api_genre_labels=["Strategy", "Indie"],
+            api_category_labels=["Single-player"],
+            raw_tags=["Deckbuilding", "Roguelike", "Sci-fi"],
+            website_url="https://strife.example.com",
+            image_url="https://cdn.example.com/strife.jpg",
+        ),
+        draft=ImportedGameDraft(
+            source_kind="steam",
+            source_url="https://store.steampowered.com/app/4309620/",
+            source_id="4309620",
+            name="Strife of Stars",
+            summary="A tactical sci-fi deckbuilder.",
+            description="Build a squad and climb the tower.",
+            platform_labels=["Windows"],
+            igdb_genre_ids=[15, 32],
+            igdb_theme_ids=[18],
+            igdb_game_mode_ids=[1],
+            igdb_keyword_ids=["deckbuilder", "roguelike"],
+            tag_candidates=["Deckbuilding", "Roguelike", "Sci-fi"],
+            website_url="https://strife.example.com",
+            image_url="https://cdn.example.com/strife.jpg",
+            notes=["Imported draft applied. Review and edit before saving."],
+        ),
+    )
 
 
 def _csrf_token(client: TestClient, path: str) -> str:
@@ -91,8 +133,8 @@ def _post_json(
 def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
     _post_form(
         client,
-        get_path="/games/new",
-        post_path="/games",
+        get_path="/games/setup",
+        post_path="/games/setup",
         data={
             "name": name,
             "summary": "Short summary",
@@ -103,6 +145,21 @@ def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
             "website_url": "",
         },
     )
+
+
+def test_new_game_page_shows_shared_summary_and_description_limits(
+    monkeypatch, tmp_path
+) -> None:
+    with _make_client(monkeypatch, tmp_path) as client:
+        _register_and_login(client, "limits@example.com", "password123")
+
+        response = client.get("/games/setup")
+
+        assert response.status_code == 200
+        assert 'maxlength="200"' in response.text
+        assert 'maxlength="1000"' in response.text
+        assert "/200" in response.text
+        assert "/1000" in response.text
 
 
 def _create_game_for_user_and_return_id(
@@ -371,7 +428,7 @@ class TestGameRoutes:
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "keywords-new@example.com", "testpass")
 
-            response = client.get("/games/new")
+            response = client.get("/games/setup")
 
         assert response.status_code == 200
         assert (
@@ -430,8 +487,8 @@ class TestGameRoutes:
 
             response = _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Keyword Game",
                     "summary": "Short summary",
@@ -478,7 +535,7 @@ class TestGameRoutes:
             response = _post_form(
                 client,
                 get_path=f"/games/{row['slug']}/setup",
-                post_path=f"/games/{row['slug']}",
+                post_path=f"/games/{row['slug']}/setup",
                 data={
                     "name": "Update Keyword Game",
                     "summary": str(row["summary"]),
@@ -511,8 +568,8 @@ class TestGameRoutes:
 
             response = _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Platform Route Game",
                     "summary": "Short summary",
@@ -557,7 +614,7 @@ class TestGameRoutes:
             response = _post_form(
                 client,
                 get_path=f"/games/{row['slug']}/setup",
-                post_path=f"/games/{row['slug']}",
+                post_path=f"/games/{row['slug']}/setup",
                 data={
                     "name": "Setup Platform Game",
                     "summary": str(row["summary"]),
@@ -601,7 +658,7 @@ class TestGameRoutes:
             assert row is not None
 
             response = client.post(
-                f"/games/{row['slug']}",
+                f"/games/{row['slug']}/setup",
                 data={
                     "csrf_token": _csrf_token(
                         client, f"/games/{row['slug']}/setup"
@@ -641,15 +698,15 @@ class TestGameRoutes:
             )
 
             response = client.post(
-                "/games",
+                "/games/setup",
                 data={
-                    "csrf_token": _csrf_token(client, "/games/new"),
+                    "csrf_token": _csrf_token(client, "/games/setup"),
                     "name": "Pending Theme Overflow",
                     "summary": "Pending summary for invalid create.",
                     "description": "Pending description for invalid create.",
                     "platforms": ["pc"],
                     "igdb_genre_ids": ["12"],
-                    "igdb_theme_ids": ["17", "18"],
+                    "igdb_theme_ids": ["17", "18", "19"],
                     "igdb_keyword_ids": ["cozy"],
                     "similar_game_names": ["Slay the Spire"],
                 },
@@ -658,7 +715,7 @@ class TestGameRoutes:
 
         assert response.status_code == 400
         assert (
-            "At most 2 themes can be selected (you have 3)." in response.text
+            "At most 3 themes can be selected (you have 4)." in response.text
         )
         assert "Pending Theme Overflow" in response.text
         assert "Pending summary for invalid create." in response.text
@@ -691,7 +748,7 @@ class TestGameRoutes:
             assert row is not None
 
             response = client.post(
-                f"/games/{row['slug']}",
+                f"/games/{row['slug']}/setup",
                 data={
                     "csrf_token": _csrf_token(
                         client, f"/games/{row['slug']}/setup"
@@ -701,7 +758,7 @@ class TestGameRoutes:
                     "description": "Pending description for invalid update.",
                     "platforms": ["switch"],
                     "igdb_genre_ids": ["12"],
-                    "igdb_theme_ids": ["17", "18"],
+                    "igdb_theme_ids": ["17", "18", "19"],
                     "igdb_keyword_ids": ["cozy"],
                     "similar_game_names": [
                         "Slay the Spire",
@@ -713,7 +770,7 @@ class TestGameRoutes:
 
         assert response.status_code == 400
         assert (
-            "At most 2 themes can be selected (you have 3)." in response.text
+            "At most 3 themes can be selected (you have 4)." in response.text
         )
         assert "Pending Updated Name" in response.text
         assert "Pending summary for invalid update." in response.text
@@ -798,8 +855,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Counted Dashboard Game",
                     "summary": "A strategy game.",
@@ -832,8 +889,8 @@ class TestGameRoutes:
 
             response = _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Bucket Prospect Game",
                     "summary": "A cozy roguelike with crafting.",
@@ -967,8 +1024,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Reach Max Prospect Game",
                     "summary": "Tactical RPG",
@@ -1015,8 +1072,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Min Reach Prospect Game",
                     "summary": "Tactical RPG",
@@ -1059,8 +1116,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Trial Prospect Game",
                     "summary": "Tactical RPG",
@@ -1106,8 +1163,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "True Total Prospect Game",
                     "summary": "Tactical RPG",
@@ -1144,8 +1201,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Trial Redirect Game",
                     "summary": "Tactical RPG",
@@ -1184,8 +1241,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Trial Workflow Game",
                     "summary": "Tactical RPG",
@@ -1231,8 +1288,8 @@ class TestGameRoutes:
             _grant_comped_access(db_path, "prospects-comped@example.com")
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Comped Workflow Game",
                     "summary": "Tactical RPG",
@@ -1279,8 +1336,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Paid Prospect Game",
                     "summary": "Tactical RPG",
@@ -1323,8 +1380,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Workflow Route Game",
                     "summary": "Tactical RPG",
@@ -1377,8 +1434,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Workflow Filter Game",
                     "summary": "Tactical RPG",
@@ -1423,8 +1480,8 @@ class TestGameRoutes:
             )
             _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Workflow Update Game",
                     "summary": "Tactical RPG",
@@ -1906,7 +1963,7 @@ class TestAuthRoutes:
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "csrf@example.com", "testpass")
             response = client.post(
-                "/games",
+                "/games/setup",
                 data={
                     "name": "CSRF Test",
                     "description": "A test game",
@@ -1925,8 +1982,8 @@ class TestAuthRoutes:
             )
             response = _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Missing Summary",
                     "summary": "",
@@ -1940,6 +1997,69 @@ class TestAuthRoutes:
         assert response.status_code == 400
         assert "Game summary is required." in response.text
 
+    def test_create_game_allows_blank_description(self, monkeypatch, tmp_path):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "blank-desc@example.com", "testpass")
+            response = _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "Blank Desc Game",
+                    "summary": "A short summary",
+                    "description": "",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT description FROM customer_games WHERE name = ?",
+                ("Blank Desc Game",),
+            ).fetchone()
+        assert row is not None
+        assert str(row["description"]) == ""
+
+    def test_import_url_json_returns_draft_without_saving(
+        self, monkeypatch, tmp_path
+    ):
+        class StubGameImportService:
+            async def import_url(self, url: str) -> ImportedGamePreview:
+                assert url == "https://store.steampowered.com/app/4309620/"
+                return _sample_import_preview()
+
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            app = cast(Any, client.app)
+            app.dependency_overrides[get_game_import_service] = lambda: (
+                StubGameImportService()
+            )
+            _register_and_login(
+                client, "import-json@example.com", "testpass"
+            )
+            response = client.post(
+                "/games/import-url",
+                json={"url": "https://store.steampowered.com/app/4309620/"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Strife of Stars"
+        assert data["summary"] == "A tactical sci-fi deckbuilder."
+        assert data["description"] == "Build a squad and climb the tower."
+        assert isinstance(data["platforms"], list)
+        assert isinstance(data["igdb_genre_ids"], list)
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS count FROM customer_games"
+            ).fetchone()
+        assert row is not None
+        assert int(row["count"]) == 0
+
     def test_create_game_requires_at_least_one_genre(
         self, monkeypatch, tmp_path
     ):
@@ -1949,8 +2069,8 @@ class TestAuthRoutes:
             )
             response = _post_form(
                 client,
-                get_path="/games/new",
-                post_path="/games",
+                get_path="/games/setup",
+                post_path="/games/setup",
                 data={
                     "name": "Missing Primary",
                     "summary": "A short summary",
@@ -2346,7 +2466,7 @@ class TestAccessGate:
             _register_and_login(client, "newexpired@example.com", "testpass")
             _expire_trial(db, "newexpired@example.com")
 
-            resp = client.get("/games/new", follow_redirects=False)
+            resp = client.get("/games/setup", follow_redirects=False)
 
         assert resp.status_code == 307
         assert resp.headers["location"] == "/pricing"

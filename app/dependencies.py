@@ -14,6 +14,7 @@ from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.config import Settings
 from app.email.service import EmailService
+from app.game_import.service import GameImportService
 from app.games.repository import CustomerGameRepository
 from app.games.service import CustomerGameService
 from app.metrics.service import MetricsService
@@ -37,6 +38,10 @@ def get_email_service(request: Request) -> EmailService:
 
 def get_customer_game_service(request: Request) -> CustomerGameService:
     return request.app.state.customer_game_service
+
+
+def get_game_import_service(request: Request) -> GameImportService:
+    return request.app.state.game_import_service
 
 
 def get_billing_service(request: Request) -> BillingService:

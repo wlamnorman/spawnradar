@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Space Exploration",
+  "baseline_summary": "A space exploration game with bullet hell combat and atmospheric walking simulator moments.",
+  "broad_igdb_genres": [
+    {"id": 31, "label": "Adventure"},
+    {"id": 13, "label": "Simulator"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 18, "label": "Science fiction"},
+    {"id": 38, "label": "Open world"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["space simulation", "bullet hell", "walking simulator", "exploration"],
+  "anchor_games": [
+    "No Man's Sky",
+    "Outer Wilds",
+    "FTL: Faster Than Light",
+    "Firewatch",
+    "Subnautica"
+  ]
+}

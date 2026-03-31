@@ -37,8 +37,6 @@ from app.igdb.repository import IGDBRepository
 from app.igdb.sync import IGDBSyncService
 from app.runtime import SourceRuntime
 
-from app.reports.cli import register_subparser as register_genre_report, run_genre_report_command
-
 PRESET_KEYS = (
     "wikiquests",
     "strife-of-stars",
@@ -272,6 +270,11 @@ def build_parser() -> argparse.ArgumentParser:
         "expire-sub",
         help="Cancel the dev account's subscription so it appears lapsed.",
     )
+    grant_admin = subparsers.add_parser(
+        "grant-admin",
+        help="Grant admin access to a user by email.",
+    )
+    grant_admin.add_argument("email", help="Email address of the user.")
     grant_comp = subparsers.add_parser(
         "grant-comp",
         help="Grant complimentary access to one or more users by email.",
@@ -373,7 +376,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fetch one IGDB game by ID into the local igdb_games table.",
     )
     igdb_fetch.add_argument("igdb_game_id", type=int)
-    register_genre_report(subparsers)
+
     return parser
 
 
@@ -650,6 +653,23 @@ def run_grant_comp(
     return CommandResult(
         message=" ".join(parts), created=bool(granted or created_users)
     )
+
+
+def run_grant_admin(db_path: str, email: str) -> CommandResult:
+    """Grant admin access to a user by email."""
+    initialize_database(db_path)
+    user_repo = UserRepository(db_path)
+    user = user_repo.get_by_email(email)
+    if user is None:
+        return CommandResult(message=f"No account found for {email}.")
+    if user.is_admin:
+        return CommandResult(message=f"{email} is already an admin.")
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE users SET is_admin = 1 WHERE user_id = ?",
+            (user.user_id,),
+        )
+    return CommandResult(message=f"Granted admin access to {email}.")
 
 
 def run_customer_ids(db_path: str) -> CommandResult:
@@ -1346,6 +1366,8 @@ def main(argv: list[str] | None = None) -> int:
         result = run_expire_trial(args.db_path)
     elif args.command == "expire-sub":
         result = run_expire_sub(args.db_path)
+    elif args.command == "grant-admin":
+        result = run_grant_admin(args.db_path, args.email)
     elif args.command == "grant-comp":
         result = run_grant_comp(
             args.db_path,
@@ -1385,8 +1407,6 @@ def main(argv: list[str] | None = None) -> int:
             args.db_path,
             igdb_game_id=args.igdb_game_id,
         )
-    elif args.command == "genre-report":
-        result = run_genre_report_command(args)
     else:
         raise ValueError(f"Unsupported command: {args.command}")
 
