@@ -18,6 +18,7 @@ def _make_user(is_admin: bool = False) -> User:
         google_id=None,
         is_admin=is_admin,
         email_verified=True,
+        is_anonymous=False,
         created_at="2026-01-01",
         updated_at="2026-01-01",
     )

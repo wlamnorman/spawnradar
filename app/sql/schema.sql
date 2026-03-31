@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     google_id     TEXT UNIQUE,                 -- NULL for password-only accounts
     is_admin      INTEGER NOT NULL DEFAULT 0,
     email_verified INTEGER NOT NULL DEFAULT 0,
+    is_anonymous  INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
