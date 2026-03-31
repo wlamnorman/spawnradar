@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-
-TRIAL_DAYS = 3
 
 
 class Tier(StrEnum):
@@ -22,11 +19,8 @@ TIER_LIMITS: dict[Tier, dict[str, int]] = {
     },
 }
 
-TRIAL_LIMITS: dict[str, int] = {
+FREE_LIMITS: dict[str, int] = {
     "games": 1,
-}
-EXPIRED_LIMITS: dict[str, int] = {
-    "games": 0,
 }
 
 TIER_PRICES: dict[Tier, int] = {
@@ -77,28 +71,7 @@ class Subscription:
         )
 
     @property
-    def has_product_access(self) -> bool:
-        """Return True if the user can use the product right now."""
-        return self.has_access or self.is_trialing
-
-    @property
-    def is_trialing(self) -> bool:
-        """Return True if the user is within an Indie trial period."""
-        if self.has_subscription:
-            return False
-        if self.trial_ends_at is None:
-            return False
-        return datetime.fromisoformat(self.trial_ends_at) > datetime.now(UTC)
-
-    @property
     def effective_tier(self) -> Tier:
         """Return the active product tier."""
         return self.tier
 
-    @property
-    def trial_days_remaining(self) -> int | None:
-        """Days left in trial, or None if not trialing."""
-        if not self.is_trialing or self.trial_ends_at is None:
-            return None
-        delta = datetime.fromisoformat(self.trial_ends_at) - datetime.now(UTC)
-        return max(0, math.ceil(delta.total_seconds() / 86400))

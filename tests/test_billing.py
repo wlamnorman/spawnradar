@@ -123,24 +123,15 @@ def test_has_subscription_true_when_paddle_id_is_set():
     assert sub.has_subscription is True
 
 
-def test_has_product_access_true_during_trial():
+def test_has_access_false_without_subscription():
     future = (datetime.now(UTC) + timedelta(days=2)).isoformat()
     sub = _make_sub(trial_ends_at=future)
     assert sub.has_access is False
-    assert sub.has_product_access is True
-
-
-def test_has_product_access_false_after_trial_expiry():
-    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-    sub = _make_sub(trial_ends_at=past)
-    assert sub.has_access is False
-    assert sub.has_product_access is False
 
 
 def test_has_access_true_for_active_paid_subscription_without_period_end():
     sub = _make_sub(paddle_subscription_id="sub_paid", status="active")
     assert sub.has_access is True
-    assert sub.has_product_access is True
 
 
 def test_has_access_false_for_past_due_subscription():
@@ -159,7 +150,6 @@ def test_has_access_false_for_past_due_subscription():
         updated_at=base.updated_at,
     )
     assert sub.has_access is False
-    assert sub.has_product_access is False
 
 
 def test_canceled_subscription_loses_access_after_period_end():
@@ -178,7 +168,6 @@ def test_canceled_subscription_loses_access_after_period_end():
         updated_at=base.updated_at,
     )
     assert sub.has_access is False
-    assert sub.has_product_access is False
 
 
 def test_is_comped_true_when_status_is_comped():
@@ -192,38 +181,8 @@ def test_comped_access_gets_paid_limits(billing_service, registered_user):
 
     sub = billing_service.get_or_create_subscription(registered_user.user_id)
     assert sub.is_comped is True
-    assert sub.is_trialing is False
     assert sub.paddle_subscription_id is None
     assert billing_service.check_game_limit(registered_user.user_id) is True
-
-
-# ---------------------------------------------------------------------------
-# is_trialing — derived from has_subscription + trial window
-# ---------------------------------------------------------------------------
-
-
-def test_is_trialing_true_when_trial_end_is_in_future():
-    future = (datetime.now(UTC) + timedelta(days=2)).isoformat()
-    sub = _make_sub(trial_ends_at=future)
-    assert sub.is_trialing is True
-
-
-def test_is_trialing_false_when_trial_has_expired():
-    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-    sub = _make_sub(trial_ends_at=past)
-    assert sub.is_trialing is False
-
-
-def test_is_trialing_false_when_no_trial_end_set():
-    sub = _make_sub(trial_ends_at=None)
-    assert sub.is_trialing is False
-
-
-def test_is_trialing_false_when_paddle_subscription_id_is_set():
-    # Paying user: trial banner must not reappear even if trial_ends_at is still future.
-    future = (datetime.now(UTC) + timedelta(days=2)).isoformat()
-    sub = _make_sub(trial_ends_at=future, paddle_subscription_id="sub_paid")
-    assert sub.is_trialing is False
 
 
 # ---------------------------------------------------------------------------
@@ -231,17 +190,17 @@ def test_is_trialing_false_when_paddle_subscription_id_is_set():
 # ---------------------------------------------------------------------------
 
 
-def test_subscription_lifecycle_trial_to_paid(
+def test_subscription_lifecycle_free_to_paid(
     billing_service, registered_user
 ):
-    """Limits, has_subscription and is_trialing all reflect state correctly
-    as a user moves from trial through activation to cancellation."""
+    """Limits and has_subscription reflect state correctly as a user moves
+    from free through activation to cancellation."""
     uid = registered_user.user_id
 
-    # --- Trial phase ---
+    # --- Free phase ---
     sub = billing_service.get_or_create_subscription(uid)
     assert sub.has_subscription is False
-    assert sub.is_trialing is True
+    assert sub.has_access is False
 
     # --- Webhook: subscription activated ---
     event = _paddle_event(
@@ -255,7 +214,7 @@ def test_subscription_lifecycle_trial_to_paid(
 
     sub = billing_service.get_or_create_subscription(uid)
     assert sub.has_subscription is True
-    assert sub.is_trialing is False
+    assert sub.has_access is True
 
     # --- Webhook: subscription cancelled at period end ---
     cancel_event = _paddle_event(
@@ -497,7 +456,7 @@ async def test_sync_from_transaction_activates_subscription(
 
     sub = billing_service.get_or_create_subscription(registered_user.user_id)
     assert sub.has_subscription is True
-    assert sub.is_trialing is False
+    assert sub.has_access is True
     assert sub.paddle_subscription_id == "sub_txn"
     assert sub.paddle_customer_id == "ctm_txn"
 
@@ -506,7 +465,7 @@ async def test_sync_from_transaction_activates_subscription(
 async def test_sync_from_transaction_is_noop_without_api_key(
     sub_repo, game_repo, registered_user
 ):
-    """No API key → silently skips, subscription stays in trial."""
+    """No API key → silently skips, subscription stays on free tier."""
     svc = BillingService(
         sub_repo, game_repo, paddle_indie_price_id="pri_indie"
     )
@@ -551,6 +510,24 @@ async def test_sync_from_transaction_swallows_api_errors(
 
     sub = billing_service.get_or_create_subscription(registered_user.user_id)
     assert sub.has_subscription is False
+
+
+def test_free_limits_value():
+    """FREE_LIMITS grants 1 game slot."""
+    from app.billing.models import FREE_LIMITS
+    assert FREE_LIMITS == {"games": 1}
+
+
+def test_subscription_has_no_trialing_property():
+    """is_trialing property has been removed."""
+    from app.billing.models import Subscription
+    assert not hasattr(Subscription, "is_trialing")
+
+
+def test_subscription_has_no_has_product_access_property():
+    """has_product_access property has been removed — use has_access instead."""
+    from app.billing.models import Subscription
+    assert not hasattr(Subscription, "has_product_access")
 
 
 def test_canceled_subscription_keeps_access_until_period_end():
