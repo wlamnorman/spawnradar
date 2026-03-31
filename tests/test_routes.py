@@ -212,6 +212,7 @@ def _grant_subscription(db_path: str, email: str) -> None:
 
     from app.billing.models import Tier
     from app.billing.repository import SubscriptionRepository
+
     with get_connection(db_path) as conn:
         row = conn.execute(
             "SELECT user_id FROM users WHERE email = ?", (email,)
@@ -1031,7 +1032,7 @@ class TestGameRoutes:
             page = client.get(f"/games/{game_row['slug']}/prospects")
 
         assert page.status_code == 200
-        assert "Observed Tags" in page.text
+        assert "Observed Matching Tags" in page.text
         assert "Roguelike" in page.text
         assert "Cozy" in page.text
         assert "Crafting" in page.text
@@ -1168,7 +1169,10 @@ class TestGameRoutes:
         assert response.status_code == 200
         assert "51 creators matched" in response.text
         # Paid users see all features unlocked — no trial-locked messaging
-        assert "Showing the top 50 creator matches during trial." not in response.text
+        assert (
+            "Showing the top 50 creator matches during trial."
+            not in response.text
+        )
         assert 'title="Disabled during trial"' not in response.text
         # Pagination is available for paid users with >50 results
         assert "Next →" in response.text
@@ -2049,9 +2053,7 @@ class TestAuthRoutes:
             app.dependency_overrides[get_game_import_service] = lambda: (
                 StubGameImportService()
             )
-            _register_and_login(
-                client, "import-json@example.com", "testpass"
-            )
+            _register_and_login(client, "import-json@example.com", "testpass")
             response = client.post(
                 "/games/import-url",
                 json={"url": "https://store.steampowered.com/app/4309620/"},
@@ -2378,6 +2380,7 @@ class TestBillingRoutes:
             import uuid
 
             from app.billing.models import Tier
+
             sub_repo.create(str(uuid.uuid4()), user_id, Tier.INDIE)
             sub_repo.update_from_paddle(
                 user_id,
@@ -2452,9 +2455,7 @@ class TestHealthRoute:
 
 
 class TestAccessGate:
-    def test_expired_trial_games_page_accessible(
-        self, monkeypatch, tmp_path
-    ):
+    def test_expired_trial_games_page_accessible(self, monkeypatch, tmp_path):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "expired@example.com", "testpass")
@@ -2476,9 +2477,7 @@ class TestAccessGate:
 
         assert resp.status_code == 200
 
-    def test_expired_trial_setup_page_accessible(
-        self, monkeypatch, tmp_path
-    ):
+    def test_expired_trial_setup_page_accessible(self, monkeypatch, tmp_path):
         db = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(client, "newexpired@example.com", "testpass")
@@ -2605,7 +2604,8 @@ class TestAnonymousFlows:
         # Game persisted in DB
         with get_connection(db_path) as conn:
             row = conn.execute(
-                "SELECT name FROM customer_games WHERE name = ?", ("Anon Game",)
+                "SELECT name FROM customer_games WHERE name = ?",
+                ("Anon Game",),
             ).fetchone()
         assert row is not None
 
@@ -2734,9 +2734,7 @@ class TestAnonymousFlows:
     # ------------------------------------------------------------------
     # 8. Games are claimed on registration
     # ------------------------------------------------------------------
-    def test_game_claimed_on_registration(
-        self, monkeypatch, tmp_path
-    ) -> None:
+    def test_game_claimed_on_registration(self, monkeypatch, tmp_path) -> None:
         db_path = str(tmp_path / "test.sqlite3")
         email = "claimer@example.com"
         password = "password123"
@@ -2864,9 +2862,7 @@ class TestAnonymousFlows:
     # ------------------------------------------------------------------
     # 11. Pricing page shows free tier
     # ------------------------------------------------------------------
-    def test_pricing_page_shows_free_tier(
-        self, monkeypatch, tmp_path
-    ) -> None:
+    def test_pricing_page_shows_free_tier(self, monkeypatch, tmp_path) -> None:
         with _make_client(monkeypatch, tmp_path) as client:
             response = client.get("/pricing")
 
@@ -2877,12 +2873,180 @@ class TestAnonymousFlows:
     # ------------------------------------------------------------------
     # 12. Home page has new CTA
     # ------------------------------------------------------------------
-    def test_home_page_has_new_cta(
-        self, monkeypatch, tmp_path
-    ) -> None:
+    def test_home_page_has_new_cta(self, monkeypatch, tmp_path) -> None:
         with _make_client(monkeypatch, tmp_path) as client:
             response = client.get("/")
 
         assert response.status_code == 200
         assert "Try Free" in response.text
         assert "/games/setup" in response.text
+
+    # ------------------------------------------------------------------
+    # 13. Anonymous rate limit returns form with error, not raw JSON
+    # ------------------------------------------------------------------
+    def test_anonymous_rate_limit_returns_html_error(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+
+            # Exhaust the rate limit (3 per 10 minutes)
+            for i in range(3):
+                _post_form(
+                    client,
+                    get_path="/games/setup",
+                    post_path="/games/setup",
+                    data={
+                        "name": f"Rate Limit Game {i}",
+                        "summary": "Short summary",
+                        "description": "Desc",
+                        "igdb_genre_ids": "12",
+                        "website_url": "",
+                    },
+                    follow_redirects=True,
+                )
+
+            # Next attempt should be rate-limited but show HTML form
+            response = _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "One Too Many",
+                    "summary": "Short summary",
+                    "description": "Desc",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=True,
+            )
+
+        assert response.status_code == 429
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "too many" in response.text.lower()
+
+    # ------------------------------------------------------------------
+    # 14. Registered (non-anonymous) user is NOT rate-limited for game creation
+    # ------------------------------------------------------------------
+    def test_registered_user_not_rate_limited(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "nolimit@example.com", "password123")
+
+            # Create 3 games quickly — should all succeed (no IP rate limit)
+            for i in range(3):
+                response = _post_form(
+                    client,
+                    get_path="/games/setup",
+                    post_path="/games/setup",
+                    data={
+                        "name": f"Fast Game {i}",
+                        "summary": "Short summary",
+                        "description": "Desc",
+                        "igdb_genre_ids": "12",
+                        "website_url": "",
+                    },
+                    follow_redirects=False,
+                )
+                assert response.status_code == 303, f"Game {i} should succeed"
+
+    # ------------------------------------------------------------------
+    # 15. Prospect page renders filter form for free users (interactive gate)
+    # ------------------------------------------------------------------
+    def test_free_user_sees_interactive_filter_form(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "Filter UI Game")
+            slug = _get_game_slug(db_path, "Filter UI Game")
+
+            response = client.get(f"/games/{slug}/prospects")
+
+        assert response.status_code == 200
+        # Filter form is present (not a disabled span) — even for free users
+        assert "data-range-filter-form" in response.text
+        assert "prospects-filter-menu" in response.text
+        # Gate data attributes are set to false for free users
+        assert 'data-filters-unlocked="false"' in response.text
+        assert 'data-workflow-unlocked="false"' in response.text
+
+    # ------------------------------------------------------------------
+    # 16. Paid user has no gate data attributes
+    # ------------------------------------------------------------------
+    def test_paid_user_has_unlocked_gate_attributes(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "paid@example.com", "password123")
+            _create_game_for_user(client, "Paid Filter Game")
+            db_path = str(tmp_path / "test.sqlite3")
+            slug = _get_game_slug(db_path, "Paid Filter Game")
+
+            response = client.get(f"/games/{slug}/prospects")
+
+        assert response.status_code == 200
+        assert 'data-filters-unlocked="true"' in response.text
+        assert 'data-workflow-unlocked="true"' in response.text
+
+    # ------------------------------------------------------------------
+    # 17. Workflow POST rejected for free user with proper error
+    # ------------------------------------------------------------------
+    def test_free_user_workflow_post_returns_403(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            # Register but don't grant subscription (free user)
+            _post_form(
+                client,
+                get_path="/auth/register",
+                post_path="/auth/register",
+                data={"email": "free-wf@example.com", "password": "password123"},
+            )
+            _verify_user_email(db_path, "free-wf@example.com")
+            _post_form(
+                client,
+                get_path="/auth/login",
+                post_path="/auth/login",
+                data={"email": "free-wf@example.com", "password": "password123"},
+            )
+            _create_game_for_user(client, "Free WF Game")
+            slug = _get_game_slug(db_path, "Free WF Game")
+
+            # Attempt to update prospect workflow (JSON API)
+            response = _post_json(
+                client,
+                get_path=f"/games/{slug}/prospects",
+                post_path=f"/games/{slug}/prospects/fake-account/workflow",
+                json_body={"status": "contacted", "notes": ""},
+                headers={"accept": "application/json"},
+            )
+
+        # Free users are blocked from workflow — 402 for JSON requests
+        assert response.status_code == 402
+
+    # ------------------------------------------------------------------
+    # 18. Server-side filter enforcement: filters silently stripped
+    # ------------------------------------------------------------------
+    def test_server_strips_filters_for_free_user(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "Strip Filter Game")
+            slug = _get_game_slug(db_path, "Strip Filter Game")
+
+            # Try applying filters via query params
+            response = client.get(
+                f"/games/{slug}/prospects?min_reach=5000&status=contacted",
+                follow_redirects=False,
+            )
+
+        # Server redirects back to clean URL
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/games/{slug}/prospects"
