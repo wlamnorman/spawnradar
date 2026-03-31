@@ -166,6 +166,14 @@ async def register_post(
         )
         return response  # type: ignore[return-value]
 
+    # Capture anonymous session before registration replaces it
+    anon_user = None
+    existing_session_id = request.cookies.get("session_id")
+    if existing_session_id:
+        existing = auth.get_user_for_session(existing_session_id)
+        if existing and existing.is_anonymous:
+            anon_user = existing
+
     try:
         auth.register(email, password)
         session = auth.login(email, password)
@@ -178,6 +186,8 @@ async def register_post(
     user = auth.get_user_for_session(session.session_id)
     if user:
         auth.send_verification_email(user, email_service, settings.base_url)
+    if anon_user and user:
+        auth.claim_anonymous_games(anon_user.user_id, user.user_id)
     redirect = RedirectResponse(url="/auth/verify-pending", status_code=303)
     set_session_cookie(redirect, session.session_id, settings)
     return redirect
@@ -419,9 +429,19 @@ async def google_callback(
     google_id: str = user_info["sub"]
     email: str = user_info["email"]
 
+    anon_user = None
+    existing_session_id = request.cookies.get("session_id")
+    if existing_session_id:
+        existing = auth.get_user_for_session(existing_session_id)
+        if existing and existing.is_anonymous:
+            anon_user = existing
+
     user = auth.get_or_create_google_user(google_id, email)
     auth.mark_google_user_verified(user.user_id)
     session = auth.create_session_for_user(user.user_id)
+
+    if anon_user:
+        auth.claim_anonymous_games(anon_user.user_id, user.user_id)
 
     redirect = RedirectResponse(url="/games", status_code=303)
     set_session_cookie(redirect, session.session_id, settings)

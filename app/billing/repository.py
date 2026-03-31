@@ -127,6 +127,11 @@ class SubscriptionRepository:
                 ),
             )
 
+    def delete_by_user(self, user_id: str) -> None:
+        """Delete all subscriptions for a user."""
+        with get_connection(self._db_path) as conn:
+            conn.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
+
     def grant_comped_access(
         self, user_id: str, tier: Tier = Tier.INDIE
     ) -> Subscription | None:

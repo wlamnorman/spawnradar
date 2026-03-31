@@ -335,6 +335,28 @@ class AuthService:
         """Mark a Google-authenticated user's email as verified."""
         self._users.mark_email_verified(user_id)
 
+    def claim_anonymous_games(self, anon_user_id: str, new_user_id: str) -> int:
+        """Transfer games from anonymous user to real account, then delete anon user.
+
+        The customer_game_tags and prospect_statuses rows survive because
+        they're keyed by customer_game_id, not user_id.
+
+        Returns count of games transferred.
+        """
+        from app.games.repository import CustomerGameRepository
+        from app.billing.repository import SubscriptionRepository
+
+        game_repo = CustomerGameRepository(self._users._db_path)
+        transferred = game_repo.transfer_ownership(anon_user_id, new_user_id)
+
+        # Clean up the anonymous identity
+        sub_repo = SubscriptionRepository(self._users._db_path)
+        sub_repo.delete_by_user(anon_user_id)
+        if self._sessions is not None:
+            self._sessions.delete_all_for_user(anon_user_id)
+        self._users.delete(anon_user_id)
+        return transferred
+
     def reset_password(self, token_id: str, new_password: str) -> None:
         """Reset a user's password using a valid reset token.
 

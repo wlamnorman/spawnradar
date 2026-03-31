@@ -93,6 +93,11 @@ class UserRepository:
                 (user_id,),
             )
 
+    def delete(self, user_id: str) -> None:
+        """Delete a user by ID."""
+        with get_connection(self._db_path) as conn:
+            conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+
 
 class SessionRepository:
     """CRUD operations for the sessions table."""
@@ -137,6 +142,11 @@ class SessionRepository:
             conn.execute(
                 "DELETE FROM sessions WHERE expires_at < datetime('now')"
             )
+
+    def delete_all_for_user(self, user_id: str) -> None:
+        """Delete all sessions for a user."""
+        with get_connection(self._db_path) as conn:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
 
 
 class PasswordResetTokenRepository:
