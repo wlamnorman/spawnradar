@@ -145,6 +145,18 @@ class AuthService:
             self._metrics.record_session_started(user_id, session.created_at)
         return session
 
+    def create_anonymous_user(self) -> tuple[User, Session]:
+        """Create an anonymous user with a session for cookie-based access."""
+        user_id = str(uuid.uuid4())
+        email = f"{user_id}@anonymous.local"
+        user = self._users.create(
+            user_id, email, password_hash=None, is_anonymous=True,
+        )
+        session = self.create_session_for_user(user_id)
+        if self._metrics is not None:
+            self._metrics.record_account_created(user.user_id, user.created_at)
+        return user, session
+
     def get_or_create_google_user(self, google_id: str, email: str) -> User:
         """Return an existing user matched by Google ID or email, creating one if absent.
 

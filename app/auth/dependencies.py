@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import Cookie, Depends, HTTPException, Request
+from fastapi import Cookie, Depends, HTTPException, Request, Response
 
+from app.auth.cookies import set_session_cookie
 from app.auth.models import User
 from app.auth.service import AuthService
 from app.billing.service import BillingService
-from app.dependencies import get_auth_service, get_billing_service
+from app.config import Settings
+from app.dependencies import get_auth_service, get_billing_service, get_settings
 
 
 async def get_current_user(
@@ -68,6 +70,29 @@ async def require_product_access(
         )
 
     raise HTTPException(status_code=307, headers={"Location": "/pricing"})
+
+
+async def require_user_or_anonymous(
+    request: Request,
+    response: Response,
+    session_id: str | None = Cookie(default=None),
+    auth_service: AuthService = Depends(get_auth_service),
+    settings: Settings = Depends(get_settings),
+) -> User:
+    """Return the current user, creating an anonymous user if no valid session.
+
+    Unlike require_user (which redirects to login), this creates a cookie-based
+    anonymous identity on the spot. The cookie is set on the response so
+    subsequent requests are associated with the same user.
+    """
+    if session_id:
+        user = auth_service.get_user_for_session(session_id)
+        if user is not None:
+            return user
+    # No valid session — create anonymous user and set cookie
+    user, session = auth_service.create_anonymous_user()
+    set_session_cookie(response, session.session_id, settings)
+    return user
 
 
 def _reject(request: Request):
