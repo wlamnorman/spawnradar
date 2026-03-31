@@ -102,6 +102,8 @@
                 <div class="navbar-center">
                     {% block game_switcher %}{% endblock %}
                 </div>
+                {% endif %}
+                {% if user is defined and user and not user.is_anonymous %}
                 <div class="navbar-right">
                     <a href="/games" class="nav-link">Dashboard</a>
                     {% set _sub = subscription_for(request) %} {% if _sub and
@@ -129,6 +131,14 @@
                             Sign out
                         </button>
                     </form>
+                </div>
+                {% elif user is defined and user and user.is_anonymous %}
+                <div class="navbar-right">
+                    <a href="/games" class="nav-link">Dashboard</a>
+                    <a href="/pricing" class="nav-link">Pricing</a>
+                    <a href="/blog" class="nav-link">Blog</a>
+                    <a href="/auth/login" class="nav-link">Sign in</a>
+                    <a href="/auth/register" class="nav-link">Register</a>
                 </div>
                 {% else %}
                 <div class="navbar-right">

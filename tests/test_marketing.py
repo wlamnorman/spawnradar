@@ -43,7 +43,7 @@ def test_pricing_renders_single_offer(monkeypatch, tmp_path):
     text = " ".join(response.text.split())
     assert response.status_code == 200
     assert "One plan for efficient game outreach." in text
-    assert "Start 3-day trial" in text
+    assert "Get Started Free" in text
     assert "Studio" not in text
     assert "Questions before subscribing?" in text
     assert "Manage up to" in text

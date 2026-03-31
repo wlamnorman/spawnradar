@@ -29,31 +29,19 @@ tier_prices[tier] %}
                 <li>Browse unlimited creator matches</li>
                 <li>Advanced creator filtering</li>
             </ul>
-            {% if not user %}
-            <a href="/auth/register" class="button button-full">
-                Start 3-day trial
-            </a>
-            {% elif _sub and _sub.is_trialing %} {% if billing_enabled %}
-            <a href="/billing/pay?tier=indie" class="button button-full">
-                Subscribe now →
-            </a>
-            {% else %}
-            <button type="button" class="button button-full" disabled>
-                Billing unavailable
-            </button>
-            {% endif %} {% elif _sub and (_sub.has_subscription or _sub.is_comped) %}
+            {% if _sub and (_sub.has_subscription or _sub.is_comped) %}
             <a href="/billing" class="button button-full">
                 Manage subscription →
             </a>
-            {% else %} {% if billing_enabled %}
-            <a href="/billing/pay?tier=indie" class="button button-full">
-                Subscribe now
+            {% elif billing_enabled %}
+            <a href="/games/setup" class="button button-full">
+                Get Started Free
             </a>
             {% else %}
             <button type="button" class="button button-full" disabled>
                 Billing unavailable
             </button>
-            {% endif %} {% endif %}
+            {% endif %}
             <p class="pricing-note">
                 Taxes handled at checkout based on your location.
             </p>

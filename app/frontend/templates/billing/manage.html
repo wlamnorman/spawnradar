@@ -19,42 +19,7 @@ endblock %} {% block content %}
                     ${{ indie_price }}<span>/month + applicable tax</span>
                 </div>
             </div>
-            {% if subscription.is_trialing and not subscription.has_subscription
-            %}
-            <div class="billing-status-rows">
-                <div class="billing-status-row">
-                    <span class="billing-status-label">Status</span>
-                    <span class="billing-status-value"
-                        >Trial: {{ subscription.trial_days_remaining }} day{% if
-                        subscription.trial_days_remaining != 1 %}s{% endif %}
-                        left</span
-                    >
-                </div>
-            </div>
-            {% if portal_enabled %}
-            <a
-                href="/billing/pay?tier=indie"
-                class="button button-full billing-action"
-            >
-                Subscribe now →
-            </a>
-            {% else %}
-            <button
-                type="button"
-                class="button button-full billing-action"
-                disabled
-            >
-                Billing unavailable
-            </button>
-            {% endif %}
-            <p class="pricing-note">
-                Taxes handled at checkout based on your location.
-            </p>
-            <p class="pricing-note">
-                Don't want to continue? Just let the trial expire. You won't be
-                charged unless you actively choose to subscribe.
-            </p>
-            {% else %}
+            {%- if true %}
             <div class="billing-status-rows">
                 <div class="billing-status-row">
                     <span class="billing-status-label">Status</span>
