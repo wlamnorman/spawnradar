@@ -467,9 +467,18 @@ async def create_game_post(
 
     # Rate-limit anonymous game creation
     if user.is_anonymous and not consume_rate_limit(settings.db_path, "game_create_anon", [
-        RateLimitRule(key=client_ip_key(request), limit=3, window_seconds=3600),
+        RateLimitRule(key=client_ip_key(request), limit=3, window_seconds=600),
     ]):
-        raise HTTPException(status_code=429, detail="Too many games created. Please try again later.")
+        response = _render_game_setup_form(
+            request,
+            templates,
+            user,
+            None,
+            error="Too many games created. Please wait a few minutes and try again.",
+            form_state=form_state,
+        )
+        response.status_code = 429
+        return response
 
     # Check subscription limit
     if not billing_service.check_game_limit(user.user_id):

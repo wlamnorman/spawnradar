@@ -279,6 +279,17 @@
                     `<button type="button" class="tag-pill tag-pill-button ${e.pillClass}" data-entry-name="${escapeHtml(e.name)}" data-entry-value="${escapeHtml(e.value)}" aria-label="Remove ${escapeHtml(e.label)}"><span class="tag-pill-label">${escapeHtml(e.label)}</span><span class="tag-remove">\u00d7</span></button>`,
                 )
                 .join("");
+              // Bind click-to-remove handlers (same as renderPreview)
+              preview
+                .querySelectorAll(".tag-pill-button")
+                .forEach((button) => {
+                  button.addEventListener("click", () => {
+                    removeEntry({
+                      name: button.dataset.entryName || "",
+                      value: button.dataset.entryValue || "",
+                    });
+                  });
+                });
             }
           }
         });
