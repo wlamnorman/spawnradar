@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.creator_index.matching import match_creator_tags_to_game
-from app.database import get_connection
+from app.database import get_connection, initialize_database
 from app.prospects.repository import ProspectRepository
 from app.prospects.service import ProspectRankingService
 
@@ -267,8 +267,224 @@ class TestScoringFormula:
 
 
 class TestProspectRepository:
+    def test_creator_account_game_tags_populate_and_dedupe(self, db_path):
+        """The materialized creator/game/tag cache stays deduped per game."""
+        _insert_igdb_game(
+            db_path,
+            100,
+            "Slay the Spire",
+            "slay-the-spire",
+            genre_tags=[(12, "Strategy"), (24, "Tactical")],
+            theme_tags=[(18, "Sci-fi")],
+        )
+        _insert_creator(db_path, "creator-1", "twitch", "StrategyFan")
+        _insert_game_play(db_path, "creator-1", "Slay the Spire", 100)
+        with get_connection(db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO creator_games_played (
+                    account_id, game_name_raw, game_name_key, platform,
+                    first_seen_at, last_seen_at, observation_count, igdb_game_id
+                ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1, ?)
+                """,
+                (
+                    "creator-1",
+                    "Slay the Spire Deluxe",
+                    "slay the spire deluxe",
+                    "twitch",
+                    100,
+                ),
+            )
+            rows = conn.execute(
+                """
+                SELECT tag_type, tag_id
+                FROM creator_account_game_tags
+                WHERE account_id = ? AND igdb_game_id = ?
+                ORDER BY tag_type, tag_id
+                """,
+                ("creator-1", 100),
+            ).fetchall()
+
+        assert [(row["tag_type"], row["tag_id"]) for row in rows] == [
+            ("genre", 12),
+            ("genre", 24),
+            ("theme", 18),
+        ]
+
+    def test_creator_account_game_tags_follow_igdb_tag_replacement(
+        self, db_path
+    ):
+        """Replacing IGDB tags updates the materialized creator/game/tag cache."""
+        _insert_igdb_game(
+            db_path,
+            100,
+            "Mutable Tags",
+            "mutable-tags",
+            genre_tags=[(12, "Strategy")],
+        )
+        _insert_creator(db_path, "creator-1", "twitch", "StrategyFan")
+        _insert_game_play(db_path, "creator-1", "Mutable Tags", 100)
+
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "DELETE FROM igdb_game_tags WHERE igdb_id = ?",
+                (100,),
+            )
+            conn.execute(
+                """
+                INSERT INTO igdb_game_tags (igdb_id, tag_type, tag_name, tag_id)
+                VALUES (?, 'genre', ?, ?)
+                """,
+                (100, "Shooter", 5),
+            )
+            rows = conn.execute(
+                """
+                SELECT tag_type, tag_id
+                FROM creator_account_game_tags
+                WHERE account_id = ? AND igdb_game_id = ?
+                ORDER BY tag_type, tag_id
+                """,
+                ("creator-1", 100),
+            ).fetchall()
+
+        assert [(row["tag_type"], row["tag_id"]) for row in rows] == [
+            ("genre", 5)
+        ]
+
+    def test_creator_account_game_tags_backfill_on_initialize(self, db_path):
+        """Existing DBs rebuild the materialized creator/game/tag cache on startup."""
+        _insert_igdb_game(
+            db_path,
+            100,
+            "Backfill Game",
+            "backfill-game",
+            genre_tags=[(12, "Strategy")],
+            theme_tags=[(18, "Sci-fi")],
+        )
+        _insert_creator(db_path, "creator-1", "twitch", "BackfillFan")
+        _insert_game_play(db_path, "creator-1", "Backfill Game", 100)
+
+        with get_connection(db_path) as conn:
+            conn.execute("DELETE FROM creator_account_game_tags")
+
+        initialize_database(db_path)
+
+        with get_connection(db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT tag_type, tag_id
+                FROM creator_account_game_tags
+                WHERE account_id = ? AND igdb_game_id = ?
+                ORDER BY tag_type, tag_id
+                """,
+                ("creator-1", 100),
+            ).fetchall()
+
+        assert [(row["tag_type"], row["tag_id"]) for row in rows] == [
+            ("genre", 12),
+            ("theme", 18),
+        ]
+
+    def test_creator_account_game_tags_follow_igdb_relink_updates(
+        self, db_path
+    ):
+        """Relinking a creator play to IGDB updates cached creator/game/tag rows."""
+        _insert_igdb_game(
+            db_path,
+            100,
+            "First Match",
+            "first-match",
+            genre_tags=[(12, "Strategy")],
+        )
+        _insert_igdb_game(
+            db_path,
+            101,
+            "Second Match",
+            "second-match",
+            genre_tags=[(5, "Shooter")],
+            theme_tags=[(18, "Sci-fi")],
+        )
+        _insert_creator(db_path, "creator-1", "twitch", "StrategyFan")
+
+        with get_connection(db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO creator_games_played (
+                    account_id, game_name_raw, game_name_key, platform,
+                    first_seen_at, last_seen_at, observation_count, igdb_game_id
+                ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1, NULL)
+                """,
+                (
+                    "creator-1",
+                    "Unresolved Game",
+                    "unresolved game",
+                    "twitch",
+                ),
+            )
+            empty_rows = conn.execute(
+                """
+                SELECT tag_type, tag_id
+                FROM creator_account_game_tags
+                WHERE account_id = ?
+                """,
+                ("creator-1",),
+            ).fetchall()
+
+        assert empty_rows == []
+
+        with get_connection(db_path) as conn:
+            conn.execute(
+                """
+                UPDATE creator_games_played
+                SET igdb_game_id = ?
+                WHERE account_id = ? AND game_name_key = ?
+                """,
+                (100, "creator-1", "unresolved game"),
+            )
+            first_rows = conn.execute(
+                """
+                SELECT igdb_game_id, tag_type, tag_id
+                FROM creator_account_game_tags
+                WHERE account_id = ?
+                ORDER BY igdb_game_id, tag_type, tag_id
+                """,
+                ("creator-1",),
+            ).fetchall()
+
+        assert [
+            (row["igdb_game_id"], row["tag_type"], row["tag_id"])
+            for row in first_rows
+        ] == [(100, "genre", 12)]
+
+        with get_connection(db_path) as conn:
+            conn.execute(
+                """
+                UPDATE creator_games_played
+                SET igdb_game_id = ?
+                WHERE account_id = ? AND game_name_key = ?
+                """,
+                (101, "creator-1", "unresolved game"),
+            )
+            second_rows = conn.execute(
+                """
+                SELECT igdb_game_id, tag_type, tag_id
+                FROM creator_account_game_tags
+                WHERE account_id = ?
+                ORDER BY igdb_game_id, tag_type, tag_id
+                """,
+                ("creator-1",),
+            ).fetchall()
+
+        assert [
+            (row["igdb_game_id"], row["tag_type"], row["tag_id"])
+            for row in second_rows
+        ] == [
+            (101, "genre", 5),
+            (101, "theme", 18),
+        ]
+
     def test_query_creator_tag_counts_basic(self, db_path):
-        """Creator tag counts aggregate correctly from resolved game plays."""
+        """Only target-tag counts are returned for each overlapping creator."""
         _insert_igdb_game(
             db_path,
             100,
@@ -296,10 +512,41 @@ class TestProspectRepository:
         counts = result["creator-1"]
         # genre:12 appears in both games → count 2
         assert counts[("genre", 12)] == 2
-        # genre:24 only in Slay the Spire → count 1
-        assert counts[("genre", 24)] == 1
-        # theme:18 in both → count 2
-        assert counts[("theme", 18)] == 2
+        assert counts == {("genre", 12): 2}
+
+    def test_query_creator_tag_counts_returns_multiple_target_tags(
+        self, db_path
+    ):
+        """Multiple requested target tags are counted exactly."""
+        _insert_igdb_game(
+            db_path,
+            100,
+            "Slay the Spire",
+            "slay-the-spire",
+            genre_tags=[(12, "Strategy"), (24, "Tactical")],
+            theme_tags=[(18, "Sci-fi")],
+        )
+        _insert_igdb_game(
+            db_path,
+            101,
+            "Into the Breach",
+            "into-the-breach",
+            genre_tags=[(12, "Strategy")],
+            theme_tags=[(18, "Sci-fi")],
+        )
+        _insert_creator(db_path, "creator-1", "twitch", "StrategyFan")
+        _insert_game_play(db_path, "creator-1", "Slay the Spire", 100)
+        _insert_game_play(db_path, "creator-1", "Into the Breach", 101)
+
+        repo = ProspectRepository(db_path)
+        result = repo.query_creator_tag_counts(
+            game_tags=(("genre", 12), ("theme", 18))
+        )
+
+        assert result["creator-1"] == {
+            ("genre", 12): 2,
+            ("theme", 18): 2,
+        }
 
     def test_no_overlap_excluded(self, db_path):
         """Creators with zero overlapping tags are not returned."""
@@ -434,6 +681,57 @@ class TestProspectRepository:
         profiles = repo.get_creator_profiles(["c3"])
 
         assert profiles["c3"].recent_audience == 143
+
+    def test_get_creator_filter_profiles_avoids_contact_data_by_default(
+        self, db_path
+    ):
+        _insert_creator(
+            db_path,
+            "cf1",
+            "twitch",
+            "ContactFilter",
+            handle="contactfilter",
+            followers=5000,
+            avg_viewers=200,
+        )
+        _insert_contact_point(
+            db_path,
+            "cf1",
+            "email",
+            "creator@example.com",
+        )
+
+        repo = ProspectRepository(db_path)
+        profiles = repo.get_creator_filter_profiles(["cf1"])
+
+        assert profiles["cf1"].reach == 5000
+        assert profiles["cf1"].contact_emails == ()
+
+    def test_get_creator_filter_profiles_can_include_contacts(self, db_path):
+        _insert_creator(
+            db_path,
+            "cf2",
+            "twitch",
+            "ContactFilterTwo",
+            handle="contactfiltertwo",
+            followers=5000,
+            avg_viewers=200,
+        )
+        _insert_contact_point(
+            db_path,
+            "cf2",
+            "discord",
+            "https://discord.gg/example",
+        )
+
+        repo = ProspectRepository(db_path)
+        profiles = repo.get_creator_filter_profiles(
+            ["cf2"], include_contacts=True
+        )
+
+        assert profiles["cf2"].contact_discord_urls == (
+            "https://discord.gg/example",
+        )
 
     def test_get_prospect_workflow_states_returns_sparse_rows(self, db_path):
         _insert_creator(
@@ -1001,6 +1299,63 @@ class TestProspectRankingService:
         assert len(prospects) == 1
         assert prospects[0].relevant_game_count == 12
         assert len(prospects[0].relevant_games) == 10
+
+    def test_rank_prospects_hydrates_full_profiles_only_for_page_ids(
+        self, db_path, game_service, registered_user, monkeypatch
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Page Hydration Game",
+            summary="Tactical RPG",
+            description="Tactical RPG",
+            website_url=None,
+            igdb_genre_ids=[12],
+        )
+        _insert_igdb_game(
+            db_path,
+            990,
+            "Page Hydration Match",
+            "page-hydration-match",
+            genre_tags=[(12, "Role-playing (RPG)")],
+        )
+        for index in range(3):
+            account_id = f"page-{index}"
+            _insert_creator(
+                db_path,
+                account_id,
+                "twitch",
+                f"Page Creator {index}",
+                followers=1_000 + index,
+                avg_viewers=100,
+            )
+            _insert_game_play(
+                db_path,
+                account_id,
+                "Page Hydration Match",
+                990,
+            )
+
+        service = ProspectRankingService(db_path)
+        captured_account_ids: list[str] = []
+        original_get_creator_profiles = service._repo.get_creator_profiles
+
+        def _capture_page_profiles(
+            account_ids: list[str],
+        ):
+            captured_account_ids[:] = list(account_ids)
+            return original_get_creator_profiles(account_ids)
+
+        monkeypatch.setattr(
+            service._repo,
+            "get_creator_profiles",
+            _capture_page_profiles,
+        )
+
+        prospects, total, _ = service.rank_prospects(game, limit=1, offset=1)
+
+        assert total == 3
+        assert len(prospects) == 1
+        assert len(captured_account_ids) == 1
 
     def test_rank_prospects_excludes_not_pursuing_from_all(
         self, db_path, game_service, registered_user

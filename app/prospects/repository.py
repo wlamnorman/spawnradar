@@ -13,6 +13,7 @@ from app.database import get_connection
 from app.prospects.models import (
     PROSPECT_DEFAULT_STATUS,
     PROSPECT_WORKFLOW_STATUS_ORDER,
+    CreatorRankingFilterProfile,
     CreatorRankingProfile,
     ProspectWorkflowState,
     ProspectWorkflowStatus,
@@ -49,45 +50,38 @@ class ProspectRepository:
         game_tags: Sequence[TagKey],
         limit: int = 200,
     ) -> dict[str, TagCounts]:
-        """Build per-creator tag counts from their resolved game plays.
-
-        Only returns creators who have at least one tag overlapping
-        with the supplied customer game tags. Each distinct IGDB game
-        contributes its tags once (repeated sessions don't inflate).
-        """
+        """Return per-creator counts for the customer game's target tags only."""
         if not game_tags:
             return {}
 
         game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
 
         sql = f"""
-            WITH creator_tag_counts AS (
-                SELECT
-                    cgp.account_id,
-                    igt.tag_type,
-                    igt.tag_id,
-                    COUNT(DISTINCT cgp.igdb_game_id) AS tag_count
-                FROM creator_games_played cgp
-                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                WHERE cgp.igdb_game_id IS NOT NULL
-                GROUP BY cgp.account_id, igt.tag_type, igt.tag_id
-            ),
-            game_tags AS (
+            WITH game_tags AS (
                 {game_tags_sql}
             ),
+            creator_target_tag_counts AS (
+                SELECT
+                    cagt.account_id,
+                    cagt.tag_type,
+                    cagt.tag_id,
+                    COUNT(*) AS tag_count
+                FROM creator_account_game_tags cagt
+                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
+                                  AND gt.tag_id = cagt.tag_id
+                GROUP BY cagt.account_id, cagt.tag_type, cagt.tag_id
+            ),
             eligible_creators AS (
-                SELECT ctc.account_id, COUNT(*) AS overlap_count
-                FROM creator_tag_counts ctc
-                JOIN game_tags gt ON gt.tag_type = ctc.tag_type
-                                  AND gt.tag_id = ctc.tag_id
-                GROUP BY ctc.account_id
+                SELECT cttc.account_id, COUNT(*) AS overlap_count
+                FROM creator_target_tag_counts cttc
+                GROUP BY cttc.account_id
                 ORDER BY overlap_count DESC
                 LIMIT ?
             )
-            SELECT ctc.account_id, ctc.tag_type, ctc.tag_id, ctc.tag_count
-            FROM creator_tag_counts ctc
-            JOIN eligible_creators ec ON ec.account_id = ctc.account_id
-            ORDER BY ctc.account_id
+            SELECT cttc.account_id, cttc.tag_type, cttc.tag_id, cttc.tag_count
+            FROM creator_target_tag_counts cttc
+            JOIN eligible_creators ec ON ec.account_id = cttc.account_id
+            ORDER BY cttc.account_id
         """
 
         params: list[object] = [*game_tags_params, limit]
@@ -126,12 +120,10 @@ class ProspectRepository:
                 {game_tags_sql}
             ),
             overlapping_accounts AS (
-                SELECT DISTINCT cgp.account_id
-                FROM creator_games_played cgp
-                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                JOIN game_tags gt ON gt.tag_type = igt.tag_type
-                                  AND gt.tag_id = igt.tag_id
-                WHERE cgp.igdb_game_id IS NOT NULL
+                SELECT DISTINCT cagt.account_id
+                FROM creator_account_game_tags cagt
+                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
+                                  AND gt.tag_id = cagt.tag_id
             )
             SELECT COUNT(*) AS creator_count
             FROM (
@@ -167,12 +159,10 @@ class ProspectRepository:
                 {game_tags_sql}
             ),
             overlapping_accounts AS (
-                SELECT DISTINCT cgp.account_id
-                FROM creator_games_played cgp
-                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                JOIN game_tags gt ON gt.tag_type = igt.tag_type
-                                  AND gt.tag_id = igt.tag_id
-                WHERE cgp.igdb_game_id IS NOT NULL
+                SELECT DISTINCT cagt.account_id
+                FROM creator_account_game_tags cagt
+                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
+                                  AND gt.tag_id = cagt.tag_id
             )
             SELECT MAX(
                 COALESCE(tp.followers_count, yc.subscriber_count, 0)
@@ -205,13 +195,12 @@ class ProspectRepository:
             WITH game_tags AS (
                 {game_tags_sql}
             )
-            SELECT cgp.account_id, COUNT(DISTINCT cgp.igdb_game_id) AS game_count
-            FROM creator_games_played cgp
-            JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-            JOIN game_tags gt ON gt.tag_type = igt.tag_type AND gt.tag_id = igt.tag_id
-            WHERE cgp.igdb_game_id IS NOT NULL
-              AND cgp.account_id IN ({placeholders})
-            GROUP BY cgp.account_id
+            SELECT cagt.account_id, COUNT(DISTINCT cagt.igdb_game_id) AS game_count
+            FROM creator_account_game_tags cagt
+            JOIN game_tags gt ON gt.tag_type = cagt.tag_type
+                              AND gt.tag_id = cagt.tag_id
+            WHERE cagt.account_id IN ({placeholders})
+            GROUP BY cagt.account_id
         """
         params: list[object] = [*game_tags_params, *account_ids]
         with get_connection(self._db_path) as conn:
@@ -235,14 +224,12 @@ class ProspectRepository:
             ),
             creator_relevant_games AS (
                 SELECT
-                    cgp.account_id,
-                    COUNT(DISTINCT cgp.igdb_game_id) AS game_count
-                FROM creator_games_played cgp
-                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                JOIN game_tags gt ON gt.tag_type = igt.tag_type
-                                  AND gt.tag_id = igt.tag_id
-                WHERE cgp.igdb_game_id IS NOT NULL
-                GROUP BY cgp.account_id
+                    cagt.account_id,
+                    COUNT(DISTINCT cagt.igdb_game_id) AS game_count
+                FROM creator_account_game_tags cagt
+                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
+                                  AND gt.tag_id = cagt.tag_id
+                GROUP BY cagt.account_id
             )
             SELECT MAX(crg.game_count) AS max_game_count
             FROM creator_relevant_games crg
@@ -277,21 +264,20 @@ class ProspectRepository:
             ),
             ranked_games AS (
                 SELECT
-                    cgp.account_id,
+                    cagt.account_id,
                     ig.name,
                     ig.cover_url,
-                    COUNT(DISTINCT gt.tag_id) AS tag_overlap,
+                    COUNT(DISTINCT cagt.tag_type || ':' || CAST(cagt.tag_id AS TEXT)) AS tag_overlap,
                     ROW_NUMBER() OVER (
-                        PARTITION BY cgp.account_id
-                        ORDER BY COUNT(DISTINCT gt.tag_id) DESC, ig.name
+                        PARTITION BY cagt.account_id
+                        ORDER BY COUNT(DISTINCT cagt.tag_type || ':' || CAST(cagt.tag_id AS TEXT)) DESC, ig.name
                     ) AS rank_in_account
-                FROM creator_games_played cgp
-                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                JOIN game_tags gt ON gt.tag_type = igt.tag_type AND gt.tag_id = igt.tag_id
-                JOIN igdb_games ig ON ig.igdb_id = cgp.igdb_game_id
-                WHERE cgp.igdb_game_id IS NOT NULL
-                  AND cgp.account_id IN ({placeholders})
-                GROUP BY cgp.account_id, cgp.igdb_game_id
+                FROM creator_account_game_tags cagt
+                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
+                                  AND gt.tag_id = cagt.tag_id
+                JOIN igdb_games ig ON ig.igdb_id = cagt.igdb_game_id
+                WHERE cagt.account_id IN ({placeholders})
+                GROUP BY cagt.account_id, cagt.igdb_game_id
             )
             SELECT account_id, name, cover_url
             FROM ranked_games
@@ -315,6 +301,84 @@ class ProspectRepository:
                 cover = cover.replace("/t_cover_big/", "/t_thumb/")
             result.setdefault(aid, []).append(
                 RelevantGame(name=row["name"], cover_url=cover)
+            )
+        return result
+
+    def get_creator_filter_profiles(
+        self,
+        account_ids: list[str],
+        *,
+        include_contacts: bool = False,
+    ) -> dict[str, CreatorRankingFilterProfile]:
+        """Fetch lightweight profile data for ranking/filtering."""
+        if not account_ids:
+            return {}
+
+        placeholders = ",".join("?" for _ in account_ids)
+        sql = f"""
+            SELECT
+                sa.account_id,
+                sa.platform,
+                sa.canonical_url,
+                COALESCE(
+                    tp.recent_avg_live_viewers,
+                    tp.viewer_count,
+                    tp.recent_avg_vod_views,
+                    yc.recent_avg_views,
+                    0
+                ) AS recent_audience,
+                COALESCE(tp.followers_count, yc.subscriber_count, 0) AS reach
+            FROM source_accounts sa
+            LEFT JOIN twitch_profiles_latest tp
+                ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
+            LEFT JOIN youtube_channels_latest yc
+                ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
+            WHERE sa.account_id IN ({placeholders})
+        """
+
+        emails_by_account: dict[str, list[str]] = {}
+        discord_by_account: dict[str, list[str]] = {}
+        socials_by_account: dict[str, list[str]] = {}
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(sql, account_ids).fetchall()
+            if include_contacts:
+                contact_sql = f"""
+                    SELECT account_id, contact_type, contact_value
+                    FROM contact_points
+                    WHERE account_id IN ({placeholders})
+                      AND contact_type IN ('email', 'discord', 'social_link')
+                      AND is_public = 1
+                """
+                contact_rows = conn.execute(
+                    contact_sql, account_ids
+                ).fetchall()
+                for row in contact_rows:
+                    aid = str(row["account_id"])
+                    ctype = str(row["contact_type"])
+                    cval = str(row["contact_value"])
+                    if ctype == "email":
+                        emails_by_account.setdefault(aid, []).append(cval)
+                    elif ctype == "discord":
+                        discord_by_account.setdefault(aid, []).append(cval)
+                    elif ctype == "social_link":
+                        socials_by_account.setdefault(aid, []).append(cval)
+
+        result: dict[str, CreatorRankingFilterProfile] = {}
+        for row in rows:
+            account_id = str(row["account_id"])
+            result[account_id] = CreatorRankingFilterProfile(
+                account_id=account_id,
+                platform=str(row["platform"]),
+                canonical_url=row["canonical_url"],
+                recent_audience=int(row["recent_audience"] or 0),
+                reach=int(row["reach"] or 0),
+                contact_emails=tuple(emails_by_account.get(account_id, [])),
+                contact_discord_urls=tuple(
+                    discord_by_account.get(account_id, [])
+                ),
+                contact_social_links=tuple(
+                    socials_by_account.get(account_id, [])
+                ),
             )
         return result
 

@@ -341,8 +341,102 @@ CREATE TABLE IF NOT EXISTS igdb_game_tags (
     PRIMARY KEY (igdb_id, tag_type, tag_id)
 );
 
+-- Materialized creator/game/tag rows used by prospects so the hot-path
+-- ranking queries do not have to rebuild the creator<->game<->tag join each
+-- time. One row means one creator has played one IGDB game carrying one tag.
+CREATE TABLE IF NOT EXISTS creator_account_game_tags (
+    account_id   TEXT NOT NULL REFERENCES source_accounts(account_id) ON DELETE CASCADE,
+    igdb_game_id INTEGER NOT NULL REFERENCES igdb_games(igdb_id) ON DELETE CASCADE,
+    tag_type     TEXT NOT NULL,
+    tag_id       INTEGER NOT NULL,
+    PRIMARY KEY (account_id, igdb_game_id, tag_type, tag_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_igdb_game_tags_type_id ON igdb_game_tags(tag_type, tag_id);
 CREATE INDEX IF NOT EXISTS idx_igdb_games_name_lower ON igdb_games(LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_creator_account_game_tags_lookup
+    ON creator_account_game_tags(tag_type, tag_id, account_id, igdb_game_id);
+CREATE INDEX IF NOT EXISTS idx_creator_account_game_tags_account_game
+    ON creator_account_game_tags(account_id, igdb_game_id);
+
+CREATE TRIGGER IF NOT EXISTS trg_creator_games_played_insert_game_tags
+AFTER INSERT ON creator_games_played
+WHEN NEW.igdb_game_id IS NOT NULL
+BEGIN
+    INSERT OR IGNORE INTO creator_account_game_tags (
+        account_id, igdb_game_id, tag_type, tag_id
+    )
+    SELECT DISTINCT NEW.account_id, NEW.igdb_game_id, igt.tag_type, igt.tag_id
+    FROM igdb_game_tags igt
+    WHERE igt.igdb_id = NEW.igdb_game_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_creator_games_played_update_remove_game_tags
+AFTER UPDATE OF account_id, igdb_game_id ON creator_games_played
+WHEN OLD.igdb_game_id IS NOT NULL
+     AND (
+         OLD.account_id != NEW.account_id
+         OR OLD.igdb_game_id != NEW.igdb_game_id
+         OR NEW.igdb_game_id IS NULL
+     )
+BEGIN
+    DELETE FROM creator_account_game_tags
+    WHERE account_id = OLD.account_id
+      AND igdb_game_id = OLD.igdb_game_id
+      AND NOT EXISTS (
+          SELECT 1
+          FROM creator_games_played cgp
+          WHERE cgp.account_id = OLD.account_id
+            AND cgp.igdb_game_id = OLD.igdb_game_id
+      );
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_creator_games_played_update_insert_game_tags
+AFTER UPDATE OF account_id, igdb_game_id ON creator_games_played
+WHEN NEW.igdb_game_id IS NOT NULL
+BEGIN
+    INSERT OR IGNORE INTO creator_account_game_tags (
+        account_id, igdb_game_id, tag_type, tag_id
+    )
+    SELECT DISTINCT NEW.account_id, NEW.igdb_game_id, igt.tag_type, igt.tag_id
+    FROM igdb_game_tags igt
+    WHERE igt.igdb_id = NEW.igdb_game_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_creator_games_played_delete_game_tags
+AFTER DELETE ON creator_games_played
+WHEN OLD.igdb_game_id IS NOT NULL
+BEGIN
+    DELETE FROM creator_account_game_tags
+    WHERE account_id = OLD.account_id
+      AND igdb_game_id = OLD.igdb_game_id
+      AND NOT EXISTS (
+          SELECT 1
+          FROM creator_games_played cgp
+          WHERE cgp.account_id = OLD.account_id
+            AND cgp.igdb_game_id = OLD.igdb_game_id
+      );
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_igdb_game_tags_insert_creator_game_tags
+AFTER INSERT ON igdb_game_tags
+BEGIN
+    INSERT OR IGNORE INTO creator_account_game_tags (
+        account_id, igdb_game_id, tag_type, tag_id
+    )
+    SELECT DISTINCT cgp.account_id, NEW.igdb_id, NEW.tag_type, NEW.tag_id
+    FROM creator_games_played cgp
+    WHERE cgp.igdb_game_id = NEW.igdb_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_igdb_game_tags_delete_creator_game_tags
+AFTER DELETE ON igdb_game_tags
+BEGIN
+    DELETE FROM creator_account_game_tags
+    WHERE igdb_game_id = OLD.igdb_id
+      AND tag_type = OLD.tag_type
+      AND tag_id = OLD.tag_id;
+END;
 
 -- ─── Steam Enrichment For Cached IGDB Games ──────────────────────────────────
 

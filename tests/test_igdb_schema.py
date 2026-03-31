@@ -20,6 +20,7 @@ def test_igdb_tables_and_identity_links_exist():
             }
             assert "igdb_games" in tables
             assert "igdb_game_tags" in tables
+            assert "creator_account_game_tags" in tables
             assert "identity_links" in tables
         finally:
             con.close()

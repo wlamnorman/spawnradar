@@ -14,6 +14,7 @@ from app.creator_index.matching import (
 from app.games.models import CustomerGame
 from app.prospects.models import (
     PROSPECT_WORKFLOW_STATUS_ORDER,
+    CreatorRankingFilterProfile,
     CreatorRankingProfile,
     ObservedTag,
     ProspectWorkflowState,
@@ -43,7 +44,8 @@ def _social_link_matches(
 
 
 def _profile_has_contact_method(
-    profile: CreatorRankingProfile, contact_method: str
+    profile: CreatorRankingFilterProfile | CreatorRankingProfile,
+    contact_method: str,
 ) -> bool:
     """Return whether a creator exposes the requested contact method."""
     if contact_method == "email":
@@ -88,7 +90,8 @@ def _profile_has_contact_method(
 
 
 def _profile_has_any_contact_method(
-    profile: CreatorRankingProfile, contact_methods: tuple[str, ...]
+    profile: CreatorRankingFilterProfile | CreatorRankingProfile,
+    contact_methods: tuple[str, ...],
 ) -> bool:
     """Return whether a creator matches any selected contact method."""
     if not contact_methods:
@@ -201,8 +204,6 @@ class ProspectRankingService:
 
         filtered_scored = filtered.filtered_scored
         creator_tag_counts = filtered.creator_tag_counts
-        profiles = filtered.profiles
-        relevant_game_counts = filtered.relevant_game_counts
         workflow_states = filtered.workflow_states
         status_counts = filtered.status_counts
         total_count = len(filtered_scored)
@@ -212,6 +213,10 @@ class ProspectRankingService:
         # Paginate
         page_slice = filtered_scored[offset : offset + limit]
         page_ids = [s[0] for s in page_slice]
+        relevant_game_counts = self._relevant_game_counts_for_page(
+            page_ids, filtered
+        )
+        profiles = self._repo.get_creator_profiles(page_ids)
 
         # Fetch relevant games with covers for this page only
         relevant_games = self._repo.get_relevant_games(
@@ -262,7 +267,7 @@ class ProspectRankingService:
             len(results),
             total_count,
             filtered.creator_tag_query_elapsed_ms,
-            filtered.profile_query_elapsed_ms,
+            filtered.filter_profile_query_elapsed_ms,
             filtered.relevant_game_count_elapsed_ms,
             filtered.workflow_state_elapsed_ms,
             hydration_elapsed_ms,
@@ -314,7 +319,7 @@ class ProspectRankingService:
             filtered.pre_status_filtered_count,
             len(filtered.filtered_scored),
             filtered.creator_tag_query_elapsed_ms,
-            filtered.profile_query_elapsed_ms,
+            filtered.filter_profile_query_elapsed_ms,
             filtered.relevant_game_count_elapsed_ms,
             filtered.workflow_state_elapsed_ms,
             (time.perf_counter() - started_at) * 1000,
@@ -380,8 +385,11 @@ class ProspectRankingService:
 
         scored_ids = [account_id for account_id, _, _ in scored]
         profile_started_at = time.perf_counter()
-        profiles = self._repo.get_creator_profiles(scored_ids)
-        profile_query_elapsed_ms = (
+        ranking_profiles = self._repo.get_creator_filter_profiles(
+            scored_ids,
+            include_contacts=bool(contact_methods),
+        )
+        filter_profile_query_elapsed_ms = (
             time.perf_counter() - profile_started_at
         ) * 1000
 
@@ -390,35 +398,55 @@ class ProspectRankingService:
             for item in scored
             if item[1] >= min_overlap_score
             and item[1] <= max_overlap_score
-            and profiles.get(item[0]) is not None
-            and profiles[item[0]].reach >= min_reach
-            and (max_reach is None or profiles[item[0]].reach <= max_reach)
+            and ranking_profiles.get(item[0]) is not None
+            and ranking_profiles[item[0]].reach >= min_reach
+            and (
+                max_reach is None
+                or ranking_profiles[item[0]].reach <= max_reach
+            )
         ]
         if not filtered_scored:
             return None
 
         filtered_ids = [account_id for account_id, _, _ in filtered_scored]
         relevant_count_started_at = time.perf_counter()
-        relevant_game_counts = self._repo.count_relevant_games(
-            filtered_ids,
-            game_tags,
+        needs_relevant_game_filter = (
+            min_relevant_games > 0 or max_relevant_games is not None
+        )
+        relevant_game_counts = (
+            self._repo.count_relevant_games(
+                filtered_ids,
+                game_tags,
+            )
+            if needs_relevant_game_filter
+            else {}
         )
         relevant_game_count_elapsed_ms = (
             time.perf_counter() - relevant_count_started_at
         ) * 1000
 
-        filtered_scored = [
-            item
-            for item in filtered_scored
-            if relevant_game_counts.get(item[0], 0) >= min_relevant_games
-            and (
-                max_relevant_games is None
-                or relevant_game_counts.get(item[0], 0) <= max_relevant_games
-            )
-            and _profile_has_any_contact_method(
-                profiles[item[0]], contact_methods
-            )
-        ]
+        if needs_relevant_game_filter:
+            filtered_scored = [
+                item
+                for item in filtered_scored
+                if relevant_game_counts.get(item[0], 0) >= min_relevant_games
+                and (
+                    max_relevant_games is None
+                    or relevant_game_counts.get(item[0], 0)
+                    <= max_relevant_games
+                )
+                and _profile_has_any_contact_method(
+                    ranking_profiles[item[0]], contact_methods
+                )
+            ]
+        else:
+            filtered_scored = [
+                item
+                for item in filtered_scored
+                if _profile_has_any_contact_method(
+                    ranking_profiles[item[0]], contact_methods
+                )
+            ]
         if not filtered_scored:
             return None
 
@@ -456,7 +484,11 @@ class ProspectRankingService:
         filtered_scored.sort(
             key=lambda item: (
                 item[1],
-                profiles[item[0]].reach if item[0] in profiles else 0,
+                (
+                    ranking_profiles[item[0]].reach
+                    if item[0] in ranking_profiles
+                    else 0
+                ),
                 item[0],
             ),
             reverse=True,
@@ -465,18 +497,34 @@ class ProspectRankingService:
             game_tags=game_tags,
             creator_tag_counts=creator_tag_counts,
             filtered_scored=filtered_scored,
-            profiles=profiles,
+            ranking_profiles=ranking_profiles,
             relevant_game_counts=relevant_game_counts,
             workflow_states=workflow_states,
             status_counts=status_counts,
+            needs_relevant_game_filter=needs_relevant_game_filter,
             scored_count=len(scored),
             pre_status_filtered_count=len(filtered_ids),
             creator_tag_query_elapsed_ms=creator_tag_query_elapsed_ms,
-            profile_query_elapsed_ms=profile_query_elapsed_ms,
+            filter_profile_query_elapsed_ms=filter_profile_query_elapsed_ms,
             relevant_game_count_elapsed_ms=relevant_game_count_elapsed_ms,
             workflow_state_elapsed_ms=workflow_state_elapsed_ms,
             post_filter_started_at=score_started_at,
         )
+
+    def _relevant_game_counts_for_page(
+        self,
+        page_ids: list[str],
+        filtered: _FilteredCandidates,
+    ) -> dict[str, int]:
+        """Return relevant-game counts for the current page rows."""
+        if not page_ids:
+            return {}
+        if filtered.needs_relevant_game_filter:
+            return {
+                account_id: filtered.relevant_game_counts.get(account_id, 0)
+                for account_id in page_ids
+            }
+        return self._repo.count_relevant_games(page_ids, filtered.game_tags)
 
 
 class _FilteredCandidates:
@@ -490,14 +538,15 @@ class _FilteredCandidates:
         filtered_scored: list[
             tuple[str, float, tuple[tuple[str, int | str], ...]]
         ],
-        profiles: dict[str, CreatorRankingProfile],
+        ranking_profiles: dict[str, CreatorRankingFilterProfile],
         relevant_game_counts: dict[str, int],
         workflow_states: dict[str, ProspectWorkflowState],
         status_counts: dict[ProspectWorkflowStatus, int],
+        needs_relevant_game_filter: bool,
         scored_count: int,
         pre_status_filtered_count: int,
         creator_tag_query_elapsed_ms: float,
-        profile_query_elapsed_ms: float,
+        filter_profile_query_elapsed_ms: float,
         relevant_game_count_elapsed_ms: float,
         workflow_state_elapsed_ms: float,
         post_filter_started_at: float,
@@ -505,14 +554,15 @@ class _FilteredCandidates:
         self.game_tags = game_tags
         self.creator_tag_counts = creator_tag_counts
         self.filtered_scored = filtered_scored
-        self.profiles = profiles
+        self.ranking_profiles = ranking_profiles
         self.relevant_game_counts = relevant_game_counts
         self.workflow_states = workflow_states
         self.status_counts = status_counts
+        self.needs_relevant_game_filter = needs_relevant_game_filter
         self.scored_count = scored_count
         self.pre_status_filtered_count = pre_status_filtered_count
         self.creator_tag_query_elapsed_ms = creator_tag_query_elapsed_ms
-        self.profile_query_elapsed_ms = profile_query_elapsed_ms
+        self.filter_profile_query_elapsed_ms = filter_profile_query_elapsed_ms
         self.relevant_game_count_elapsed_ms = relevant_game_count_elapsed_ms
         self.workflow_state_elapsed_ms = workflow_state_elapsed_ms
         self.post_filter_started_at = post_filter_started_at
