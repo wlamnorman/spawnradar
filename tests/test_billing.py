@@ -89,7 +89,6 @@ def test_indie_tier_game_limit_is_three():
 
 def _make_sub(
     *,
-    trial_ends_at=None,
     paddle_subscription_id=None,
     user_id="u1",
     status="active",
@@ -103,7 +102,6 @@ def _make_sub(
         tier=Tier.INDIE,
         status=status,
         current_period_end=None,
-        trial_ends_at=trial_ends_at,
         created_at=now,
         updated_at=now,
     )
@@ -125,8 +123,7 @@ def test_has_subscription_true_when_paddle_id_is_set():
 
 
 def test_has_access_false_without_subscription():
-    future = (datetime.now(UTC) + timedelta(days=2)).isoformat()
-    sub = _make_sub(trial_ends_at=future)
+    sub = _make_sub()
     assert sub.has_access is False
 
 
@@ -146,7 +143,7 @@ def test_has_access_false_for_past_due_subscription():
         tier=base.tier,
         status=base.status,
         current_period_end=future,
-        trial_ends_at=base.trial_ends_at,
+
         created_at=base.created_at,
         updated_at=base.updated_at,
     )
@@ -164,7 +161,7 @@ def test_canceled_subscription_loses_access_after_period_end():
         tier=base.tier,
         status=base.status,
         current_period_end=past,
-        trial_ends_at=base.trial_ends_at,
+
         created_at=base.created_at,
         updated_at=base.updated_at,
     )
@@ -188,7 +185,7 @@ def test_comped_access_gets_paid_limits(billing_service, registered_user):
 
 
 # ---------------------------------------------------------------------------
-# Full subscription lifecycle (trial → paid → cancelled)
+# Full subscription lifecycle (free → paid → cancelled)
 # ---------------------------------------------------------------------------
 
 
@@ -547,7 +544,6 @@ def test_canceled_subscription_keeps_access_until_period_end():
     sub = _make_sub(
         paddle_subscription_id="sub_paid",
         status="canceled",
-        trial_ends_at=None,
     )
     sub = Subscription(
         subscription_id=sub.subscription_id,
@@ -557,7 +553,6 @@ def test_canceled_subscription_keeps_access_until_period_end():
         tier=sub.tier,
         status=sub.status,
         current_period_end=future,
-        trial_ends_at=sub.trial_ends_at,
         created_at=sub.created_at,
         updated_at=sub.updated_at,
     )

@@ -219,7 +219,6 @@ class BillingService:
         if event_type in {
             "subscription.created",
             "subscription.updated",
-            "subscription.trialing",
             "subscription.activated",
             "subscription.resumed",
             "subscription.paused",
@@ -362,7 +361,7 @@ def _normalize_environment(value: str, client_side_token: str) -> str:
 
 def _normalize_status(value: str) -> str:
     normalized = value.lower().replace(" ", "_")
-    allowed = {"active", "trialing", "past_due", "paused", "canceled"}
+    allowed = {"active", "past_due", "paused", "canceled"}
     return normalized if normalized in allowed else "active"
 
 

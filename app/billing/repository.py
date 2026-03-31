@@ -59,8 +59,8 @@ class SubscriptionRepository:
             conn.execute(
                 """
                 INSERT INTO subscriptions
-                    (subscription_id, user_id, tier, status, trial_ends_at, created_at, updated_at)
-                VALUES (?, ?, ?, 'active', NULL, ?, ?)
+                    (subscription_id, user_id, tier, status, created_at, updated_at)
+                VALUES (?, ?, ?, 'active', ?, ?)
                 """,
                 (
                     subscription_id,
@@ -106,7 +106,7 @@ class SubscriptionRepository:
                 UPDATE subscriptions
                 SET paddle_customer_id = ?, paddle_subscription_id = ?,
                     tier = ?, status = ?, current_period_end = ?,
-                    trial_ends_at = ?, updated_at = ?
+                    updated_at = ?
                 WHERE subscription_id = ?
                 """,
                 (
@@ -121,7 +121,6 @@ class SubscriptionRepository:
                     current_period_end
                     if current_period_end is not None
                     else sub.current_period_end,
-                    sub.trial_ends_at,
                     datetime.now(UTC).isoformat(),
                     sub.subscription_id,
                 ),
@@ -144,8 +143,8 @@ class SubscriptionRepository:
                 conn.execute(
                     """
                     INSERT INTO subscriptions
-                        (subscription_id, user_id, tier, status, trial_ends_at, current_period_end, created_at, updated_at)
-                    VALUES (?, ?, ?, 'comped', NULL, NULL, ?, ?)
+                        (subscription_id, user_id, tier, status, current_period_end, created_at, updated_at)
+                    VALUES (?, ?, ?, 'comped', NULL, ?, ?)
                     """,
                     (
                         f"comped_{user_id}",
@@ -162,7 +161,6 @@ class SubscriptionRepository:
                     SET paddle_subscription_id = NULL,
                         tier = ?,
                         status = 'comped',
-                        trial_ends_at = NULL,
                         current_period_end = NULL,
                         updated_at = ?
                     WHERE subscription_id = ?
@@ -180,7 +178,6 @@ def _row_to_subscription(row: Any) -> Subscription:
         tier=_coerce_tier(row["tier"]),
         status=row["status"],
         current_period_end=row["current_period_end"],
-        trial_ends_at=row["trial_ends_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

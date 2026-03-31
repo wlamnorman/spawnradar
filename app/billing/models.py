@@ -41,7 +41,6 @@ class Subscription:
     tier: Tier
     status: str  # active | canceled | past_due | paused | comped
     current_period_end: str | None
-    trial_ends_at: str | None
     created_at: str
     updated_at: str
 
@@ -62,10 +61,10 @@ class Subscription:
             return True
         if not self.has_subscription:
             return False
-        if self.status not in {"active", "trialing", "canceled"}:
+        if self.status not in {"active", "canceled"}:
             return False
         if self.current_period_end is None:
-            return self.status in {"active", "trialing"}
+            return self.status == "active"
         return datetime.fromisoformat(self.current_period_end) > datetime.now(
             UTC
         )

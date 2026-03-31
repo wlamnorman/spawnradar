@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     paddle_customer_id     TEXT,
     paddle_subscription_id TEXT,
     tier               TEXT NOT NULL DEFAULT 'indie',    -- indie
-    status             TEXT NOT NULL DEFAULT 'active',  -- active | cancelled | past_due | trialing
-    trial_ends_at      TEXT,                            -- NULL means no trial
+    status             TEXT NOT NULL DEFAULT 'active',  -- active | canceled | past_due | paused | comped
+    trial_ends_at      TEXT,                            -- legacy column, no longer used
     current_period_end TEXT,
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
