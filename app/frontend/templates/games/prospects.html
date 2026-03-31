@@ -11,12 +11,20 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
 <div class="prospects-header">
     <h1>{{ game.name }}: Creator Prospects</h1>
 </div>
+{% if user.is_anonymous %}
+<div class="signup-nudge">
+    <a href="/auth/register">Sign up</a> to save your game.
+</div>
+{% endif %}
 
-<div class="prospects-toolbar">
+<div
+    class="prospects-toolbar"
+    data-filters-unlocked="{{ 'true' if filters_unlocked else 'false' }}"
+    data-workflow-unlocked="{{ 'true' if workflow_unlocked else 'false' }}"
+>
     <p class="text-muted prospects-toolbar-count">
         {{ total_count }} creator{{ "s" if total_count != 1 else "" }} matched
     </p>
-    {% if filters_unlocked %}
     <details class="prospects-filter-menu">
         <summary class="button secondary">
             Filters {% if filters_active %}<span class="prospects-filter-badge"
@@ -331,20 +339,10 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
             </div>
         </form>
     </details>
-    {% else %}
-    <span
-        class="button secondary is-disabled"
-        aria-disabled="true"
-        title="Disabled during trial"
-        data-tooltip="Disabled during trial"
-    >
-        Filters
-    </span>
-    {% endif %}
 </div>
 
 <div class="prospects-status-tabs" aria-label="Prospect workflow filters">
-    {% for tab in status_tab_links %} {% if workflow_unlocked %}
+    {% for tab in status_tab_links %}
     <a
         href="{{ tab.href }}"
         class="prospects-status-tab {% if tab.active %}is-active{% endif %} {% if tab.is_empty %}is-empty{% endif %}"
@@ -353,16 +351,7 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
         <span>{{ tab.label }}</span>
         <span class="prospects-status-tab-count">{{ tab.count }}</span>
     </a>
-    {% else %}
-    <span
-        class="prospects-status-tab is-disabled {% if tab.active %}is-active{% endif %} {% if tab.is_empty %}is-empty{% endif %}"
-        title="Disabled during trial"
-        data-tooltip="Disabled during trial"
-    >
-        <span>{{ tab.label }}</span>
-        <span class="prospects-status-tab-count">{{ tab.count }}</span>
-    </span>
-    {% endif %} {% endfor %}
+    {% endfor %}
 </div>
 {% if not prospects %}
 <div class="empty-state">
@@ -389,7 +378,7 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 <th class="col-rank">#</th>
                 <th class="col-creator">Creator</th>
                 <th class="col-games">Played Games</th>
-                <th class="col-tags">Observed Tags</th>
+                <th class="col-tags">Observed Matching Tags</th>
                 <th class="col-score">Evidenced Interest<br />Overlap</th>
                 <th class="col-reach">Reach</th>
             </tr>
@@ -629,7 +618,7 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                                 </a>
                                 {% endif %}
                             </div>
-                            {% endif %} {% if workflow_unlocked %}
+                            {% endif %}
                             <div class="prospect-workflow-row">
                                 <div class="prospect-workflow-actions-row">
                                     <details
@@ -757,58 +746,6 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                                     </button>
                                 </div>
                             </div>
-                            {% else %}
-                            <div class="prospect-workflow-row">
-                                <div class="prospect-workflow-actions-row">
-                                    <button
-                                        class="prospect-status-pill {{ status_pill_class(prospect.workflow.status) }} is-disabled"
-                                        type="button"
-                                        aria-disabled="true"
-                                        title="Disabled during trial"
-                                        data-tooltip="Disabled during trial"
-                                        tabindex="-1"
-                                    >
-                                        <span data-prospect-status-label
-                                            >{% if prospect.workflow.status ==
-                                            "new" %}Status: New{% else %}{{
-                                            prospect_status_labels[prospect.workflow.status]
-                                            }}{% endif %}</span
-                                        >
-                                        {% if prospect.workflow.has_notes %}
-                                        <span
-                                            class="prospect-status-note-dot"
-                                        ></span>
-                                        {% endif %}
-                                    </button>
-                                    <span
-                                        class="prospect-quick-skip is-disabled"
-                                        aria-disabled="true"
-                                        aria-label="Disabled during trial"
-                                        title="Disabled during trial"
-                                        data-tooltip="Disabled during trial"
-                                    >
-                                        <span
-                                            class="prospect-quick-skip-icon prospect-quick-skip-icon--skip"
-                                            aria-hidden="true"
-                                        >
-                                            <svg
-                                                width="14"
-                                                height="14"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="2.25"
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                            >
-                                                <path d="M18 6 6 18" />
-                                                <path d="m6 6 12 12" />
-                                            </svg>
-                                        </span>
-                                    </span>
-                                </div>
-                            </div>
-                            {% endif %}
                         </div>
                     </div>
                 </td>
@@ -862,14 +799,10 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
         </tbody>
     </table>
 </div>
-{% if trial_page_locked %}
-<div
-    class="upgrade-nudge"
-    style="margin-top: 24px; margin-bottom: 0; text-align: center"
->
-    Showing the top {{ page_size }} creator matches during trial. Subscribe to
-    unlock the full list.
-    <a href="/billing">Subscribe now →</a>
+{% if page_locked %}
+<div class="upgrade-nudge">
+    Showing the top {{ page_size }} creator matches.
+    <a href="/pricing">Subscribe for full access</a>
 </div>
 {% elif total_pages > 1 %}
 <div
@@ -901,7 +834,23 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
 </div>
 {% endif %}
 
+<dialog class="upgrade-gate-modal" id="upgrade-gate-modal">
+    <div class="upgrade-gate-modal-body">
+        <button
+            type="button"
+            class="upgrade-gate-modal-close"
+            aria-label="Close"
+        >
+            &times;
+        </button>
+        <h2 id="upgrade-gate-title">Subscribe to unlock</h2>
+        <p id="upgrade-gate-text"></p>
+        <a href="/pricing" class="button">View plans</a>
+    </div>
+</dialog>
+
 <div id="game-tooltip"></div>
+<script src="{{ static_asset_url('upgrade-gate.js') }}"></script>
 <script>
     (function () {
         var tip = document.getElementById("game-tooltip");

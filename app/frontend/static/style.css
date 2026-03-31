@@ -1111,7 +1111,7 @@ button.tag-pill-button {
     color: #713f12;
 }
 
-.trial-banner {
+.free-banner {
     padding: 12px 18px;
     background: #ede9fe;
     border: 1px solid #c4b5fd;
@@ -1120,7 +1120,7 @@ button.tag-pill-button {
     margin-bottom: 20px;
     color: #4c1d95;
 }
-.trial-banner a {
+.free-banner a {
     color: #6366f1;
     font-weight: 600;
 }
@@ -2390,11 +2390,6 @@ button.tag-pill-button {
     color: #94a3b8;
 }
 
-.prospects-status-tab.is-disabled {
-    cursor: not-allowed;
-    opacity: 0.9;
-}
-
 .prospects-status-tab-count {
     font-variant-numeric: tabular-nums;
 }
@@ -2413,11 +2408,6 @@ button.tag-pill-button {
 
 .prospects-filter-menu summary::-webkit-details-marker {
     display: none;
-}
-
-.button.is-disabled {
-    cursor: not-allowed;
-    opacity: 0.9;
 }
 
 .prospects-filter-badge {
@@ -2886,10 +2876,6 @@ button.tag-pill-button {
     cursor: pointer;
 }
 
-.prospect-status-pill.is-disabled {
-    cursor: not-allowed;
-}
-
 .prospect-status-note-dot {
     width: 6px;
     height: 6px;
@@ -3001,11 +2987,6 @@ button.tag-pill-button {
         background-color 0.15s ease,
         color 0.15s ease,
         box-shadow 0.15s ease;
-}
-
-.prospect-quick-skip.is-disabled {
-    cursor: not-allowed;
-    opacity: 0.9;
 }
 
 .prospect-quick-skip-icon {
@@ -3242,7 +3223,7 @@ button.tag-pill-button {
     }
 
     .prospects-table .col-tags::before {
-        content: "Observed Tags";
+        content: "Observed Matching Tags";
     }
 
     .prospects-table .col-score::before {
@@ -3303,4 +3284,55 @@ button.tag-pill-button {
     .prospects-table .col-tags .tag-pill {
         margin: 2px 4px 2px 0;
     }
+}
+
+/* ── Upgrade gate modal ─────────────────────────────────────────────── */
+
+.upgrade-gate-modal {
+    border: none;
+    border-radius: 12px;
+    padding: 0;
+    max-width: 420px;
+    width: 90vw;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.upgrade-gate-modal::backdrop {
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.upgrade-gate-modal-body {
+    position: relative;
+    padding: 32px;
+    text-align: center;
+}
+
+.upgrade-gate-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    line-height: 1;
+    padding: 4px 8px;
+}
+
+.upgrade-gate-modal-close:hover {
+    color: var(--color-text);
+}
+
+.upgrade-gate-modal-body h2 {
+    font-size: 20px;
+    margin: 0 0 8px;
+    color: var(--color-text);
+}
+
+.upgrade-gate-modal-body p {
+    font-size: 14px;
+    color: var(--color-text-soft);
+    margin: 0 0 24px;
+    line-height: 1.5;
 }

@@ -298,6 +298,15 @@ class CustomerGameRepository:
                 (customer_game_id,),
             )
 
+    def transfer_ownership(self, from_user_id: str, to_user_id: str) -> int:
+        """Move all games from one user to another. Returns count transferred."""
+        with get_connection(self._db_path) as conn:
+            cursor = conn.execute(
+                "UPDATE customer_games SET user_id = ?, updated_at = datetime('now') WHERE user_id = ?",
+                (to_user_id, from_user_id),
+            )
+            return cursor.rowcount
+
     def duplicate(
         self,
         *,

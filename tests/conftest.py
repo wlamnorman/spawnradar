@@ -79,6 +79,13 @@ def registered_user(auth_service):
 
 
 @pytest.fixture
+def anonymous_user(auth_service):
+    """Create an anonymous user for testing."""
+    user, session = auth_service.create_anonymous_user()
+    return user
+
+
+@pytest.fixture
 def sample_game(game_service, registered_user):
     return game_service.create_game(
         user_id=registered_user.user_id,

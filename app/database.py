@@ -25,6 +25,7 @@ def initialize_database(db_path: str) -> None:
         conn.executescript(schema_sql)
         _ensure_customer_games_compat(conn)
         _ensure_igdb_games_compat(conn)
+        _ensure_users_is_anonymous_compat(conn)
         conn.commit()
 
 
@@ -48,6 +49,14 @@ def _ensure_igdb_games_compat(conn: sqlite3.Connection) -> None:
     if not _column_exists(conn, "igdb_games", "developer_names_json"):
         conn.execute(
             "ALTER TABLE igdb_games ADD COLUMN developer_names_json TEXT NOT NULL DEFAULT '[]'"
+        )
+
+
+def _ensure_users_is_anonymous_compat(conn: sqlite3.Connection) -> None:
+    """Add is_anonymous column for existing local databases."""
+    if not _column_exists(conn, "users", "is_anonymous"):
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN is_anonymous INTEGER NOT NULL DEFAULT 0"
         )
 
 

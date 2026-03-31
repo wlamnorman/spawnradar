@@ -279,6 +279,37 @@
                     `<button type="button" class="tag-pill tag-pill-button ${e.pillClass}" data-entry-name="${escapeHtml(e.name)}" data-entry-value="${escapeHtml(e.value)}" aria-label="Remove ${escapeHtml(e.label)}"><span class="tag-pill-label">${escapeHtml(e.label)}</span><span class="tag-remove">\u00d7</span></button>`,
                 )
                 .join("");
+              // Bind click-to-remove handlers. Note: removeEntry() and
+              // render() live inside initTagPicker's closure and are not
+              // accessible here, so we manipulate the DOM directly.
+              preview
+                .querySelectorAll(".tag-pill-button")
+                .forEach((button) => {
+                  button.addEventListener("click", () => {
+                    const eName = button.dataset.entryName || "";
+                    const eValue = (
+                      button.dataset.entryValue || ""
+                    ).toLowerCase();
+                    hiddenInputs
+                      .querySelectorAll("input[name]")
+                      .forEach((input) => {
+                        if (
+                          input.name === eName &&
+                          input.value.toLowerCase() === eValue
+                        ) {
+                          input.remove();
+                        }
+                      });
+                    button.remove();
+                    // Show placeholder if no pills remain
+                    if (
+                      !preview.querySelector(".tag-pill-button")
+                    ) {
+                      preview.innerHTML =
+                        '<span class="text-muted">No tags selected yet.</span>';
+                    }
+                  });
+                });
             }
           }
         });

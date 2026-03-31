@@ -6,6 +6,10 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.auth.cookies import (
+    clear_session_cookie,
+    set_session_cookie,
+)
 from app.auth.dependencies import require_user
 from app.auth.models import User
 from app.auth.service import AuthService
@@ -59,37 +63,6 @@ def _consume_auth_rate_limit(
             )
         )
     return consume_rate_limit(settings.db_path, scope, rules)
-
-
-def _use_secure_cookies(settings: Settings) -> bool:
-    """Use secure cookies whenever the configured public base URL is HTTPS."""
-    return settings.base_url.startswith("https://")
-
-
-def _set_session_cookie(
-    response: RedirectResponse, session_id: str, settings: Settings
-) -> None:
-    """Attach the app session cookie with deployment-aware security flags."""
-    response.set_cookie(
-        "session_id",
-        session_id,
-        httponly=True,
-        samesite="lax",
-        secure=_use_secure_cookies(settings),
-        max_age=60 * 60 * 24 * 30,
-    )
-
-
-def _clear_session_cookie(
-    response: RedirectResponse, settings: Settings
-) -> None:
-    """Delete the app session cookie using the same flags it was set with."""
-    response.delete_cookie(
-        "session_id",
-        httponly=True,
-        samesite="lax",
-        secure=_use_secure_cookies(settings),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +119,7 @@ async def login_post(
         return response  # type: ignore[return-value]
 
     redirect = RedirectResponse(url="/games", status_code=303)
-    _set_session_cookie(redirect, session.session_id, settings)
+    set_session_cookie(redirect, session.session_id, settings)
     return redirect
 
 
@@ -196,6 +169,14 @@ async def register_post(
         )
         return response  # type: ignore[return-value]
 
+    # Capture anonymous session before registration replaces it
+    anon_user = None
+    existing_session_id = request.cookies.get("session_id")
+    if existing_session_id:
+        existing = auth.get_user_for_session(existing_session_id)
+        if existing and existing.is_anonymous:
+            anon_user = existing
+
     try:
         auth.register(email, password)
         session = auth.login(email, password)
@@ -208,8 +189,10 @@ async def register_post(
     user = auth.get_user_for_session(session.session_id)
     if user:
         auth.send_verification_email(user, email_service, settings.base_url)
+    if anon_user and user:
+        auth.claim_anonymous_games(anon_user.user_id, user.user_id)
     redirect = RedirectResponse(url="/auth/verify-pending", status_code=303)
-    _set_session_cookie(redirect, session.session_id, settings)
+    set_session_cookie(redirect, session.session_id, settings)
     return redirect
 
 
@@ -264,7 +247,7 @@ async def dev_login(
     user = ensure_dev_user(settings.db_path)
     session = auth_service.create_session_for_user(user.user_id)
     redirect = RedirectResponse(url="/", status_code=303)
-    _set_session_cookie(redirect, session.session_id, settings)
+    set_session_cookie(redirect, session.session_id, settings)
     return redirect
 
 
@@ -287,7 +270,7 @@ async def logout_post(
         auth.logout(session_id)
 
     response = RedirectResponse(url="/auth/login", status_code=303)
-    _clear_session_cookie(response, settings)
+    clear_session_cookie(response, settings)
     return response
 
 
@@ -449,10 +432,20 @@ async def google_callback(
     google_id: str = user_info["sub"]
     email: str = user_info["email"]
 
+    anon_user = None
+    existing_session_id = request.cookies.get("session_id")
+    if existing_session_id:
+        existing = auth.get_user_for_session(existing_session_id)
+        if existing and existing.is_anonymous:
+            anon_user = existing
+
     user = auth.get_or_create_google_user(google_id, email)
     auth.mark_google_user_verified(user.user_id)
     session = auth.create_session_for_user(user.user_id)
 
+    if anon_user:
+        auth.claim_anonymous_games(anon_user.user_id, user.user_id)
+
     redirect = RedirectResponse(url="/games", status_code=303)
-    _set_session_cookie(redirect, session.session_id, settings)
+    set_session_cookie(redirect, session.session_id, settings)
     return redirect

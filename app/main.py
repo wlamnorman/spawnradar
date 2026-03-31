@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.router import router as admin_router
+from app.auth.cookies import AnonymousSessionMiddleware
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.auth.repository import (
@@ -179,7 +180,7 @@ async def lifespan(app: FastAPI):
         user = request.app.state.auth_service.get_user_for_session(session_id)
         if user is None:
             return None
-        return request.app.state.billing_service.get_or_create_subscription(
+        return request.app.state.billing_service.get_subscription(
             user.user_id
         )
 
@@ -238,6 +239,7 @@ def create_app() -> FastAPI:
         same_site="lax",
         https_only=secure_transport,
     )
+    app.add_middleware(AnonymousSessionMiddleware, settings=settings)
 
     # Google OAuth client (no-op if credentials are not configured)
     oauth = OAuth()

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     google_id     TEXT UNIQUE,                 -- NULL for password-only accounts
     is_admin      INTEGER NOT NULL DEFAULT 0,
     email_verified INTEGER NOT NULL DEFAULT 0,
+    is_anonymous  INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -22,8 +23,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     paddle_customer_id     TEXT,
     paddle_subscription_id TEXT,
     tier               TEXT NOT NULL DEFAULT 'indie',    -- indie
-    status             TEXT NOT NULL DEFAULT 'active',  -- active | cancelled | past_due | trialing
-    trial_ends_at      TEXT,                            -- NULL means no trial
+    status             TEXT NOT NULL DEFAULT 'active',  -- active | canceled | past_due | paused | comped
+    trial_ends_at      TEXT,                            -- legacy column, no longer used
     current_period_end TEXT,
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now'))

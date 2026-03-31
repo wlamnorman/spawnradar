@@ -396,13 +396,13 @@ class TestRegistrationFlow:
         token = _get_verification_token(db_path, "tokencheck@example.com")
         assert token is not None
 
-    def test_unverified_user_cannot_access_games(self, monkeypatch, tmp_path):
+    def test_unverified_user_can_access_games(self, monkeypatch, tmp_path):
+        # Game routes are open to all users (including unverified and anonymous).
         client, db_path = _make_http_client(monkeypatch, tmp_path)
         with client:
             _register(client, "blocked@example.com")
             response = client.get("/games", follow_redirects=False)
-        assert response.status_code == 307
-        assert "/auth/verify-pending" in response.headers["location"]
+        assert response.status_code == 200
 
     def test_unverified_user_sees_verify_pending_page(
         self, monkeypatch, tmp_path

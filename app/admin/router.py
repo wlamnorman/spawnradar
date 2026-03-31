@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -28,19 +27,8 @@ def admin_dashboard(
     """Render the admin dashboard."""
     data = get_dashboard_data(settings.db_path)
 
-    # Compute trial_days_left for each customer and parse game JSON fields
-    now = datetime.now(UTC)
+    # Parse game JSON fields for each customer
     for customer in data["customers"]:
-        trial_days_left = None
-        if customer["trial_ends_at"] and customer["sub_status"] == "active":
-            try:
-                ends = datetime.fromisoformat(customer["trial_ends_at"])
-                delta = ends - now
-                trial_days_left = max(0, delta.days)
-            except (ValueError, TypeError):
-                pass
-        customer["trial_days_left"] = trial_days_left
-
         for game in customer["games"]:
             game["platforms_list"] = json.loads(game["platforms"] or "[]")
 

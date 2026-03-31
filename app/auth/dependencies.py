@@ -57,8 +57,8 @@ async def require_product_access(
     billing_service: BillingService = Depends(get_billing_service),
 ) -> User:
     """Require an authenticated user with a verified email and active product access."""
-    sub = billing_service.get_or_create_subscription(user.user_id)
-    if sub.has_product_access:
+    sub = billing_service.get_subscription(user.user_id)
+    if sub is not None and sub.has_access:
         return user
 
     accept = request.headers.get("accept", "")
@@ -68,6 +68,33 @@ async def require_product_access(
         )
 
     raise HTTPException(status_code=307, headers={"Location": "/pricing"})
+
+
+async def require_user_or_anonymous(
+    request: Request,
+    session_id: str | None = Cookie(default=None),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> User:
+    """Return the current user, creating an anonymous user if no valid session.
+
+    Unlike require_user (which redirects to login), this creates a cookie-based
+    anonymous identity on the spot. The new session ID is stored on
+    ``request.state`` and picked up by :class:`AnonymousSessionMiddleware`
+    which sets it as a cookie on the actual response.
+
+    Note: We cannot use FastAPI's ``Response`` dependency injection to set
+    cookies because it does not propagate into ``TemplateResponse`` /
+    ``HTMLResponse`` returns.
+    """
+    if session_id:
+        user = auth_service.get_user_for_session(session_id)
+        if user is not None:
+            return user
+    # No valid session — create anonymous user
+    user, session = auth_service.create_anonymous_user()
+    # Signal the middleware to set the cookie on the actual response
+    request.state.new_session_id = session.session_id
+    return user
 
 
 def _reject(request: Request):

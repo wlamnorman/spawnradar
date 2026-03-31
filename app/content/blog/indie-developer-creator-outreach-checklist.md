@@ -129,4 +129,4 @@ Doing this well takes time. Researching creators, personalising messages, tracki
 
 This is the problem SpawnRadar is built to solve. We surface creators who are a strong genre and audience fit for your specific game, score them against your profile and draft outreach messages you can review and send. The research step gets compressed from days to minutes.
 
-If you want to try it, [start a free trial here](/auth/register).
+If you want to try it, [get started free here](/games/setup) — no signup required.

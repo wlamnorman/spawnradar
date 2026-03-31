@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+import sqlite3
+import uuid as _uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from app.billing.models import Subscription, Tier
@@ -52,25 +54,20 @@ class SubscriptionRepository:
         subscription_id: str,
         user_id: str,
         tier: Tier = Tier.INDIE,
-        trial_days: int = 3,
     ) -> Subscription:
-        """Create a new subscription with an active trial period."""
+        """Create a new subscription row."""
         now = datetime.now(UTC).isoformat()
-        trial_ends_at = (
-            datetime.now(UTC) + timedelta(days=trial_days)
-        ).isoformat()
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO subscriptions
-                    (subscription_id, user_id, tier, status, trial_ends_at, created_at, updated_at)
-                VALUES (?, ?, ?, 'active', ?, ?, ?)
+                    (subscription_id, user_id, tier, status, created_at, updated_at)
+                VALUES (?, ?, ?, 'active', ?, ?)
                 """,
                 (
                     subscription_id,
                     user_id,
                     tier.value,
-                    trial_ends_at,
                     now,
                     now,
                 ),
@@ -87,8 +84,20 @@ class SubscriptionRepository:
         status: str | None = None,
         current_period_end: str | None = None,
     ) -> None:
-        """Update subscription fields from a Paddle webhook event."""
+        """Update subscription fields from a Paddle webhook event.
+
+        If no subscription row exists for the user yet (e.g. the webhook
+        arrived before any other action created the row), one is created first.
+        If the user does not exist (FK violation) the upsert is skipped silently.
+        """
+
         sub = self.get_by_user(user_id)
+        if sub is None:
+            try:
+                self.create(_uuid.uuid4().hex, user_id, tier or Tier.INDIE)
+            except sqlite3.IntegrityError:
+                return
+            sub = self.get_by_user(user_id)
         if sub is None:
             return
 
@@ -98,7 +107,7 @@ class SubscriptionRepository:
                 UPDATE subscriptions
                 SET paddle_customer_id = ?, paddle_subscription_id = ?,
                     tier = ?, status = ?, current_period_end = ?,
-                    trial_ends_at = ?, updated_at = ?
+                    updated_at = ?
                 WHERE subscription_id = ?
                 """,
                 (
@@ -113,10 +122,16 @@ class SubscriptionRepository:
                     current_period_end
                     if current_period_end is not None
                     else sub.current_period_end,
-                    sub.trial_ends_at,
                     datetime.now(UTC).isoformat(),
                     sub.subscription_id,
                 ),
+            )
+
+    def delete_by_user(self, user_id: str) -> None:
+        """Delete all subscriptions for a user."""
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                "DELETE FROM subscriptions WHERE user_id = ?", (user_id,)
             )
 
     def grant_comped_access(
@@ -131,8 +146,8 @@ class SubscriptionRepository:
                 conn.execute(
                     """
                     INSERT INTO subscriptions
-                        (subscription_id, user_id, tier, status, trial_ends_at, current_period_end, created_at, updated_at)
-                    VALUES (?, ?, ?, 'comped', NULL, NULL, ?, ?)
+                        (subscription_id, user_id, tier, status, current_period_end, created_at, updated_at)
+                    VALUES (?, ?, ?, 'comped', NULL, ?, ?)
                     """,
                     (
                         f"comped_{user_id}",
@@ -149,7 +164,6 @@ class SubscriptionRepository:
                     SET paddle_subscription_id = NULL,
                         tier = ?,
                         status = 'comped',
-                        trial_ends_at = NULL,
                         current_period_end = NULL,
                         updated_at = ?
                     WHERE subscription_id = ?
@@ -158,6 +172,8 @@ class SubscriptionRepository:
                 )
 
         return self.get_by_user(user_id)
+
+
 def _row_to_subscription(row: Any) -> Subscription:
     return Subscription(
         subscription_id=row["subscription_id"],
@@ -167,7 +183,6 @@ def _row_to_subscription(row: Any) -> Subscription:
         tier=_coerce_tier(row["tier"]),
         status=row["status"],
         current_period_end=row["current_period_end"],
-        trial_ends_at=row["trial_ends_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

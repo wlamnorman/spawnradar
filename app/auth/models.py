@@ -14,6 +14,7 @@ class User:
     google_id: str | None      # None for password-only accounts
     is_admin: bool
     email_verified: bool
+    is_anonymous: bool
     created_at: str
     updated_at: str
 

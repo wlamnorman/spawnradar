@@ -6,12 +6,15 @@
 block og_description %}Manage your games and track creator discovery from one
 dashboard.{% endblock %} {% block twitter_title %}My Games — SpawnRadar{%
 endblock %} {% block twitter_description %}Manage your games and track creator
-discovery from one dashboard.{% endblock %} {% block content %} {% if
-subscription.is_trialing %}
-<div class="trial-banner">
-    <strong>Trial:</strong> {{ subscription.trial_days_remaining }} day{% if
-    subscription.trial_days_remaining != 1 %}s{% endif %} left. Explore creator
-    discovery for your game.
+discovery from one dashboard.{% endblock %} {% block content %}
+{% if user.is_anonymous %}
+<div class="free-banner">
+    <strong>You're trying SpawnRadar!</strong>
+    <a href="/auth/register">Sign up</a> to save your game permanently.
+</div>
+{% elif is_limited %}
+<div class="free-banner">
+    <a href="/pricing">Subscribe</a> for up to 3 games, filters, and workflow tools.
 </div>
 {% endif %}
 <div class="dashboard-header">
@@ -122,7 +125,7 @@ subscription.is_trialing %}
         <div class="game-card-add-inner">
             <span class="add-icon">+</span>
             <span>Add Game</span>
-            <span class="game-card-add-note">Locked during trial</span>
+            <span class="game-card-add-note">Subscribe to unlock</span>
         </div>
     </div>
     {% endif %} {% endfor %}

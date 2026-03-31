@@ -32,7 +32,7 @@ def _normalize_email(email: str) -> str:
     """Return a canonical email address.
 
     For Gmail / Googlemail addresses, strips dots and +tags from the local
-    part so that me@gmail.com, m.e@gmail.com and me+trial@gmail.com all
+    part so that me@gmail.com, m.e@gmail.com and me+tag@gmail.com all
     resolve to the same account.
     """
     email = email.strip().lower()
@@ -144,6 +144,18 @@ class AuthService:
         if self._metrics is not None:
             self._metrics.record_session_started(user_id, session.created_at)
         return session
+
+    def create_anonymous_user(self) -> tuple[User, Session]:
+        """Create an anonymous user with a session for cookie-based access."""
+        user_id = str(uuid.uuid4())
+        email = f"{user_id}@anonymous.local"
+        user = self._users.create(
+            user_id, email, password_hash=None, is_anonymous=True,
+        )
+        session = self.create_session_for_user(user_id)
+        if self._metrics is not None:
+            self._metrics.record_account_created(user.user_id, user.created_at)
+        return user, session
 
     def get_or_create_google_user(self, google_id: str, email: str) -> User:
         """Return an existing user matched by Google ID or email, creating one if absent.
@@ -276,7 +288,7 @@ class AuthService:
         html = f"""
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
       <h2>Verify your SpawnRadar email</h2>
-      <p>Thanks for signing up. Click below to verify your email and unlock your 3-day free trial. No card required.</p>
+      <p>Thanks for signing up. Click below to verify your email and start discovering creators for your game.</p>
       <p style="margin:32px 0">
         <a href="{verify_link}"
            style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
@@ -289,7 +301,7 @@ class AuthService:
     """
         text = (
             f"Verify your SpawnRadar email\n\n"
-            f"Click the link below to verify your email and unlock your 3-day free trial. No card required "
+            f"Click the link below to verify your email and start discovering creators for your game "
             f"(expires in {VERIFICATION_TOKEN_LIFETIME_HOURS} hours):\n\n"
             f"{verify_link}\n\n"
             f"If you did not sign up for SpawnRadar, ignore this email."
@@ -322,6 +334,28 @@ class AuthService:
     def mark_google_user_verified(self, user_id: str) -> None:
         """Mark a Google-authenticated user's email as verified."""
         self._users.mark_email_verified(user_id)
+
+    def claim_anonymous_games(self, anon_user_id: str, new_user_id: str) -> int:
+        """Transfer games from anonymous user to real account, then delete anon user.
+
+        The customer_game_tags and prospect_statuses rows survive because
+        they're keyed by customer_game_id, not user_id.
+
+        Returns count of games transferred.
+        """
+        from app.billing.repository import SubscriptionRepository
+        from app.games.repository import CustomerGameRepository
+
+        game_repo = CustomerGameRepository(self._users._db_path)
+        transferred = game_repo.transfer_ownership(anon_user_id, new_user_id)
+
+        # Clean up the anonymous identity
+        sub_repo = SubscriptionRepository(self._users._db_path)
+        sub_repo.delete_by_user(anon_user_id)
+        if self._sessions is not None:
+            self._sessions.delete_all_for_user(anon_user_id)
+        self._users.delete(anon_user_id)
+        return transferred
 
     def reset_password(self, token_id: str, new_password: str) -> None:
         """Reset a user's password using a valid reset token.

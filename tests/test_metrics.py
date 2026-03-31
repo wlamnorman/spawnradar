@@ -12,6 +12,7 @@ from app.metrics.definitions import GAMES_CREATED
 def test_metrics_endpoint_returns_prometheus_text(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "metrics.sqlite3"))
     monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("RESEND_API_KEY", "")
 
     with TestClient(create_app(), raise_server_exceptions=True) as client:
         response = client.get("/metrics")
@@ -48,32 +49,15 @@ def test_metrics_record_auth_and_game_lifecycle_counters(
     assert "spawnradar_games_deleted_total 1.000000" in metrics
 
 
-def test_metrics_reconcile_subscription_endings_and_trial_expiry(
+def test_metrics_reconcile_subscription_endings(
     auth_service, billing_service, db_path, metrics_service, sub_repo
 ):
-    expired_trial_user = auth_service.register(
-        "trial-expired@example.com", "password123"
-    )
     paid_user = auth_service.register("paid-ended@example.com", "password123")
 
-    trial_sub = billing_service.get_or_create_subscription(
-        expired_trial_user.user_id
-    )
-    billing_service.get_or_create_subscription(paid_user.user_id)
+    import uuid
 
-    with get_connection(db_path) as conn:
-        conn.execute(
-            """
-            UPDATE subscriptions
-            SET trial_ends_at = ?, updated_at = ?
-            WHERE subscription_id = ?
-            """,
-            (
-                "2026-03-01T00:00:00+00:00",
-                "2026-03-01T00:00:00+00:00",
-                trial_sub.subscription_id,
-            ),
-        )
+    from app.billing.models import Tier
+    sub_repo.create(str(uuid.uuid4()), paid_user.user_id, Tier.INDIE)
 
     sub_repo.update_from_paddle(
         paid_user.user_id,
@@ -86,16 +70,8 @@ def test_metrics_reconcile_subscription_endings_and_trial_expiry(
     second_render = metrics_service.render_prometheus()
 
     assert (
-        "spawnradar_trials_expired_without_conversion_total 1.000000"
-        in first_render
-    )
-    assert (
         'spawnradar_paid_access_ended_total{reason="canceled"} 1.000000'
         in first_render
-    )
-    assert (
-        "spawnradar_trials_expired_without_conversion_total 1.000000"
-        in second_render
     )
     assert (
         'spawnradar_paid_access_ended_total{reason="canceled"} 1.000000'

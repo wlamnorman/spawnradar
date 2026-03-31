@@ -29,9 +29,9 @@ def get_dashboard_data(db_path: str) -> dict:
                 u.user_id,
                 u.email,
                 u.google_id IS NOT NULL AS signed_up_with_google,
+                u.is_anonymous,
                 u.created_at,
-                s.status AS sub_status,
-                s.trial_ends_at
+                s.status AS sub_status
             FROM users u
             LEFT JOIN subscriptions s ON u.user_id = s.user_id
             WHERE u.is_admin = 0

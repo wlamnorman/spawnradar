@@ -26,15 +26,16 @@ class UserRepository:
         password_hash: str | None,
         is_admin: bool = False,
         google_id: str | None = None,
+        is_anonymous: bool = False,
     ) -> User:
         """Insert a new user and return the created record."""
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO users (user_id, email, password_hash, google_id, is_admin)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO users (user_id, email, password_hash, google_id, is_admin, is_anonymous)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (user_id, email, password_hash, google_id, int(is_admin)),
+                (user_id, email, password_hash, google_id, int(is_admin), int(is_anonymous)),
             )
         return self.get_by_id(user_id)  # type: ignore[return-value]
 
@@ -92,6 +93,11 @@ class UserRepository:
                 (user_id,),
             )
 
+    def delete(self, user_id: str) -> None:
+        """Delete a user by ID."""
+        with get_connection(self._db_path) as conn:
+            conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+
 
 class SessionRepository:
     """CRUD operations for the sessions table."""
@@ -136,6 +142,11 @@ class SessionRepository:
             conn.execute(
                 "DELETE FROM sessions WHERE expires_at < datetime('now')"
             )
+
+    def delete_all_for_user(self, user_id: str) -> None:
+        """Delete all sessions for a user."""
+        with get_connection(self._db_path) as conn:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
 
 
 class PasswordResetTokenRepository:
@@ -191,6 +202,7 @@ def _row_to_user(row: sqlite3.Row) -> User:
         google_id=row["google_id"],
         is_admin=bool(row["is_admin"]),
         email_verified=bool(row["email_verified"]),
+        is_anonymous=bool(dict(row).get("is_anonymous", 0)),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
