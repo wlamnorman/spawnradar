@@ -32,7 +32,7 @@ def _normalize_email(email: str) -> str:
     """Return a canonical email address.
 
     For Gmail / Googlemail addresses, strips dots and +tags from the local
-    part so that me@gmail.com, m.e@gmail.com and me+trial@gmail.com all
+    part so that me@gmail.com, m.e@gmail.com and me+tag@gmail.com all
     resolve to the same account.
     """
     email = email.strip().lower()

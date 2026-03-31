@@ -8,12 +8,12 @@ dashboard.{% endblock %} {% block twitter_title %}My Games — SpawnRadar{%
 endblock %} {% block twitter_description %}Manage your games and track creator
 discovery from one dashboard.{% endblock %} {% block content %}
 {% if user.is_anonymous %}
-<div class="trial-banner">
+<div class="free-banner">
     <strong>You're trying SpawnRadar!</strong>
     <a href="/auth/register">Sign up</a> to save your game permanently.
 </div>
 {% elif is_limited %}
-<div class="trial-banner">
+<div class="free-banner">
     <a href="/pricing">Subscribe</a> for up to 3 games, filters, and workflow tools.
 </div>
 {% endif %}

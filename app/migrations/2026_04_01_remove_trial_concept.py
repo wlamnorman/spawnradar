@@ -29,9 +29,13 @@ def migrate(db_path: str, *, dry_run: bool = False) -> int:
         ).fetchall()
 
         if dry_run:
-            print(f"[DRY RUN] Would delete {len(rows)} trial-only subscriptions:")
+            print(
+                f"[DRY RUN] Would delete {len(rows)} trial-only subscriptions:"
+            )
             for row in rows:
-                print(f"  user_id={row[1]} status={row[2]} trial_ends_at={row[3]}")
+                print(
+                    f"  user_id={row[1]} status={row[2]} trial_ends_at={row[3]}"
+                )
             return len(rows)
 
         cursor = conn.execute(
@@ -48,8 +52,12 @@ def migrate(db_path: str, *, dry_run: bool = False) -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Remove trial-only subscriptions.")
+    parser = argparse.ArgumentParser(
+        description="Remove trial-only subscriptions."
+    )
     parser.add_argument("db_path", help="Path to SQLite database")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without changes")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without changes"
+    )
     args = parser.parse_args()
     migrate(args.db_path, dry_run=args.dry_run)

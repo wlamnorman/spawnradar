@@ -39,7 +39,7 @@ class Subscription:
     paddle_customer_id: str | None
     paddle_subscription_id: str | None
     tier: Tier
-    status: str  # active | canceled | past_due | paused | trialing | comped
+    status: str  # active | canceled | past_due | paused | comped
     current_period_end: str | None
     trial_ends_at: str | None
     created_at: str
@@ -74,4 +74,3 @@ class Subscription:
     def effective_tier(self) -> Tier:
         """Return the active product tier."""
         return self.tier
-

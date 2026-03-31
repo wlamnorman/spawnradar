@@ -555,7 +555,7 @@ def run_expire_sub(db_path: str) -> CommandResult:
         )
     with get_connection(db_path) as conn:
         conn.execute(
-            "UPDATE subscriptions SET status = 'canceled', trial_ends_at = NULL, "
+            "UPDATE subscriptions SET status = 'canceled', "
             "updated_at = ? WHERE user_id = ?",
             (datetime.now(UTC).isoformat(), user.user_id),
         )

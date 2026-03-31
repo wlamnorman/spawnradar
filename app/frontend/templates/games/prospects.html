@@ -17,9 +17,11 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
 </div>
 {% endif %}
 
-<div class="prospects-toolbar"
-     data-filters-unlocked="{{ 'true' if filters_unlocked else 'false' }}"
-     data-workflow-unlocked="{{ 'true' if workflow_unlocked else 'false' }}">
+<div
+    class="prospects-toolbar"
+    data-filters-unlocked="{{ 'true' if filters_unlocked else 'false' }}"
+    data-workflow-unlocked="{{ 'true' if workflow_unlocked else 'false' }}"
+>
     <p class="text-muted prospects-toolbar-count">
         {{ total_count }} creator{{ "s" if total_count != 1 else "" }} matched
     </p>
@@ -376,7 +378,7 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 <th class="col-rank">#</th>
                 <th class="col-creator">Creator</th>
                 <th class="col-games">Played Games</th>
-                <th class="col-tags">Observed Tags</th>
+                <th class="col-tags">Observed Matching Tags</th>
                 <th class="col-score">Evidenced Interest<br />Overlap</th>
                 <th class="col-reach">Reach</th>
             </tr>
@@ -834,7 +836,13 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
 
 <dialog class="upgrade-gate-modal" id="upgrade-gate-modal">
     <div class="upgrade-gate-modal-body">
-        <button type="button" class="upgrade-gate-modal-close" aria-label="Close">&times;</button>
+        <button
+            type="button"
+            class="upgrade-gate-modal-close"
+            aria-label="Close"
+        >
+            &times;
+        </button>
         <h2 id="upgrade-gate-title">Subscribe to unlock</h2>
         <p id="upgrade-gate-text"></p>
         <a href="/pricing" class="button">View plans</a>

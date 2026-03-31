@@ -24,8 +24,6 @@ from app.metrics.definitions import (
     SESSIONS_STARTED,
     TIME_TO_FIRST_GAME_CREATED,
     TIMING_METRICS,
-    TRIALS_EXPIRED_WITHOUT_CONVERSION,
-    TRIALS_STARTED,
     CounterMetricDefinition,
 )
 from app.metrics.repository import MetricEvent, MetricsRepository
@@ -92,18 +90,6 @@ class MetricsService:
             ),
         )
 
-    def record_trial_started(self, subscription: Subscription) -> bool:
-        return self._best_effort(
-            TRIALS_STARTED.key,
-            False,
-            lambda: self.record_event(
-                TRIALS_STARTED,
-                user_id=subscription.user_id,
-                occurred_at=subscription.created_at,
-                dedupe_key=f"trial_started:{subscription.subscription_id}",
-            ),
-        )
-
     def record_paid_subscription_started(
         self, subscription: Subscription
     ) -> bool:
@@ -149,27 +135,6 @@ class MetricsService:
                     f"{subscription.paddle_subscription_id}:{reason}:{dedupe_anchor}"
                 ),
                 metadata={"reason": reason},
-            ),
-        )
-
-    def record_trial_expired_without_conversion(
-        self,
-        *,
-        subscription_id: str,
-        user_id: str,
-        occurred_at: str,
-    ) -> bool:
-        return self._best_effort(
-            TRIALS_EXPIRED_WITHOUT_CONVERSION.key,
-            False,
-            lambda: self.record_event(
-                TRIALS_EXPIRED_WITHOUT_CONVERSION,
-                user_id=user_id,
-                occurred_at=occurred_at,
-                dedupe_key=(
-                    "trial_expired_without_conversion:"
-                    f"{subscription_id}:{occurred_at}"
-                ),
             ),
         )
 
@@ -374,26 +339,10 @@ class MetricsService:
         return lines
 
     def _reconcile_subscription_metrics(self) -> None:
-        # Trial expiry and canceled-access loss are time-based transitions, so they
-        # need lazy reconciliation in addition to webhook/write-path recording.
+        # Canceled-access loss is a time-based transition, so it needs lazy
+        # reconciliation in addition to webhook/write-path recording.
         now = datetime.now(UTC)
         for subscription in self._subscriptions.list_all():
-            trial_end = _parse_optional_timestamp(subscription.trial_ends_at)
-            if trial_end is not None and trial_end <= now:
-                converted_before_expiry = (
-                    self._repo.has_metric_event_for_user_before(
-                        PAID_SUBSCRIPTIONS_STARTED.key,
-                        subscription.user_id,
-                        subscription.trial_ends_at or trial_end.isoformat(),
-                    )
-                )
-                if not converted_before_expiry:
-                    self.record_trial_expired_without_conversion(
-                        subscription_id=subscription.subscription_id,
-                        user_id=subscription.user_id,
-                        occurred_at=trial_end.isoformat(),
-                    )
-
             if not subscription.paddle_subscription_id:
                 continue
             if subscription.has_access:
@@ -438,12 +387,6 @@ def _parse_timestamp(value: str) -> datetime:
     if timestamp.tzinfo is None:
         return timestamp.replace(tzinfo=UTC)
     return timestamp.astimezone(UTC)
-
-
-def _parse_optional_timestamp(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    return _parse_timestamp(value)
 
 
 def _percentile(values: list[float], percentile: float) -> float:

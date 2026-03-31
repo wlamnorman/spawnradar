@@ -50,21 +50,6 @@ SESSIONS_STARTED = CounterMetricDefinition(
     help_text="Total number of authenticated sessions started.",
     definition="Count once when an authenticated app session is created.",
 )
-TRIALS_STARTED = CounterMetricDefinition(
-    key="trials_started",
-    prometheus_name="spawnradar_trials_started_total",
-    help_text="Total number of product trials started.",
-    definition="Count once when a user enters the product trial for the first time.",
-)
-TRIALS_EXPIRED_WITHOUT_CONVERSION = CounterMetricDefinition(
-    key="trials_expired_without_conversion",
-    prometheus_name="spawnradar_trials_expired_without_conversion_total",
-    help_text="Total number of trials that expired without converting.",
-    definition=(
-        "Count once when a trial ends and the user never entered paid access "
-        "before expiry."
-    ),
-)
 PAID_SUBSCRIPTIONS_STARTED = CounterMetricDefinition(
     key="paid_subscriptions_started",
     prometheus_name="spawnradar_paid_subscriptions_started_total",
@@ -120,8 +105,6 @@ PROSPECT_PAGES_VIEWED = CounterMetricDefinition(
 COUNTER_METRICS: tuple[CounterMetricDefinition, ...] = (
     ACCOUNTS_CREATED,
     SESSIONS_STARTED,
-    TRIALS_STARTED,
-    TRIALS_EXPIRED_WITHOUT_CONVERSION,
     PAID_SUBSCRIPTIONS_STARTED,
     PAID_ACCESS_ENDED,
     GAMES_CREATED,
