@@ -11,6 +11,11 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
 <div class="prospects-header">
     <h1>{{ game.name }}: Creator Prospects</h1>
 </div>
+{% if user.is_anonymous %}
+<div class="signup-nudge">
+    <a href="/auth/register">Sign up</a> to save your progress.
+</div>
+{% endif %}
 
 <div class="prospects-toolbar">
     <p class="text-muted prospects-toolbar-count">
@@ -335,8 +340,8 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
     <span
         class="button secondary is-disabled"
         aria-disabled="true"
-        title="Disabled during trial"
-        data-tooltip="Disabled during trial"
+        title="Subscribe to unlock"
+        data-tooltip="Subscribe to unlock"
     >
         Filters
     </span>
@@ -356,8 +361,8 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
     {% else %}
     <span
         class="prospects-status-tab is-disabled {% if tab.active %}is-active{% endif %} {% if tab.is_empty %}is-empty{% endif %}"
-        title="Disabled during trial"
-        data-tooltip="Disabled during trial"
+        title="Subscribe to unlock"
+        data-tooltip="Subscribe to unlock"
     >
         <span>{{ tab.label }}</span>
         <span class="prospects-status-tab-count">{{ tab.count }}</span>
@@ -764,8 +769,8 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                                         class="prospect-status-pill {{ status_pill_class(prospect.workflow.status) }} is-disabled"
                                         type="button"
                                         aria-disabled="true"
-                                        title="Disabled during trial"
-                                        data-tooltip="Disabled during trial"
+                                        title="Subscribe to unlock"
+                                        data-tooltip="Subscribe to unlock"
                                         tabindex="-1"
                                     >
                                         <span data-prospect-status-label
@@ -783,9 +788,9 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                                     <span
                                         class="prospect-quick-skip is-disabled"
                                         aria-disabled="true"
-                                        aria-label="Disabled during trial"
-                                        title="Disabled during trial"
-                                        data-tooltip="Disabled during trial"
+                                        aria-label="Subscribe to unlock"
+                                        title="Subscribe to unlock"
+                                        data-tooltip="Subscribe to unlock"
                                     >
                                         <span
                                             class="prospect-quick-skip-icon prospect-quick-skip-icon--skip"
@@ -862,14 +867,10 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
         </tbody>
     </table>
 </div>
-{% if trial_page_locked %}
-<div
-    class="upgrade-nudge"
-    style="margin-top: 24px; margin-bottom: 0; text-align: center"
->
-    Showing the top {{ page_size }} creator matches during trial. Subscribe to
-    unlock the full list.
-    <a href="/billing">Subscribe now →</a>
+{% if page_locked %}
+<div class="upgrade-nudge">
+    Showing the top {{ page_size }} creator matches.
+    <a href="/pricing">Subscribe for full access</a>
 </div>
 {% elif total_pages > 1 %}
 <div

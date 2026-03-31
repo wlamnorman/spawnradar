@@ -1363,7 +1363,7 @@ class TestGameRoutes:
             _activate_paid_subscription(db_path, "prospects-paid@example.com")
             game_slug = _seed_ranked_prospects(
                 db_path,
-                count=51,
+                count=21,
                 customer_game_name="Paid Prospect Game",
                 game_name="Paid Prospect Match",
             )
@@ -1371,11 +1371,8 @@ class TestGameRoutes:
             response = client.get(f"/games/{game_slug}/prospects?page=2")
 
         assert response.status_code == 200
-        assert (
-            "Showing the top 50 creator matches during trial."
-            not in response.text
-        )
-        assert "51 creators matched" in response.text
+        assert "Subscribe for full access" not in response.text
+        assert "21 creators matched" in response.text
         assert "Next →" not in response.text
         assert "← Previous" in response.text
         assert "data-range-filter-form" in response.text

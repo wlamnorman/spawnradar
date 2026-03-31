@@ -14,7 +14,7 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from app.auth.dependencies import require_product_access
+from app.auth.dependencies import require_product_access, require_user_or_anonymous
 from app.auth.models import User
 from app.billing.service import BillingService
 from app.config import Settings
@@ -31,7 +31,7 @@ from app.prospects.models import (
     ProspectWorkflowStatus,
 )
 from app.prospects.service import ProspectRankingService
-from app.security import RateLimitRule, consume_rate_limit
+from app.security import RateLimitRule, client_ip_key, consume_rate_limit
 
 router = APIRouter(tags=["prospects"])
 
@@ -108,7 +108,7 @@ def _tag_observation_title(observed_game_count: int) -> str:
     return f"Observed in {observed_game_count} played games"
 
 
-_PAGE_SIZE = 50
+_PAGE_SIZE = 20
 _STATUS_FILTER_OPTIONS = (
     {"value": "all", "label": "All"},
     {"value": "new", "label": "New"},
@@ -162,7 +162,7 @@ def game_prospects_page(
     max_overlap: int = _OVERLAP_FILTER_MAX,
     min_games: int = 0,
     max_games: int | None = None,
-    user: User = Depends(require_product_access),
+    user: User = Depends(require_user_or_anonymous),
     billing_service: BillingService = Depends(get_billing_service),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     settings: Settings = Depends(get_settings),
@@ -170,18 +170,14 @@ def game_prospects_page(
 ) -> Response:
     """Render ranked creator prospects for a customer game."""
     # Rate limit: generous enough for active filtering and workflow updates.
-    if not user.is_admin:
-        allowed = consume_rate_limit(
-            settings.db_path,
-            "prospects_view",
-            [
-                RateLimitRule(
-                    key=f"user:{user.user_id}", limit=40, window_seconds=60
-                )
-            ],
-        )
-        if not allowed:
-            raise HTTPException(status_code=429, detail="Too many requests.")
+    if user.is_anonymous:
+        rules = [RateLimitRule(key=client_ip_key(request), limit=20, window_seconds=60)]
+    elif not user.is_admin:
+        rules = [RateLimitRule(key=f"user:{user.user_id}", limit=40, window_seconds=60)]
+    else:
+        rules = []
+    if rules and not consume_rate_limit(settings.db_path, "prospects_page", rules):
+        raise HTTPException(status_code=429, detail="Too many requests.")
 
     game = game_repo.get_by_slug(slug)
     if game is None or (game.user_id != user.user_id and not user.is_admin):
@@ -274,8 +270,8 @@ def game_prospects_page(
     navigation_query = urlencode(navigation_params, doseq=True)
     filter_query_suffix = f"&{navigation_query}" if navigation_query else ""
     subscription = billing_service.get_subscription(user.user_id)
-    _subscription_locked = subscription is None or not subscription.has_access
-    if _subscription_locked:
+    is_limited = subscription is None or not subscription.has_access
+    if is_limited:
         status = "all"
         if page > 1 or filter_query or request.query_params.get("status"):
             return RedirectResponse(
@@ -345,7 +341,7 @@ def game_prospects_page(
     total_pages = (
         (total_count + _PAGE_SIZE - 1) // _PAGE_SIZE if total_count > 0 else 1
     )
-    trial_page_locked = _subscription_locked and total_count > _PAGE_SIZE
+    page_locked = is_limited and total_count > _PAGE_SIZE
 
     return templates.TemplateResponse(
         request,
@@ -366,9 +362,9 @@ def game_prospects_page(
             "total_pages": total_pages,
             "total_count": total_count,
             "page_size": _PAGE_SIZE,
-            "trial_page_locked": trial_page_locked,
-            "filters_unlocked": not _subscription_locked,
-            "workflow_unlocked": not _subscription_locked,
+            "page_locked": page_locked,
+            "filters_unlocked": not is_limited,
+            "workflow_unlocked": not is_limited,
             "min_reach": min_reach,
             "max_reach": max_reach,
             "default_min_reach": default_min_reach,
