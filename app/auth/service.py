@@ -288,7 +288,7 @@ class AuthService:
         html = f"""
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
       <h2>Verify your SpawnRadar email</h2>
-      <p>Thanks for signing up. Click below to verify your email and unlock your 3-day free trial. No card required.</p>
+      <p>Thanks for signing up. Click below to verify your email and start discovering creators for your game.</p>
       <p style="margin:32px 0">
         <a href="{verify_link}"
            style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
@@ -301,7 +301,7 @@ class AuthService:
     """
         text = (
             f"Verify your SpawnRadar email\n\n"
-            f"Click the link below to verify your email and unlock your 3-day free trial. No card required "
+            f"Click the link below to verify your email and start discovering creators for your game "
             f"(expires in {VERIFICATION_TOKEN_LIFETIME_HOURS} hours):\n\n"
             f"{verify_link}\n\n"
             f"If you did not sign up for SpawnRadar, ignore this email."

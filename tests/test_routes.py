@@ -1702,7 +1702,7 @@ class TestLegalRoutes:
         assert "Refund Policy" in refunds.text
         normalized_refunds = " ".join(refunds.text.split())
         assert (
-            "SpawnRadar offers a free in-app trial and sells paid subscriptions through Paddle, our merchant of record."
+            "SpawnRadar offers a free tier and sells paid subscriptions through Paddle, our merchant of record."
             in normalized_refunds
         )
         assert (

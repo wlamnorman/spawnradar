@@ -1,9 +1,9 @@
 {% extends "base.html" %} {% block title %}Verify your email — SpawnRadar{%
 endblock %} {% block meta_description %}<meta
     name="description"
-    content="Verify your email to unlock your SpawnRadar trial."
+    content="Verify your email to get started with SpawnRadar."
 />{% endblock %} {% block og_title %}Verify your email — SpawnRadar{% endblock
-%} {% block og_description %}Verify your email to unlock your SpawnRadar trial.
+%} {% block og_description %}Verify your email to get started with SpawnRadar.
 {% endblock %} {% block twitter_title %}Verify your email — SpawnRadar{%
 endblock %} {% block twitter_description %}Verify your email to unlock your
 SpawnRadar trial.{% endblock %} {% block content %}
@@ -14,8 +14,8 @@ SpawnRadar trial.{% endblock %} {% block content %}
         <p class="verify-pending-lede">We sent a verification link to</p>
         <div class="verify-pending-email">{{ user.email }}</div>
         <p class="verify-pending-copy">
-            Click the link in that email to verify your address and unlock your
-            3-day free trial. No card required.
+            Click the link in that email to verify your address and save your
+            game permanently.
         </p>
         {% if request.query_params.get('error') == 'invalid' %}
         <div class="alert alert-error verify-pending-alert">
