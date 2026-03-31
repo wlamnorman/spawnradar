@@ -12,6 +12,7 @@ from app.metrics.definitions import GAMES_CREATED
 def test_metrics_endpoint_returns_prometheus_text(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "metrics.sqlite3"))
     monkeypatch.setenv("SECRET_KEY", "test-secret")
+    monkeypatch.setenv("RESEND_API_KEY", "")
 
     with TestClient(create_app(), raise_server_exceptions=True) as client:
         response = client.get("/metrics")

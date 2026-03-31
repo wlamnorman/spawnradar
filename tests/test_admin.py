@@ -203,6 +203,7 @@ def admin_app(monkeypatch, tmp_path):
     monkeypatch.setenv("SECRET_KEY", "test-secret-key-that-is-long-enough")
     monkeypatch.setenv("BASE_URL", "http://localhost:8000")
     monkeypatch.setenv("SCHEDULER_ENABLED", "false")
+    monkeypatch.setenv("RESEND_API_KEY", "")
     app = create_app()
     return app
 
