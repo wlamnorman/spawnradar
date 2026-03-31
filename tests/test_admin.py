@@ -105,9 +105,11 @@ class TestGetDashboardData:
         assert data["paid_accounts"] == 0
         assert data["customers"] == []
 
-    def test_user_with_no_games(self, db_path, auth_service, billing_service):
+    def test_user_with_no_games(self, db_path, auth_service, billing_service, sub_repo):
+        import uuid
+        from app.billing.models import Tier
         user = auth_service.register("alice@test.com", "pass123")
-        billing_service.get_or_create_subscription(user.user_id)
+        sub_repo.create(str(uuid.uuid4()), user.user_id, Tier.INDIE)
         data = get_dashboard_data(db_path)
         assert data["total_accounts"] == 1
         assert len(data["customers"]) == 1
@@ -116,10 +118,12 @@ class TestGetDashboardData:
         assert c["games"] == []
 
     def test_user_with_game(
-        self, db_path, auth_service, billing_service, game_service
+        self, db_path, auth_service, billing_service, game_service, sub_repo
     ):
+        import uuid
+        from app.billing.models import Tier
         user = auth_service.register("bob@test.com", "pass123")
-        billing_service.get_or_create_subscription(user.user_id)
+        sub_repo.create(str(uuid.uuid4()), user.user_id, Tier.INDIE)
         game_service.create_game(
             user_id=user.user_id,
             name="TestGame",

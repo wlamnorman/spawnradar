@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from app.billing.models import Subscription, Tier
@@ -52,25 +52,20 @@ class SubscriptionRepository:
         subscription_id: str,
         user_id: str,
         tier: Tier = Tier.INDIE,
-        trial_days: int = 3,
     ) -> Subscription:
-        """Create a new subscription with an active trial period."""
+        """Create a new subscription row."""
         now = datetime.now(UTC).isoformat()
-        trial_ends_at = (
-            datetime.now(UTC) + timedelta(days=trial_days)
-        ).isoformat()
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO subscriptions
                     (subscription_id, user_id, tier, status, trial_ends_at, created_at, updated_at)
-                VALUES (?, ?, ?, 'active', ?, ?, ?)
+                VALUES (?, ?, ?, 'active', NULL, ?, ?)
                 """,
                 (
                     subscription_id,
                     user_id,
                     tier.value,
-                    trial_ends_at,
                     now,
                     now,
                 ),
@@ -87,8 +82,21 @@ class SubscriptionRepository:
         status: str | None = None,
         current_period_end: str | None = None,
     ) -> None:
-        """Update subscription fields from a Paddle webhook event."""
+        """Update subscription fields from a Paddle webhook event.
+
+        If no subscription row exists for the user yet (e.g. the webhook
+        arrived before any other action created the row), one is created first.
+        If the user does not exist (FK violation) the upsert is skipped silently.
+        """
+        import sqlite3
+        import uuid as _uuid
         sub = self.get_by_user(user_id)
+        if sub is None:
+            try:
+                self.create(_uuid.uuid4().hex, user_id, tier or Tier.INDIE)
+            except sqlite3.IntegrityError:
+                return
+            sub = self.get_by_user(user_id)
         if sub is None:
             return
 

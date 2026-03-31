@@ -179,7 +179,7 @@ async def lifespan(app: FastAPI):
         user = request.app.state.auth_service.get_user_for_session(session_id)
         if user is None:
             return None
-        return request.app.state.billing_service.get_or_create_subscription(
+        return request.app.state.billing_service.get_subscription(
             user.user_id
         )
 

@@ -273,8 +273,9 @@ def game_prospects_page(
         navigation_params["status"] = status
     navigation_query = urlencode(navigation_params, doseq=True)
     filter_query_suffix = f"&{navigation_query}" if navigation_query else ""
-    subscription = billing_service.get_or_create_subscription(user.user_id)
-    if subscription.is_trialing:
+    subscription = billing_service.get_subscription(user.user_id)
+    _subscription_locked = subscription is None or not subscription.has_access
+    if _subscription_locked:
         status = "all"
         if page > 1 or filter_query or request.query_params.get("status"):
             return RedirectResponse(
@@ -344,7 +345,7 @@ def game_prospects_page(
     total_pages = (
         (total_count + _PAGE_SIZE - 1) // _PAGE_SIZE if total_count > 0 else 1
     )
-    trial_page_locked = subscription.is_trialing and total_count > _PAGE_SIZE
+    trial_page_locked = _subscription_locked and total_count > _PAGE_SIZE
 
     return templates.TemplateResponse(
         request,
@@ -366,8 +367,8 @@ def game_prospects_page(
             "total_count": total_count,
             "page_size": _PAGE_SIZE,
             "trial_page_locked": trial_page_locked,
-            "filters_unlocked": not subscription.is_trialing,
-            "workflow_unlocked": not subscription.is_trialing,
+            "filters_unlocked": not _subscription_locked,
+            "workflow_unlocked": not _subscription_locked,
             "min_reach": min_reach,
             "max_reach": max_reach,
             "default_min_reach": default_min_reach,
@@ -408,8 +409,8 @@ async def update_prospect_workflow(
     if game is None or (game.user_id != user.user_id and not user.is_admin):
         raise HTTPException(status_code=404, detail="Game not found.")
     if not user.is_admin:
-        subscription = billing_service.get_or_create_subscription(user.user_id)
-        if subscription.is_trialing:
+        subscription = billing_service.get_subscription(user.user_id)
+        if subscription is None or not subscription.has_access:
             raise HTTPException(
                 status_code=403,
                 detail="Prospect workflow tools require a subscription.",

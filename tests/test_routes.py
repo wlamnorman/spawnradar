@@ -186,7 +186,7 @@ def _verify_user_email(db_path: str, email: str) -> None:
 
 
 def _register_and_login(client: TestClient, email: str, password: str) -> str:
-    """Register a user, verify their email and return the session cookie value."""
+    """Register a user, verify their email, grant a subscription, and return the session cookie value."""
     _post_form(
         client,
         get_path="/auth/register",
@@ -196,6 +196,7 @@ def _register_and_login(client: TestClient, email: str, password: str) -> str:
     db_path = os.environ.get("DB_PATH", "")
     if db_path:
         _verify_user_email(db_path, email)
+        _grant_subscription(db_path, email)
     _post_form(
         client,
         get_path="/auth/login",
@@ -203,6 +204,27 @@ def _register_and_login(client: TestClient, email: str, password: str) -> str:
         data={"email": email, "password": password},
     )
     return client.cookies.get("session_id") or ""
+
+
+def _grant_subscription(db_path: str, email: str) -> None:
+    """Create an active paid subscription for a user by email."""
+    import uuid as _uuid
+    from app.billing.models import Tier
+    from app.billing.repository import SubscriptionRepository
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT user_id FROM users WHERE email = ?", (email,)
+        ).fetchone()
+    if row is None:
+        return
+    repo = SubscriptionRepository(db_path)
+    repo.create(str(_uuid.uuid4()), row["user_id"], Tier.INDIE)
+    repo.update_from_paddle(
+        row["user_id"],
+        paddle_subscription_id="test_sub",
+        paddle_customer_id="test_cust",
+        status="active",
+    )
 
 
 def _create_incomplete_game_for_user(
@@ -220,6 +242,11 @@ def _create_incomplete_game_for_user(
 
 
 def _expire_trial(db_path: str, email: str) -> str:
+    """Simulate a user with no active subscription (free/expired).
+
+    In the new model there is no trial; this helper cancels the subscription
+    and sets its period end in the past so the user loses access.
+    """
     with get_connection(db_path) as conn:
         row = conn.execute(
             "SELECT user_id, subscription_id FROM users JOIN subscriptions USING(user_id) WHERE email = ?",
@@ -227,7 +254,8 @@ def _expire_trial(db_path: str, email: str) -> str:
         ).fetchone()
         assert row is not None
         conn.execute(
-            "UPDATE subscriptions SET trial_ends_at = ?, updated_at = ? WHERE subscription_id = ?",
+            "UPDATE subscriptions SET status = 'canceled', paddle_subscription_id = NULL, "
+            "current_period_end = ?, trial_ends_at = NULL, updated_at = ? WHERE subscription_id = ?",
             (
                 "2000-01-01T00:00:00+00:00",
                 "2000-01-01T00:00:00+00:00",
@@ -1106,20 +1134,20 @@ class TestGameRoutes:
         assert "1 creator matched" in normalized
         assert "Prospect 001" not in response.text
 
-    def test_trial_prospects_page_shows_upgrade_nudge_after_top_50(
+    def test_paid_prospects_page_shows_all_features_with_pagination(
         self, monkeypatch, tmp_path
     ):
         db_path = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(
-                client, "prospects-trial@example.com", "testpass"
+                client, "prospects-paid@example.com", "testpass"
             )
             _post_form(
                 client,
                 get_path="/games/setup",
                 post_path="/games/setup",
                 data={
-                    "name": "Trial Prospect Game",
+                    "name": "Paid Prospect Game",
                     "summary": "Tactical RPG",
                     "description": "Tactical RPG",
                     "igdb_genre_ids": "12",
@@ -1130,28 +1158,19 @@ class TestGameRoutes:
             game_slug = _seed_ranked_prospects(
                 db_path,
                 count=51,
-                customer_game_name="Trial Prospect Game",
-                game_name="Trial Prospect Match",
+                customer_game_name="Paid Prospect Game",
+                game_name="Paid Prospect Match",
             )
 
             response = client.get(f"/games/{game_slug}/prospects")
 
         assert response.status_code == 200
         assert "51 creators matched" in response.text
-        assert (
-            "Showing the top 50 creator matches during trial." in response.text
-        )
-        assert 'title="Disabled during trial"' in response.text
-        assert 'class="button secondary is-disabled"' in response.text
-        assert "data-status-tab=" not in response.text
-        assert 'class="prospects-status-tab is-disabled' in response.text
-        assert 'class="prospect-workflow-menu"' not in response.text
-        assert (
-            'class="prospect-status-pill prospect-status--new is-disabled"'
-            in response.text
-        )
-        assert 'class="prospect-quick-skip is-disabled"' in response.text
-        assert "Next →" not in response.text
+        # Paid users see all features unlocked — no trial-locked messaging
+        assert "Showing the top 50 creator matches during trial." not in response.text
+        assert 'title="Disabled during trial"' not in response.text
+        # Pagination is available for paid users with >50 results
+        assert "Next →" in response.text
 
     def test_prospects_page_shows_true_total_above_fetch_cap(
         self, monkeypatch, tmp_path
@@ -1191,20 +1210,20 @@ class TestGameRoutes:
             " ".join(response.text.split()).find("1005 creators matched") != -1
         )
 
-    def test_trial_prospects_page_redirects_page_two_back_to_first_page(
+    def test_paid_prospects_page_two_is_accessible(
         self, monkeypatch, tmp_path
     ):
         db_path = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(
-                client, "prospects-trial-redirect@example.com", "testpass"
+                client, "prospects-paid-redirect@example.com", "testpass"
             )
             _post_form(
                 client,
                 get_path="/games/setup",
                 post_path="/games/setup",
                 data={
-                    "name": "Trial Redirect Game",
+                    "name": "Paid Redirect Game",
                     "summary": "Tactical RPG",
                     "description": "Tactical RPG",
                     "igdb_genre_ids": "12",
@@ -1215,36 +1234,32 @@ class TestGameRoutes:
             game_slug = _seed_ranked_prospects(
                 db_path,
                 count=51,
-                customer_game_name="Trial Redirect Game",
-                game_name="Trial Redirect Match",
+                customer_game_name="Paid Redirect Game",
+                game_name="Paid Redirect Match",
             )
 
             response = client.get(
-                (
-                    f"/games/{game_slug}/prospects?"
-                    "page=2&min_reach=1000&max_reach=100000&"
-                    "min_overlap=60&max_overlap=90"
-                ),
+                f"/games/{game_slug}/prospects?page=2",
                 follow_redirects=False,
             )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == f"/games/{game_slug}/prospects"
+        # Paid users can access page 2 directly
+        assert response.status_code == 200
 
-    def test_trial_prospects_workflow_endpoint_is_forbidden(
+    def test_paid_prospects_workflow_endpoint_is_allowed(
         self, monkeypatch, tmp_path
     ):
         db_path = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(
-                client, "prospects-trial-workflow@example.com", "testpass"
+                client, "prospects-paid-workflow@example.com", "testpass"
             )
             _post_form(
                 client,
                 get_path="/games/setup",
                 post_path="/games/setup",
                 data={
-                    "name": "Trial Workflow Game",
+                    "name": "Paid Workflow Game",
                     "summary": "Tactical RPG",
                     "description": "Tactical RPG",
                     "igdb_genre_ids": "12",
@@ -1255,8 +1270,8 @@ class TestGameRoutes:
             game_slug = _seed_ranked_prospects(
                 db_path,
                 count=2,
-                customer_game_name="Trial Workflow Game",
-                game_name="Trial Workflow Match",
+                customer_game_name="Paid Workflow Game",
+                game_name="Paid Workflow Match",
             )
 
             response = _post_json(
@@ -1265,17 +1280,15 @@ class TestGameRoutes:
                 post_path=f"/games/{game_slug}/prospects/prospect-000/workflow",
                 json_body={
                     "status": "contacted",
-                    "notes": "Should be blocked",
+                    "notes": "Should be allowed",
                     "active_status": "all",
                 },
                 follow_redirects=False,
                 headers={"accept": "application/json"},
             )
 
-        assert response.status_code == 403
-        assert response.json()["detail"] == (
-            "Prospect workflow tools require a subscription."
-        )
+        # Paid users can use the workflow endpoint
+        assert response.status_code == 200
 
     def test_comped_user_has_full_prospects_workflow_access(
         self, monkeypatch, tmp_path
@@ -2243,9 +2256,10 @@ class TestBillingRoutes:
             )
         assert resp.status_code == 200
 
-    def test_webhook_ends_trial_and_marks_user_as_paid(
+    def test_webhook_activates_subscription_for_free_user(
         self, monkeypatch, tmp_path
     ):
+        """A free user (no subscription row) becomes active after a Paddle webhook."""
         monkeypatch.setenv("PADDLE_API_KEY", "test_api_key")
         monkeypatch.setenv("PADDLE_CLIENT_SIDE_TOKEN", "test_token")
         monkeypatch.setenv("PADDLE_WEBHOOK_SECRET", "whsec_test")
@@ -2254,23 +2268,36 @@ class TestBillingRoutes:
         db_path = tmp_path / "test.sqlite3"
 
         with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "paid@example.com", "testpass")
-
-            before = client.get("/games")
-            assert before.status_code == 200
-            assert "<strong>Trial:</strong>" in before.text
-            assert "Explore creator discovery for your game." in " ".join(
-                before.text.split()
+            # Register and verify without granting a subscription
+            _post_form(
+                client,
+                get_path="/auth/register",
+                post_path="/auth/register",
+                data={"email": "newpaid@example.com", "password": "testpass"},
+            )
+            _verify_user_email(str(db_path), "newpaid@example.com")
+            _post_form(
+                client,
+                get_path="/auth/login",
+                post_path="/auth/login",
+                data={"email": "newpaid@example.com", "password": "testpass"},
             )
 
             with get_connection(str(db_path)) as conn:
                 user_row = conn.execute(
                     "SELECT user_id FROM users WHERE email = ?",
-                    ("paid@example.com",),
+                    ("newpaid@example.com",),
                 ).fetchone()
 
             assert user_row is not None
             user_id = user_row["user_id"]
+
+            # Verify no subscription row before webhook
+            with get_connection(str(db_path)) as conn:
+                sub_before = conn.execute(
+                    "SELECT * FROM subscriptions WHERE user_id = ?", (user_id,)
+                ).fetchone()
+            assert sub_before is None
 
             payload, signature = _signed_paddle_webhook(
                 {
@@ -2300,17 +2327,10 @@ class TestBillingRoutes:
             )
             assert resp.status_code == 200
 
-            after = client.get("/games")
-
-        assert after.status_code == 200
-        assert "<strong>Trial:</strong>" not in after.text
-        assert "Explore creator discovery for your game." not in " ".join(
-            after.text.split()
-        )
-
         with get_connection(str(db_path)) as conn:
             sub_row = conn.execute(
-                "SELECT tier, status, paddle_customer_id, paddle_subscription_id FROM subscriptions LIMIT 1"
+                "SELECT tier, status, paddle_customer_id, paddle_subscription_id FROM subscriptions WHERE user_id = ?",
+                (user_id,),
             ).fetchone()
 
         assert sub_row is not None
@@ -2357,8 +2377,9 @@ class TestBillingRoutes:
             user_id = row["user_id"]
 
             sub_repo = SubscriptionRepository(db)
-            billing = BillingService(sub_repo, CustomerGameRepository(db))
-            billing.get_or_create_subscription(user_id)
+            import uuid
+            from app.billing.models import Tier
+            sub_repo.create(str(uuid.uuid4()), user_id, Tier.INDIE)
             sub_repo.update_from_paddle(
                 user_id,
                 paddle_subscription_id="sub_already",

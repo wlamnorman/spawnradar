@@ -24,8 +24,8 @@ async def billing_page(
     templates: Jinja2Templates = Depends(get_templates),
 ):
     """Billing management page for active subscribers."""
-    sub = billing.get_or_create_subscription(user.user_id)
-    if not sub.has_subscription and not sub.is_trialing:
+    sub = billing.get_subscription(user.user_id)
+    if sub is None or not sub.has_subscription:
         return RedirectResponse(url="/pricing", status_code=303)
     return templates.TemplateResponse(
         request,
@@ -64,8 +64,8 @@ async def pay(
     """Render the dedicated Paddle payment-link page for the single plan."""
     if tier not in (None, "indie", "studio"):
         raise HTTPException(status_code=400, detail="Invalid tier.")
-    sub = billing.get_or_create_subscription(user.user_id)
-    if sub.has_access:
+    sub = billing.get_subscription(user.user_id)
+    if sub is not None and sub.has_access:
         return RedirectResponse(url="/games", status_code=303)
 
     if not billing.checkout_enabled:
@@ -111,8 +111,8 @@ async def checkout_success(
     """
     transaction_id = request.query_params.get("_ptxn", "")
     await billing.sync_from_transaction(user.user_id, transaction_id)
-    sub = billing.get_or_create_subscription(user.user_id)
-    if sub.has_subscription:
+    sub = billing.get_subscription(user.user_id)
+    if sub is not None and sub.has_subscription:
         return RedirectResponse(url="/billing", status_code=303)
     return templates.TemplateResponse(
         request, "billing/success.html", {"user": user}
@@ -125,8 +125,8 @@ async def subscription_status(
     billing: BillingService = Depends(get_billing_service),
 ):
     """JSON endpoint polled by the success page to detect webhook activation."""
-    sub = billing.get_or_create_subscription(user.user_id)
-    return JSONResponse({"active": sub.has_subscription})
+    sub = billing.get_subscription(user.user_id)
+    return JSONResponse({"active": sub is not None and sub.has_subscription})
 
 
 @router.get("/portal")
@@ -137,7 +137,7 @@ async def customer_portal(
     templates: Jinja2Templates = Depends(get_templates),
 ):
     """Redirect to a temporary Paddle customer portal session."""
-    sub = billing.get_or_create_subscription(user.user_id)
+    sub = billing.get_subscription(user.user_id)
 
     def _billing_page(error: str):
         return templates.TemplateResponse(

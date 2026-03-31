@@ -382,7 +382,11 @@ class MetricsService:
             if (
                 trial_end is not None
                 and trial_end <= now
-                and not subscription.is_trialing
+                and not (
+                    subscription.trial_ends_at is not None
+                    and _parse_optional_timestamp(subscription.trial_ends_at) is not None
+                    and _parse_optional_timestamp(subscription.trial_ends_at) > now
+                )
             ):
                 converted_before_expiry = (
                     self._repo.has_metric_event_for_user_before(

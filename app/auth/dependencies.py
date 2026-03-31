@@ -57,8 +57,8 @@ async def require_product_access(
     billing_service: BillingService = Depends(get_billing_service),
 ) -> User:
     """Require an authenticated user with a verified email and active product access."""
-    sub = billing_service.get_or_create_subscription(user.user_id)
-    if sub.has_product_access:
+    sub = billing_service.get_subscription(user.user_id)
+    if sub is not None and sub.has_access:
         return user
 
     accept = request.headers.get("accept", "")

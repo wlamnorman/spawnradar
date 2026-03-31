@@ -8,7 +8,7 @@ import re
 import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import cast
@@ -258,14 +258,6 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "activate-sub",
         help="Give the dev account an active paid subscription (skips Paddle).",
-    )
-    subparsers.add_parser(
-        "activate-trial",
-        help="Reset the dev account to an active 3-day trial (clears any subscription).",
-    )
-    subparsers.add_parser(
-        "expire-trial",
-        help="Expire the dev account's trial so it appears to have run out.",
     )
     subparsers.add_parser(
         "expire-sub",
@@ -533,8 +525,11 @@ def run_activate_sub(db_path: str) -> CommandResult:
     initialize_database(db_path)
     user = ensure_dev_user(db_path)
     sub_repo = SubscriptionRepository(db_path)
-    billing = BillingService(sub_repo, CustomerGameRepository(db_path))
-    billing.get_or_create_subscription(user.user_id)
+    existing = sub_repo.get_by_user(user.user_id)
+    if existing is None:
+        import uuid
+        from app.billing.models import Tier
+        sub_repo.create(str(uuid.uuid4()), user.user_id, Tier.INDIE)
     sub_repo.update_from_paddle(
         user.user_id,
         paddle_customer_id="dev_customer",
@@ -547,57 +542,16 @@ def run_activate_sub(db_path: str) -> CommandResult:
     )
 
 
-def run_start_trial(db_path: str) -> CommandResult:
-    """Reset the dev account to an active trial subscription."""
-    initialize_database(db_path)
-    user = ensure_dev_user(db_path)
-    trial_ends_at = (datetime.now(UTC) + timedelta(days=3)).isoformat()
-    now = datetime.now(UTC).isoformat()
-    with get_connection(db_path) as conn:
-        conn.execute(
-            "UPDATE subscriptions SET status = 'active', trial_ends_at = ?, "
-            "paddle_customer_id = NULL, paddle_subscription_id = NULL, updated_at = ? "
-            "WHERE user_id = ?",
-            (trial_ends_at, now, user.user_id),
-        )
-        if conn.execute("SELECT changes()").fetchone()[0] == 0:
-            # No existing subscription — create one
-            sub_repo = SubscriptionRepository(db_path)
-            BillingService(
-                sub_repo, CustomerGameRepository(db_path)
-            ).get_or_create_subscription(user.user_id)
-    return CommandResult(
-        message=f"Trial started for {DEV_EMAIL} (expires in 3 days).",
-    )
-
-
-def run_expire_trial(db_path: str) -> CommandResult:
-    """Set the dev account's trial end date to the past so it appears expired."""
-    initialize_database(db_path)
-    user = ensure_dev_user(db_path)
-    sub_repo = SubscriptionRepository(db_path)
-    billing = BillingService(sub_repo, CustomerGameRepository(db_path))
-    billing.get_or_create_subscription(user.user_id)
-    expired_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-    with get_connection(db_path) as conn:
-        conn.execute(
-            "UPDATE subscriptions SET trial_ends_at = ?, status = 'active', "
-            "paddle_customer_id = NULL, paddle_subscription_id = NULL, updated_at = ? "
-            "WHERE user_id = ?",
-            (expired_at, datetime.now(UTC).isoformat(), user.user_id),
-        )
-    return CommandResult(
-        message=f"Trial expired for {DEV_EMAIL} (trial_ends_at set to yesterday).",
-    )
-
-
 def run_expire_sub(db_path: str) -> CommandResult:
     """Cancel the dev account's subscription so it appears lapsed."""
     initialize_database(db_path)
     user = ensure_dev_user(db_path)
     sub_repo = SubscriptionRepository(db_path)
-    billing = BillingService(sub_repo, CustomerGameRepository(db_path))
-    billing.get_or_create_subscription(user.user_id)
+    existing = sub_repo.get_by_user(user.user_id)
+    if existing is None:
+        return CommandResult(
+            message=f"No subscription found for {DEV_EMAIL}.",
+        )
     with get_connection(db_path) as conn:
         conn.execute(
             "UPDATE subscriptions SET status = 'canceled', trial_ends_at = NULL, "
@@ -1457,10 +1411,6 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "activate-sub":
         result = run_activate_sub(args.db_path)
-    elif args.command == "activate-trial":
-        result = run_start_trial(args.db_path)
-    elif args.command == "expire-trial":
-        result = run_expire_trial(args.db_path)
     elif args.command == "expire-sub":
         result = run_expire_sub(args.db_path)
     elif args.command == "grant-admin":

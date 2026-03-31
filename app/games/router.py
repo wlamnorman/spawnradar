@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_product_access
 from app.auth.models import User
-from app.billing.models import TIER_LIMITS, TRIAL_LIMITS
+from app.billing.models import FREE_LIMITS, TIER_LIMITS
 from app.billing.service import BillingService
 from app.config import Settings
 from app.dependencies import (
@@ -267,13 +267,13 @@ def list_games(
     """Render the dashboard showing all of the user's games."""
     games = game_repo.list_by_user(user.user_id)
 
-    subscription = billing_service.get_or_create_subscription(user.user_id)
+    subscription = billing_service.get_subscription(user.user_id)
     can_add_game = billing_service.check_game_limit(user.user_id)
     max_game_slots = max(limit["games"] for limit in TIER_LIMITS.values())
     current_game_limit = (
-        TRIAL_LIMITS["games"]
-        if subscription.is_trialing
-        else TIER_LIMITS[subscription.effective_tier]["games"]
+        TIER_LIMITS[subscription.effective_tier]["games"]
+        if subscription is not None and subscription.has_access
+        else FREE_LIMITS["games"]
     )
     prospect_service = ProspectRankingService(settings.db_path)
     game_match_counts = {

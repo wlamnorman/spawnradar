@@ -7,17 +7,14 @@ import hmac
 import json
 import logging
 import time
-import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from app.billing.models import (
-    EXPIRED_LIMITS,
+    FREE_LIMITS,
     TIER_LIMITS,
-    TRIAL_DAYS,
-    TRIAL_LIMITS,
     Subscription,
     Tier,
 )
@@ -78,20 +75,12 @@ class BillingService:
         """Return True if backend Paddle API features are configured."""
         return bool(self._api_key)
 
-    def get_or_create_subscription(self, user_id: str) -> Subscription:
-        """Return the user's subscription, creating an Indie trial if absent."""
-        sub = self._subs.get_by_user(user_id)
-        if sub is not None:
-            return sub
-        sub = self._subs.create(
-            str(uuid.uuid4()), user_id, Tier.INDIE, trial_days=TRIAL_DAYS
-        )
-        if self._metrics is not None:
-            self._metrics.record_trial_started(sub)
-        return sub
+    def get_subscription(self, user_id: str) -> Subscription | None:
+        """Return the user's subscription, or None if they have no subscription row."""
+        return self._subs.get_by_user(user_id)
 
     def check_game_limit(self, user_id: str) -> bool:
-        sub = self.get_or_create_subscription(user_id)
+        sub = self.get_subscription(user_id)
         limit = self._get_limits(sub)["games"]
         current = self._customer_games.count_by_user(user_id)
         return current < limit
@@ -100,12 +89,10 @@ class BillingService:
         """Grant complimentary full access without a Paddle subscription."""
         return self._subs.grant_comped_access(user_id, Tier.INDIE)
 
-    def _get_limits(self, sub: Subscription) -> dict[str, int]:
-        if sub.has_access:
+    def _get_limits(self, sub: Subscription | None) -> dict[str, int]:
+        if sub is not None and sub.has_access:
             return TIER_LIMITS[sub.effective_tier]
-        if sub.is_trialing:
-            return TRIAL_LIMITS
-        return EXPIRED_LIMITS
+        return FREE_LIMITS
 
     def checkout_context(
         self, user_id: str, customer_email: str | None = None
@@ -190,8 +177,8 @@ class BillingService:
         if not self.portal_enabled:
             return ""
 
-        sub = self.get_or_create_subscription(user_id)
-        if not sub.paddle_customer_id:
+        sub = self.get_subscription(user_id)
+        if sub is None or not sub.paddle_customer_id:
             return ""
 
         payload = {
