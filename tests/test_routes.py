@@ -2508,3 +2508,379 @@ class TestAccessGate:
             )
 
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Anonymous user flows
+# ---------------------------------------------------------------------------
+
+
+def _get_game_slug(db_path: str, name: str) -> str:
+    """Return the slug for a customer game by name."""
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT slug FROM customer_games WHERE name = ?", (name,)
+        ).fetchone()
+    assert row is not None, f"Game '{name}' not found in DB"
+    return str(row["slug"])
+
+
+def _setup_anonymous_session(db_path: str, client: "TestClient") -> str:
+    """Create an anonymous user + session in the DB and set the cookie on the
+    client so that all subsequent requests in the same client instance are
+    attributed to the same anonymous user.
+
+    Background: FastAPI's Response-dependency approach for setting cookies does
+    not propagate into HTMLResponse / TemplateResponse route handlers (the
+    background response headers are dropped).  We work around this in tests by
+    creating the anonymous user directly via the service layer and injecting the
+    session_id cookie manually.
+
+    Returns the anonymous user_id.
+    """
+    from app.auth.repository import UserRepository, SessionRepository
+    from app.auth.service import AuthService
+
+    user_repo = UserRepository(db_path)
+    session_repo = SessionRepository(db_path)
+    auth = AuthService(user_repo, session_repo)
+    anon_user, anon_session = auth.create_anonymous_user()
+    client.cookies.set("session_id", anon_session.session_id)
+    return str(anon_user.user_id)
+
+
+class TestAnonymousFlows:
+    # ------------------------------------------------------------------
+    # 1. Anonymous user can access games page
+    # ------------------------------------------------------------------
+    def test_anonymous_user_can_access_games_page(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            response = client.get("/games")
+
+        # Anonymous user is auto-created on first request; page renders OK
+        assert response.status_code == 200
+        # Verify an anonymous user row was created in the DB
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM users WHERE is_anonymous = 1"
+            ).fetchone()
+        assert row["cnt"] >= 1
+
+    # ------------------------------------------------------------------
+    # 2. Anonymous user can create a game
+    # ------------------------------------------------------------------
+    def test_anonymous_user_can_create_game(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            # Bootstrap anonymous session so the same user is used across
+            # the GET (CSRF) and POST requests.
+            _setup_anonymous_session(db_path, client)
+
+            setup_response = client.get("/games/setup")
+            assert setup_response.status_code == 200
+
+            create_response = _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "Anon Game",
+                    "summary": "Short summary",
+                    "description": "Desc",
+                    "igdb_genre_ids": "12",
+                    "igdb_game_mode_ids": "1",
+                    "website_url": "",
+                },
+                follow_redirects=True,
+            )
+
+        assert create_response.status_code == 200
+        # Game persisted in DB
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT name FROM customer_games WHERE name = ?", ("Anon Game",)
+            ).fetchone()
+        assert row is not None
+
+    # ------------------------------------------------------------------
+    # 3. Anonymous user is limited to one game
+    # ------------------------------------------------------------------
+    def test_anonymous_user_limited_to_one_game(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+
+            # First game should succeed
+            first = _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "Anon Game One",
+                    "summary": "Short summary",
+                    "description": "Desc",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            assert first.status_code == 303
+
+            # Second game should be blocked (game limit reached)
+            second = _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "Anon Game Two",
+                    "summary": "Short summary",
+                    "description": "Desc",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=True,
+            )
+        assert "game limit" in second.text.lower() or second.status_code == 400
+
+    # ------------------------------------------------------------------
+    # 4. Anonymous user can view prospects page 1
+    # ------------------------------------------------------------------
+    def test_anonymous_user_can_view_prospects_page_1(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "Anon Prospects Game")
+            slug = _get_game_slug(db_path, "Anon Prospects Game")
+
+            response = client.get(f"/games/{slug}/prospects")
+
+        assert response.status_code == 200
+        assert "Sign up" in response.text
+
+    # ------------------------------------------------------------------
+    # 5. Anonymous user cannot access page 2 of prospects
+    # ------------------------------------------------------------------
+    def test_anonymous_user_cannot_access_page_2_prospects(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "Anon Page2 Game")
+            slug = _get_game_slug(db_path, "Anon Page2 Game")
+
+            response = client.get(
+                f"/games/{slug}/prospects?page=2", follow_redirects=False
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/games/{slug}/prospects"
+
+    # ------------------------------------------------------------------
+    # 6. Anonymous user cannot use filters
+    # ------------------------------------------------------------------
+    def test_anonymous_user_cannot_use_filters(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "Anon Filter Game")
+            slug = _get_game_slug(db_path, "Anon Filter Game")
+
+            # min_overlap=10 reliably adds to filter_params (non-default value)
+            response = client.get(
+                f"/games/{slug}/prospects?min_overlap=10",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/games/{slug}/prospects"
+
+    # ------------------------------------------------------------------
+    # 7. Anonymous user cannot use workflow (requires product access)
+    # ------------------------------------------------------------------
+    def test_anonymous_user_cannot_use_workflow(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "Anon Workflow Game")
+            slug = _get_game_slug(db_path, "Anon Workflow Game")
+
+            response = client.post(
+                f"/games/{slug}/prospects/fake-account-id/workflow",
+                json={"status": "contacted"},
+                follow_redirects=False,
+                headers={"Accept": "application/json"},
+            )
+
+        # require_product_access redirects unauthenticated/unpaid users to
+        # /pricing (307) or raises 402 for JSON requests
+        assert response.status_code in (307, 401, 402, 403)
+
+    # ------------------------------------------------------------------
+    # 8. Games are claimed on registration
+    # ------------------------------------------------------------------
+    def test_game_claimed_on_registration(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        email = "claimer@example.com"
+        password = "password123"
+
+        with _make_client(monkeypatch, tmp_path) as client:
+            # Bootstrap anonymous session and create a game
+            anon_user_id = _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "Claimed Game")
+
+            # Verify the game belongs to the anonymous user
+            with get_connection(db_path) as conn:
+                game_row = conn.execute(
+                    "SELECT user_id FROM customer_games WHERE name = ?",
+                    ("Claimed Game",),
+                ).fetchone()
+            assert game_row is not None
+            assert str(game_row["user_id"]) == anon_user_id
+
+            # Register on the same client; the server reads the session_id
+            # cookie to discover and claim the anonymous games.
+            _post_form(
+                client,
+                get_path="/auth/register",
+                post_path="/auth/register",
+                data={"email": email, "password": password},
+            )
+            _verify_user_email(db_path, email)
+            _grant_subscription(db_path, email)
+
+            # Log in with the new account
+            _post_form(
+                client,
+                get_path="/auth/login",
+                post_path="/auth/login",
+                data={"email": email, "password": password},
+            )
+
+            games_response = client.get("/games")
+
+        assert "Claimed Game" in games_response.text
+
+    # ------------------------------------------------------------------
+    # 9. Registered free user is limited to one game
+    # ------------------------------------------------------------------
+    def test_registered_free_user_limited_to_one_game(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        email = "free@example.com"
+        password = "password123"
+        db_path = str(tmp_path / "test.sqlite3")
+
+        with _make_client(monkeypatch, tmp_path) as client:
+            # Register WITHOUT granting subscription
+            _post_form(
+                client,
+                get_path="/auth/register",
+                post_path="/auth/register",
+                data={"email": email, "password": password},
+            )
+            _verify_user_email(db_path, email)
+            _post_form(
+                client,
+                get_path="/auth/login",
+                post_path="/auth/login",
+                data={"email": email, "password": password},
+            )
+
+            # First game succeeds
+            first = _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "Free Game One",
+                    "summary": "Short summary",
+                    "description": "Desc",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            assert first.status_code == 303
+
+            # Second game is blocked
+            second = _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "Free Game Two",
+                    "summary": "Short summary",
+                    "description": "Desc",
+                    "igdb_genre_ids": "12",
+                    "website_url": "",
+                },
+                follow_redirects=True,
+            )
+        assert "game limit" in second.text.lower() or second.status_code == 400
+
+    # ------------------------------------------------------------------
+    # 10. Subscribed user can create multiple games
+    # ------------------------------------------------------------------
+    def test_subscribed_user_can_create_multiple_games(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "multi@example.com", "password123")
+
+            for i in range(1, 4):
+                response = _post_form(
+                    client,
+                    get_path="/games/setup",
+                    post_path="/games/setup",
+                    data={
+                        "name": f"Multi Game {i}",
+                        "summary": "Short summary",
+                        "description": "Desc",
+                        "igdb_genre_ids": "12",
+                        "website_url": "",
+                    },
+                    follow_redirects=False,
+                )
+                assert response.status_code == 303, f"Game {i} creation failed"
+
+    # ------------------------------------------------------------------
+    # 11. Pricing page shows free tier
+    # ------------------------------------------------------------------
+    def test_pricing_page_shows_free_tier(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        with _make_client(monkeypatch, tmp_path) as client:
+            response = client.get("/pricing")
+
+        assert response.status_code == 200
+        assert "Get Started Free" in response.text
+        assert "trial" not in response.text.lower()
+
+    # ------------------------------------------------------------------
+    # 12. Home page has new CTA
+    # ------------------------------------------------------------------
+    def test_home_page_has_new_cta(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        with _make_client(monkeypatch, tmp_path) as client:
+            response = client.get("/")
+
+        assert response.status_code == 200
+        assert "Try Free" in response.text
+        assert "/games/setup" in response.text
