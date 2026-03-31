@@ -22,7 +22,9 @@
         <div class="admin-customer-header-left">
             <span class="admin-customer-email">{{ customer.email }}</span>
 
-            {% if customer.signed_up_with_google %}
+            {% if customer.is_anonymous %}
+            <span class="admin-badge admin-badge-anon">Anonymous</span>
+            {% elif customer.signed_up_with_google %}
             <span class="admin-badge admin-badge-google">Google</span>
             {% else %}
             <span class="admin-badge admin-badge-email">Email</span>
@@ -30,10 +32,6 @@
 
             {% if customer.sub_status == 'comped' %}
             <span class="admin-badge admin-badge-comped">comped</span>
-            {% elif customer.trial_days_left is not none and customer.trial_days_left > 0 %}
-            <span class="admin-badge admin-badge-trialing">trialing &middot; {{ customer.trial_days_left }}d left</span>
-            {% elif customer.trial_days_left is not none and customer.trial_days_left <= 0 %}
-            <span class="admin-badge admin-badge-expired">trial expired</span>
             {% elif customer.sub_status == 'active' %}
             <span class="admin-badge admin-badge-active">active</span>
             {% elif customer.sub_status == 'canceled' %}
@@ -43,7 +41,7 @@
             {% elif customer.sub_status == 'paused' %}
             <span class="admin-badge admin-badge-paused">paused</span>
             {% else %}
-            <span class="admin-badge admin-badge-none">no subscription</span>
+            <span class="admin-badge admin-badge-none">free</span>
             {% endif %}
         </div>
         <span class="admin-customer-date">Joined {{ customer.created_at[:10] }}</span>
