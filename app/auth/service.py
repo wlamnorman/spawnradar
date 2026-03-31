@@ -343,8 +343,8 @@ class AuthService:
 
         Returns count of games transferred.
         """
-        from app.games.repository import CustomerGameRepository
         from app.billing.repository import SubscriptionRepository
+        from app.games.repository import CustomerGameRepository
 
         game_repo = CustomerGameRepository(self._users._db_path)
         transferred = game_repo.transfer_ownership(anon_user_id, new_user_id)

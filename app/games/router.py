@@ -16,7 +16,9 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from app.auth.dependencies import require_product_access, require_user_or_anonymous
+from app.auth.dependencies import (
+    require_user_or_anonymous,
+)
 from app.auth.models import User
 from app.billing.models import FREE_LIMITS, TIER_LIMITS
 from app.billing.service import BillingService
@@ -46,7 +48,12 @@ from app.igdb.taxonomy import (
     keyword_label_for_value,
 )
 from app.prospects.service import ProspectRankingService
-from app.security import RateLimitRule, client_ip_key, consume_rate_limit, require_csrf_form
+from app.security import (
+    RateLimitRule,
+    client_ip_key,
+    consume_rate_limit,
+    require_csrf_form,
+)
 
 router = APIRouter(tags=["games"])
 
@@ -271,11 +278,11 @@ def list_games(
     can_add_game = billing_service.check_game_limit(user.user_id)
     max_game_slots = max(limit["games"] for limit in TIER_LIMITS.values())
     is_limited = subscription is None or not subscription.has_access
-    current_game_limit = (
-        FREE_LIMITS["games"]
-        if is_limited
-        else TIER_LIMITS[subscription.effective_tier]["games"]
-    )
+    if is_limited:
+        current_game_limit = FREE_LIMITS["games"]
+    else:
+        assert subscription is not None  # narrowing for type checker
+        current_game_limit = TIER_LIMITS[subscription.effective_tier]["games"]
     prospect_service = ProspectRankingService(settings.db_path)
     game_match_counts = {
         game.customer_game_id: prospect_service.count_prospects(
@@ -459,11 +466,10 @@ async def create_game_post(
         )
 
     # Rate-limit anonymous game creation
-    if user.is_anonymous:
-        if not consume_rate_limit(settings.db_path, "game_create_anon", [
-            RateLimitRule(key=client_ip_key(request), limit=3, window_seconds=3600),
-        ]):
-            raise HTTPException(status_code=429, detail="Too many games created. Please try again later.")
+    if user.is_anonymous and not consume_rate_limit(settings.db_path, "game_create_anon", [
+        RateLimitRule(key=client_ip_key(request), limit=3, window_seconds=3600),
+    ]):
+        raise HTTPException(status_code=429, detail="Too many games created. Please try again later.")
 
     # Check subscription limit
     if not billing_service.check_game_limit(user.user_id):

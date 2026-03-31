@@ -528,6 +528,7 @@ def run_activate_sub(db_path: str) -> CommandResult:
     existing = sub_repo.get_by_user(user.user_id)
     if existing is None:
         import uuid
+
         from app.billing.models import Tier
         sub_repo.create(str(uuid.uuid4()), user.user_id, Tier.INDIE)
     sub_repo.update_from_paddle(

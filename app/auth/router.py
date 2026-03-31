@@ -6,7 +6,10 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.auth.cookies import clear_session_cookie, set_session_cookie, use_secure_cookies
+from app.auth.cookies import (
+    clear_session_cookie,
+    set_session_cookie,
+)
 from app.auth.dependencies import require_user
 from app.auth.models import User
 from app.auth.service import AuthService

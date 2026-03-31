@@ -1,12 +1,9 @@
 """Tests for anonymous user flows."""
 
 import asyncio
-
-import pytest
 from unittest.mock import MagicMock
 
 from app.auth.dependencies import require_user_or_anonymous
-from app.auth.models import User
 
 
 def test_create_anonymous_user_sets_flag(user_repo):
@@ -75,7 +72,7 @@ def test_transfer_game_ownership(game_repo, user_repo):
     """transfer_ownership moves a game from one user to another."""
     anon = user_repo.create("anon-x", "anon-x@anonymous.local", password_hash=None, is_anonymous=True)
     real = user_repo.create("real-x", "real@example.com", password_hash="hash")
-    game = game_repo.create(
+    game_repo.create(
         customer_game_id="game-1", user_id=anon.user_id, name="Test Game",
         summary=None, description="A test game", website_url=None,
     )
@@ -88,7 +85,7 @@ def test_transfer_game_ownership(game_repo, user_repo):
 def test_claim_anonymous_games_transfers_and_cleans_up(auth_service, user_repo, game_repo, sub_repo):
     """claim_anonymous_games transfers games and deletes the anonymous user."""
     anon_user, anon_session = auth_service.create_anonymous_user()
-    game = game_repo.create(
+    game_repo.create(
         customer_game_id="game-claim", user_id=anon_user.user_id,
         name="Claim Test", summary=None, description="A claimable game", website_url=None,
     )

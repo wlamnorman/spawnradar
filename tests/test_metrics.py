@@ -57,6 +57,7 @@ def test_metrics_reconcile_subscription_endings_and_trial_expiry(
     paid_user = auth_service.register("paid-ended@example.com", "password123")
 
     import uuid
+
     from app.billing.models import Tier
     trial_sub = sub_repo.create(str(uuid.uuid4()), expired_trial_user.user_id, Tier.INDIE)
     sub_repo.create(str(uuid.uuid4()), paid_user.user_id, Tier.INDIE)

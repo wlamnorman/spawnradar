@@ -209,6 +209,7 @@ def _register_and_login(client: TestClient, email: str, password: str) -> str:
 def _grant_subscription(db_path: str, email: str) -> None:
     """Create an active paid subscription for a user by email."""
     import uuid as _uuid
+
     from app.billing.models import Tier
     from app.billing.repository import SubscriptionRepository
     with get_connection(db_path) as conn:
@@ -2375,6 +2376,7 @@ class TestBillingRoutes:
 
             sub_repo = SubscriptionRepository(db)
             import uuid
+
             from app.billing.models import Tier
             sub_repo.create(str(uuid.uuid4()), user_id, Tier.INDIE)
             sub_repo.update_from_paddle(
@@ -2525,7 +2527,7 @@ def _get_game_slug(db_path: str, name: str) -> str:
     return str(row["slug"])
 
 
-def _setup_anonymous_session(db_path: str, client: "TestClient") -> str:
+def _setup_anonymous_session(db_path: str, client: TestClient) -> str:
     """Create an anonymous user + session in the DB and set the cookie on the
     client so that all subsequent requests in the same client instance are
     attributed to the same anonymous user.
@@ -2538,7 +2540,7 @@ def _setup_anonymous_session(db_path: str, client: "TestClient") -> str:
 
     Returns the anonymous user_id.
     """
-    from app.auth.repository import UserRepository, SessionRepository
+    from app.auth.repository import SessionRepository, UserRepository
     from app.auth.service import AuthService
 
     user_repo = UserRepository(db_path)

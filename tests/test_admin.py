@@ -107,6 +107,7 @@ class TestGetDashboardData:
 
     def test_user_with_no_games(self, db_path, auth_service, billing_service, sub_repo):
         import uuid
+
         from app.billing.models import Tier
         user = auth_service.register("alice@test.com", "pass123")
         sub_repo.create(str(uuid.uuid4()), user.user_id, Tier.INDIE)
@@ -121,6 +122,7 @@ class TestGetDashboardData:
         self, db_path, auth_service, billing_service, game_service, sub_repo
     ):
         import uuid
+
         from app.billing.models import Tier
         user = auth_service.register("bob@test.com", "pass123")
         sub_repo.create(str(uuid.uuid4()), user.user_id, Tier.INDIE)

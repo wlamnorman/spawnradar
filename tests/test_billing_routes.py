@@ -140,6 +140,7 @@ def _activation_event(
 def _create_sub_row(db_path: str, user_id: str) -> None:
     """Create a bare subscription row for a user (no Paddle IDs)."""
     import uuid
+
     from app.billing.models import Tier
     from app.billing.repository import SubscriptionRepository
     SubscriptionRepository(db_path).create(str(uuid.uuid4()), user_id, Tier.INDIE)

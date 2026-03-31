@@ -14,7 +14,10 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from app.auth.dependencies import require_product_access, require_user_or_anonymous
+from app.auth.dependencies import (
+    require_product_access,
+    require_user_or_anonymous,
+)
 from app.auth.models import User
 from app.billing.service import BillingService
 from app.config import Settings

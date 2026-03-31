@@ -18,6 +18,7 @@ def _verify_user_email(db_path: str, email: str) -> None:
 def _grant_subscription(db_path: str, email: str) -> None:
     """Create an active paid subscription for a user by email."""
     import uuid
+
     from app.billing.models import Tier
     from app.billing.repository import SubscriptionRepository
     with get_connection(db_path) as conn:
