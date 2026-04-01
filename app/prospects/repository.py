@@ -62,14 +62,16 @@ class ProspectRepository:
             ),
             creator_target_tag_counts AS (
                 SELECT
-                    cagt.account_id,
-                    cagt.tag_type,
-                    cagt.tag_id,
+                    cgp.account_id,
+                    igt.tag_type,
+                    igt.tag_id,
                     COUNT(*) AS tag_count
-                FROM creator_account_game_tags cagt
-                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
-                                  AND gt.tag_id = cagt.tag_id
-                GROUP BY cagt.account_id, cagt.tag_type, cagt.tag_id
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+                GROUP BY cgp.account_id, igt.tag_type, igt.tag_id
             ),
             eligible_creators AS (
                 SELECT cttc.account_id, COUNT(*) AS overlap_count
@@ -120,10 +122,12 @@ class ProspectRepository:
                 {game_tags_sql}
             ),
             overlapping_accounts AS (
-                SELECT DISTINCT cagt.account_id
-                FROM creator_account_game_tags cagt
-                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
-                                  AND gt.tag_id = cagt.tag_id
+                SELECT DISTINCT cgp.account_id
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                WHERE cgp.igdb_game_id IS NOT NULL
             )
             SELECT COUNT(*) AS creator_count
             FROM (
@@ -159,10 +163,12 @@ class ProspectRepository:
                 {game_tags_sql}
             ),
             overlapping_accounts AS (
-                SELECT DISTINCT cagt.account_id
-                FROM creator_account_game_tags cagt
-                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
-                                  AND gt.tag_id = cagt.tag_id
+                SELECT DISTINCT cgp.account_id
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                WHERE cgp.igdb_game_id IS NOT NULL
             )
             SELECT MAX(
                 COALESCE(tp.followers_count, yc.subscriber_count, 0)
@@ -195,12 +201,14 @@ class ProspectRepository:
             WITH game_tags AS (
                 {game_tags_sql}
             )
-            SELECT cagt.account_id, COUNT(DISTINCT cagt.igdb_game_id) AS game_count
-            FROM creator_account_game_tags cagt
-            JOIN game_tags gt ON gt.tag_type = cagt.tag_type
-                              AND gt.tag_id = cagt.tag_id
-            WHERE cagt.account_id IN ({placeholders})
-            GROUP BY cagt.account_id
+            SELECT cgp.account_id, COUNT(DISTINCT cgp.igdb_game_id) AS game_count
+            FROM creator_games_played cgp
+            JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+            JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                              AND gt.tag_id = igt.tag_id
+            WHERE cgp.igdb_game_id IS NOT NULL
+              AND cgp.account_id IN ({placeholders})
+            GROUP BY cgp.account_id
         """
         params: list[object] = [*game_tags_params, *account_ids]
         with get_connection(self._db_path) as conn:
@@ -224,12 +232,14 @@ class ProspectRepository:
             ),
             creator_relevant_games AS (
                 SELECT
-                    cagt.account_id,
-                    COUNT(DISTINCT cagt.igdb_game_id) AS game_count
-                FROM creator_account_game_tags cagt
-                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
-                                  AND gt.tag_id = cagt.tag_id
-                GROUP BY cagt.account_id
+                    cgp.account_id,
+                    COUNT(DISTINCT cgp.igdb_game_id) AS game_count
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+                GROUP BY cgp.account_id
             )
             SELECT MAX(crg.game_count) AS max_game_count
             FROM creator_relevant_games crg
@@ -264,20 +274,22 @@ class ProspectRepository:
             ),
             ranked_games AS (
                 SELECT
-                    cagt.account_id,
+                    cgp.account_id,
                     ig.name,
                     ig.cover_url,
-                    COUNT(DISTINCT cagt.tag_type || ':' || CAST(cagt.tag_id AS TEXT)) AS tag_overlap,
+                    COUNT(DISTINCT igt.tag_type || ':' || CAST(igt.tag_id AS TEXT)) AS tag_overlap,
                     ROW_NUMBER() OVER (
-                        PARTITION BY cagt.account_id
-                        ORDER BY COUNT(DISTINCT cagt.tag_type || ':' || CAST(cagt.tag_id AS TEXT)) DESC, ig.name
+                        PARTITION BY cgp.account_id
+                        ORDER BY COUNT(DISTINCT igt.tag_type || ':' || CAST(igt.tag_id AS TEXT)) DESC, ig.name
                     ) AS rank_in_account
-                FROM creator_account_game_tags cagt
-                JOIN game_tags gt ON gt.tag_type = cagt.tag_type
-                                  AND gt.tag_id = cagt.tag_id
-                JOIN igdb_games ig ON ig.igdb_id = cagt.igdb_game_id
-                WHERE cagt.account_id IN ({placeholders})
-                GROUP BY cagt.account_id, cagt.igdb_game_id
+                FROM creator_games_played cgp
+                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                  AND gt.tag_id = igt.tag_id
+                JOIN igdb_games ig ON ig.igdb_id = cgp.igdb_game_id
+                WHERE cgp.igdb_game_id IS NOT NULL
+                  AND cgp.account_id IN ({placeholders})
+                GROUP BY cgp.account_id, cgp.igdb_game_id
             )
             SELECT account_id, name, cover_url
             FROM ranked_games

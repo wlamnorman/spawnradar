@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Sequence
 from pathlib import Path
@@ -338,6 +339,9 @@ class CreatorIndexService:
                 bundle.contact_points,
             )
             accounts_synced += 1
+            # Yield to the event loop so web requests aren't starved
+            # during long ingestion batches on single-CPU deployments.
+            await asyncio.sleep(0)
         return accounts_synced, content_samples_synced, contact_points_synced
 
     def _retained_content_samples(

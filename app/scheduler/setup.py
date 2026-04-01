@@ -82,20 +82,20 @@ def create_scheduler(
             hours=6,
         )
 
-    # -- Steam tag backfill: every 15 minutes
+    # -- Steam tag backfill: every 60 minutes
     scheduler.add_job(
         run_steam_tag_backfill,
         trigger="interval",
         id="steam_tag_backfill",
         kwargs={
             "db_path": db_path,
-            "limit": 25,
+            "limit": 10,
         },
         jitter=60,
         coalesce=True,
         max_instances=1,
         replace_existing=True,
-        minutes=15,
+        minutes=60,
     )
 
     return scheduler
