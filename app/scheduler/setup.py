@@ -55,7 +55,7 @@ def create_scheduler(
         replace_existing=True,
     )
 
-    # -- Customer game sweep: every 10 minutes
+    # -- Customer game sweep: every 30 minutes
     scheduler.add_job(
         run_scheduled_creator_index_sync,
         trigger="interval",
@@ -68,10 +68,10 @@ def create_scheduler(
         coalesce=True,
         max_instances=1,
         replace_existing=True,
-        minutes=10,
+        minutes=30,
     )
 
-    # -- Top categories crawl: every 30 minutes
+    # -- Top categories crawl: every 60 minutes
     scheduler.add_job(
         run_top_categories_crawl,
         trigger="interval",
@@ -84,7 +84,7 @@ def create_scheduler(
         coalesce=True,
         max_instances=1,
         replace_existing=True,
-        minutes=30,
+        minutes=60,
     )
 
     # -- Catalog discovery: every 6 hours (if a catalog dir is configured)
