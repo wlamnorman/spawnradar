@@ -86,7 +86,7 @@ class Settings:
     creator_index_twitch_min_followers: int
     creator_index_customer_game_twitch_probe_limit: int
     admin_secret_key: str
-    catalog_dir: str | None
+    catalog_discovery_enabled: bool
 
     @property
     def uses_https(self) -> bool:
@@ -225,7 +225,7 @@ class Settings:
                 "CREATOR_INDEX_CUSTOMER_GAME_TWITCH_PROBE_LIMIT", 10
             ),
             admin_secret_key=_env_str("ADMIN_SECRET_KEY"),
-            catalog_dir=_env_str("CATALOG_DIR") or None,
+            catalog_discovery_enabled=_env_bool("USE_CATALOG", False),
         )
         try:
             return settings.validate()
