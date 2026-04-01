@@ -152,7 +152,7 @@ async def lifespan(app: FastAPI):
             "Starting creator-index scheduler with games=%s",
             scope_message,
         )
-        catalog_dir = str(Path(__file__).resolve().parent / "catalog")
+        catalog_dir = settings.catalog_dir
         scheduler = create_scheduler(
             db_path,
             source_runtime,
