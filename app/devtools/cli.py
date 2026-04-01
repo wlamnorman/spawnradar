@@ -25,6 +25,7 @@ from app.creator_index.stream_discovery import TwitchStreamClient
 from app.database import get_connection, initialize_database
 from app.devtools.bootstrap import (
     DEV_EMAIL,
+    DEV_PASSWORD,
     TEST_EMAIL,
     ensure_dev_user,
     ensure_test_user,
@@ -254,6 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
     snapshot_game_preset.add_argument(
         "--game",
         help="Game slug or exact name to snapshot. Defaults to the preset's game name.",
+    )
+    subparsers.add_parser(
+        "free-account",
+        help="Reset the dev account to a free user with no subscription.",
     )
     subparsers.add_parser(
         "activate-sub",
@@ -517,6 +522,17 @@ def run_snapshot_game_preset(
             f"Snapshotted {game.name} into preset '{preset_key}' at {output_path}."
         ),
         created=False,
+    )
+
+
+def run_free_account(db_path: str) -> CommandResult:
+    """Reset the dev account to a free user with no subscription."""
+    initialize_database(db_path)
+    user = ensure_dev_user(db_path)
+    sub_repo = SubscriptionRepository(db_path)
+    sub_repo.delete_by_user(user.user_id)
+    return CommandResult(
+        message=f"Free account ready for {DEV_EMAIL} (password: {DEV_PASSWORD}). No subscription.",
     )
 
 
@@ -1410,6 +1426,8 @@ def main(argv: list[str] | None = None) -> int:
         result = run_snapshot_game_preset(
             args.db_path, args.preset_key, game_ref=args.game
         )
+    elif args.command == "free-account":
+        result = run_free_account(args.db_path)
     elif args.command == "activate-sub":
         result = run_activate_sub(args.db_path)
     elif args.command == "expire-sub":
