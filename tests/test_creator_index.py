@@ -254,16 +254,10 @@ def test_create_scheduler_registers_creator_index_jobs(db_path):
     jobs = {job.id: job for job in scheduler.get_jobs()}
 
     assert set(jobs) == {
-        "creator_index_startup_sync",
         "creator_index_twitch_sync",
-        "steam_tag_startup_backfill",
         "steam_tag_backfill",
         "top_categories_crawl",
     }
-    assert (
-        jobs["steam_tag_startup_backfill"].trigger.__class__.__name__
-        == "DateTrigger"
-    )
     assert (
         jobs["creator_index_twitch_sync"].trigger.__class__.__name__
         == "IntervalTrigger"

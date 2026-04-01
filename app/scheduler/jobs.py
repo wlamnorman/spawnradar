@@ -39,10 +39,10 @@ def _record_discovery_run(
         logger.debug("Failed to record discovery metric", exc_info=True)
 
 
-# On-demand and background discovery share a single pool of 2 slots.
-# At most 2 discovery runs happen concurrently to stay well within
-# Twitch's 800 req/min rate limit.
-_discovery_semaphore = asyncio.Semaphore(2)
+# On-demand and background discovery share a single slot.
+# Only 1 discovery run at a time to avoid starving the web server
+# on a single-CPU machine.
+_discovery_semaphore = asyncio.Semaphore(1)
 
 
 async def run_scheduled_creator_index_sync(

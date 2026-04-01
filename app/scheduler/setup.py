@@ -29,31 +29,8 @@ def create_scheduler(
 
     scheduler = AsyncIOScheduler(timezone="UTC")
 
-    # -- Startup: immediate one-shot sync of active customer games
-    scheduler.add_job(
-        run_scheduled_creator_index_sync,
-        trigger="date",
-        run_date=datetime.now(UTC) + timedelta(seconds=1),
-        id="creator_index_startup_sync",
-        kwargs={
-            "db_path": db_path,
-            "source_runtime": source_runtime,
-        },
-        replace_existing=True,
-    )
-
-    # -- Startup: immediate one-shot Steam tag backfill
-    scheduler.add_job(
-        run_steam_tag_backfill,
-        trigger="date",
-        run_date=datetime.now(UTC) + timedelta(seconds=1),
-        id="steam_tag_startup_backfill",
-        kwargs={
-            "db_path": db_path,
-            "limit": 25,
-        },
-        replace_existing=True,
-    )
+    # No startup one-shot syncs — let the app boot cleanly and pass
+    # health checks before the first interval-based jobs fire.
 
     # -- Customer game sweep: every 30 minutes
     scheduler.add_job(
