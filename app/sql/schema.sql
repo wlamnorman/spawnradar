@@ -300,6 +300,7 @@ CREATE INDEX IF NOT EXISTS idx_creator_profile_facets_last_activity ON creator_p
 CREATE INDEX IF NOT EXISTS idx_creator_games_played_account ON creator_games_played(account_id);
 CREATE INDEX IF NOT EXISTS idx_creator_games_played_game_key ON creator_games_played(game_name_key);
 CREATE INDEX IF NOT EXISTS idx_creator_games_played_igdb ON creator_games_played(igdb_game_id) WHERE igdb_game_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_creator_games_played_igdb_account ON creator_games_played(igdb_game_id, account_id) WHERE igdb_game_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_account_metric_samples_lookup ON account_metric_samples(account_id, platform, metric_key, observed_at);
 CREATE INDEX IF NOT EXISTS idx_crawl_jobs_platform_started ON crawl_jobs(platform, started_at);
 CREATE INDEX IF NOT EXISTS idx_crawl_cursors_scope_updated ON crawl_cursors(platform, cursor_scope, updated_at);
@@ -342,6 +343,7 @@ CREATE TABLE IF NOT EXISTS igdb_game_tags (
 );
 
 CREATE INDEX IF NOT EXISTS idx_igdb_game_tags_type_id ON igdb_game_tags(tag_type, tag_id);
+CREATE INDEX IF NOT EXISTS idx_igdb_game_tags_type_id_igdb ON igdb_game_tags(tag_type, tag_id, igdb_id);
 CREATE INDEX IF NOT EXISTS idx_igdb_games_name_lower ON igdb_games(LOWER(name));
 
 -- ─── Steam Enrichment For Cached IGDB Games ──────────────────────────────────
