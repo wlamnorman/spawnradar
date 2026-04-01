@@ -48,7 +48,7 @@ def create_scheduler(
         minutes=30,
     )
 
-    # -- Top categories crawl: every 60 minutes
+    # -- Top categories crawl: every 30 minutes
     scheduler.add_job(
         run_top_categories_crawl,
         trigger="interval",
@@ -61,7 +61,7 @@ def create_scheduler(
         coalesce=True,
         max_instances=1,
         replace_existing=True,
-        minutes=60,
+        minutes=30,
     )
 
     # -- Catalog discovery: every 6 hours (if a catalog dir is configured)
@@ -82,20 +82,20 @@ def create_scheduler(
             hours=6,
         )
 
-    # -- Steam tag backfill: every 60 minutes
+    # -- Steam tag backfill: every 15 minutes
     scheduler.add_job(
         run_steam_tag_backfill,
         trigger="interval",
         id="steam_tag_backfill",
         kwargs={
             "db_path": db_path,
-            "limit": 10,
+            "limit": 25,
         },
         jitter=60,
         coalesce=True,
         max_instances=1,
         replace_existing=True,
-        minutes=60,
+        minutes=15,
     )
 
     return scheduler
