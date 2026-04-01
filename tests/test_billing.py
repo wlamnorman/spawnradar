@@ -448,7 +448,7 @@ async def test_sync_from_transaction_activates_subscription(
         "items": [{"price": {"id": "pri_indie"}}],
         "current_billing_period": {
             "starts_at": "2026-03-01T00:00:00Z",
-            "ends_at": "2026-04-01T00:00:00Z",
+            "ends_at": "2027-04-01T00:00:00Z",
         },
     }
     mock_client = _mock_http_responses(txn_data, sub_data)

@@ -34,9 +34,13 @@ tier_prices[tier] %}
             <a href="/billing" class="button button-full">
                 Manage subscription →
             </a>
+            {% elif billing_enabled and user and not user.is_anonymous %}
+            <a href="/billing/pay" class="button button-full">
+                Subscribe →
+            </a>
             {% elif billing_enabled %}
-            <a href="/games/setup" class="button button-full">
-                Get Started Free
+            <a href="/auth/register" class="button button-full">
+                Create account to subscribe →
             </a>
             {% else %}
             <button type="button" class="button button-full" disabled>

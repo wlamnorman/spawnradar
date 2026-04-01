@@ -24,7 +24,7 @@ FREE_LIMITS: dict[str, int] = {
 }
 
 TIER_PRICES: dict[Tier, int] = {
-    Tier.INDIE: 29,
+    Tier.INDIE: 19,
 }
 
 PUBLIC_TIERS: list[Tier] = [Tier.INDIE]

@@ -43,12 +43,12 @@ def test_pricing_renders_single_offer(monkeypatch, tmp_path):
     text = " ".join(response.text.split())
     assert response.status_code == 200
     assert "One plan for efficient game outreach." in text
-    assert "Get Started Free" in text
+    assert "subscribe" in text.lower()
     assert "Studio" not in text
     assert "Questions before subscribing?" in text
     assert "Manage up to" in text
     assert "active games" in text
     assert "Browse unlimited creator matches" in text
     assert "Reusable message templates and outreach assets" not in text
-    assert "29" in text
-    assert "$29" in text
+    assert "19" in text
+    assert "$19" in text

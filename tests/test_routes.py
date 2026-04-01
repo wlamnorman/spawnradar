@@ -2867,7 +2867,7 @@ class TestAnonymousFlows:
             response = client.get("/pricing")
 
         assert response.status_code == 200
-        assert "Get Started Free" in response.text
+        assert "subscribe" in response.text.lower()
         assert "trial" not in response.text.lower()
 
     # ------------------------------------------------------------------
