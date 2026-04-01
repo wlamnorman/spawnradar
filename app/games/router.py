@@ -47,7 +47,6 @@ from app.igdb.taxonomy import (
     IGDBTheme,
     keyword_label_for_value,
 )
-from app.prospects.service import ProspectRankingService
 from app.security import (
     RateLimitRule,
     client_ip_key,
@@ -283,14 +282,7 @@ def list_games(
     else:
         assert subscription is not None  # narrowing for type checker
         current_game_limit = TIER_LIMITS[subscription.effective_tier]["games"]
-    prospect_service = ProspectRankingService(settings.db_path)
-    game_match_counts = {
-        game.customer_game_id: prospect_service.count_prospects(
-            game,
-            min_reach=settings.creator_index_twitch_min_followers,
-        )
-        for game in games
-    }
+    game_match_counts: dict[str, int] = {}
     placeholder_slots = max(0, max_game_slots - len(games))
     unlocked_placeholder_slots = max(0, current_game_limit - len(games))
 

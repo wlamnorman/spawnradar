@@ -875,10 +875,9 @@ class TestGameRoutes:
             },
         ]
 
-    def test_dashboard_game_card_shows_matched_creator_count(
+    def test_dashboard_game_card_loads_without_match_count(
         self, monkeypatch, tmp_path
     ):
-        db_path = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
             _register_and_login(
                 client, "dashboard-count@example.com", "testpass"
@@ -896,17 +895,11 @@ class TestGameRoutes:
                 },
                 follow_redirects=False,
             )
-            _seed_ranked_prospects(
-                db_path,
-                count=3,
-                customer_game_name="Counted Dashboard Game",
-                game_name="Counted Match Game",
-            )
 
             response = client.get("/games")
 
         assert response.status_code == 200
-        assert " ".join(response.text.split()).find("3 matched creators") != -1
+        assert "Counted Dashboard Game" in response.text
 
     def test_prospects_page_shows_bucketed_curated_tags(
         self, monkeypatch, tmp_path
@@ -3050,3 +3043,54 @@ class TestAnonymousFlows:
         # Server redirects back to clean URL
         assert response.status_code == 303
         assert response.headers["location"] == f"/games/{slug}/prospects"
+
+    # ------------------------------------------------------------------
+    # 19. Dashboard hides match counts (perf: skip expensive queries)
+    # ------------------------------------------------------------------
+    def test_dashboard_hides_match_count_text(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _setup_anonymous_session(db_path, client)
+            _create_game_for_user(client, "No Count Game")
+
+            response = client.get("/games")
+
+        assert response.status_code == 200
+        assert "No Count Game" in response.text
+        assert "matched creator" not in response.text
+
+    # ------------------------------------------------------------------
+    # 20. Paid user dashboard also hides match counts (same perf change)
+    # ------------------------------------------------------------------
+    def test_paid_dashboard_hides_match_count_text(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "paid-dash@example.com", "password123")
+            _create_game_for_user(client, "Paid No Count Game")
+
+            response = client.get("/games")
+
+        assert response.status_code == 200
+        assert "Paid No Count Game" in response.text
+        assert "matched creator" not in response.text
+
+    # ------------------------------------------------------------------
+    # 21. Paid user prospects page still computes filter ranges
+    # ------------------------------------------------------------------
+    def test_paid_user_prospects_has_filter_form_with_ranges(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "paid-filter@example.com", "password123")
+            _create_game_for_user(client, "Paid Filter Range Game")
+            slug = _get_game_slug(db_path, "Paid Filter Range Game")
+
+            response = client.get(f"/games/{slug}/prospects")
+
+        assert response.status_code == 200
+        assert 'data-filters-unlocked="true"' in response.text
+        assert "data-range-filter-form" in response.text

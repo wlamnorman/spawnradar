@@ -223,14 +223,26 @@ def game_prospects_page(
     if status not in valid_status_filters:
         raise HTTPException(status_code=400, detail="Invalid status filter.")
     default_min_reach = settings.creator_index_twitch_min_followers
-    reach_filter_max = max(
-        default_min_reach,
-        service.max_reach(game, min_reach=default_min_reach),
-    )
-    games_filter_max = max(
-        1,
-        service.max_relevant_games(game, min_reach=default_min_reach),
-    )
+
+    # Determine subscription status early so we can skip expensive
+    # filter-range queries for free users who can't use filters.
+    subscription = billing_service.get_subscription(user.user_id)
+    is_limited = subscription is None or not subscription.has_access
+
+    if is_limited:
+        # Free users can't filter — use cheap defaults instead of
+        # running two heavy aggregate queries.
+        reach_filter_max = default_min_reach
+        games_filter_max = 1
+    else:
+        reach_filter_max = max(
+            default_min_reach,
+            service.max_reach(game, min_reach=default_min_reach),
+        )
+        games_filter_max = max(
+            1,
+            service.max_relevant_games(game, min_reach=default_min_reach),
+        )
     page = max(1, page)
     min_reach = max(default_min_reach, min_reach)
     max_reach = reach_filter_max if max_reach is None else max(0, max_reach)
@@ -286,8 +298,6 @@ def game_prospects_page(
         navigation_params["status"] = status
     navigation_query = urlencode(navigation_params, doseq=True)
     filter_query_suffix = f"&{navigation_query}" if navigation_query else ""
-    subscription = billing_service.get_subscription(user.user_id)
-    is_limited = subscription is None or not subscription.has_access
     if is_limited:
         status = "all"
         if page > 1 or filter_query or request.query_params.get("status"):
