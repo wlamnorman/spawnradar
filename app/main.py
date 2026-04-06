@@ -9,7 +9,7 @@ from pathlib import Path
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -56,6 +56,10 @@ from app.routes.seo import router as seo_router
 from app.runtime import SourceRuntime
 from app.scheduler.setup import create_scheduler, schedule_game_discovery
 from app.security import csrf_token_for
+from app.url_policy import (
+    canonical_request_url,
+    should_redirect_to_canonical_host,
+)
 
 # Configure logging for our app modules.
 logging.basicConfig(
@@ -193,6 +197,7 @@ async def lifespan(app: FastAPI):
     templates.env.globals["csrf_token_for"] = csrf_token_for
     templates.env.globals["subscription_for"] = subscription_for
     templates.env.globals["static_asset_url"] = static_asset_url
+    templates.env.globals["canonical_url_for"] = canonical_request_url
 
     # Attach everything to app.state for dependency access in routes
     app.state.email_service = email_service
@@ -229,6 +234,16 @@ def create_app() -> FastAPI:
     logging.getLogger("app").setLevel(
         getattr(logging, settings.log_level, logging.INFO)
     )
+
+    @app.middleware("http")
+    async def redirect_www_alias(request: Request, call_next):
+        """Redirect the public www alias to the configured canonical host."""
+        if should_redirect_to_canonical_host(request, settings):
+            return RedirectResponse(
+                url=canonical_request_url(request),
+                status_code=308,
+            )
+        return await call_next(request)
 
     # Fly already handles public HTTP->HTTPS redirects at the edge via
     # `force_https = true` in fly.toml. Avoid app-level HTTPS redirects here so

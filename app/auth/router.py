@@ -28,6 +28,7 @@ from app.security import (
     consume_rate_limit,
     require_csrf_form,
 )
+from app.url_policy import public_url
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -404,7 +405,8 @@ async def google_login(request: Request) -> RedirectResponse:
         return RedirectResponse(
             url="/auth/login?error=google_not_configured", status_code=303
         )
-    redirect_uri = str(request.url_for("google_callback"))
+    settings: Settings = request.app.state.settings
+    redirect_uri = public_url(settings, "/auth/google/callback")
     return await oauth.google.authorize_redirect(request, redirect_uri)  # type: ignore[no-any-return]
 
 

@@ -93,10 +93,29 @@ class Settings:
         return self.base_url.startswith("https://")
 
     @property
+    def parsed_base_url(self):
+        return urlparse(self.base_url)
+
+    @property
+    def base_hostname(self) -> str:
+        return self.parsed_base_url.hostname or ""
+
+    @property
+    def base_origin(self) -> str:
+        parsed = self.parsed_base_url
+        return f"{parsed.scheme}://{parsed.netloc}"
+
+    @property
     def is_local_base_url(self) -> bool:
-        parsed = urlparse(self.base_url)
-        host = parsed.hostname or ""
-        return host in {"localhost", "127.0.0.1"}
+        return self.base_hostname in {"localhost", "127.0.0.1"}
+
+    @property
+    def www_redirect_hostname(self) -> str | None:
+        if self.is_local_base_url or not self.base_hostname:
+            return None
+        if self.base_hostname.startswith("www."):
+            return None
+        return f"www.{self.base_hostname}"
 
     @property
     def llm_game_suggestions_enabled(self) -> bool:

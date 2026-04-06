@@ -134,3 +134,26 @@ def test_llm_game_suggestions_enabled_by_default_off_local(monkeypatch):
     settings = Settings.from_env()
 
     assert settings.llm_game_suggestions_enabled is True
+
+
+def test_settings_expose_www_redirect_hostname_for_apex_base_url(monkeypatch):
+    monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("SECRET_KEY", "test-secret")
+
+    settings = Settings.from_env()
+
+    assert settings.base_origin == "https://spawnradar.com"
+    assert settings.www_redirect_hostname == "www.spawnradar.com"
+
+
+def test_settings_do_not_expose_www_redirect_hostname_for_localhost(
+    monkeypatch,
+):
+    monkeypatch.setenv("BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("SECRET_KEY", "test-secret")
+
+    settings = Settings.from_env()
+
+    assert settings.www_redirect_hostname is None

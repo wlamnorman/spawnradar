@@ -13,8 +13,10 @@ import os
 import re
 import time
 from typing import Any, cast
+from urllib.parse import quote
 from uuid import uuid4
 
+from fastapi.responses import RedirectResponse
 from fastapi.testclient import TestClient
 
 from app.billing.repository import SubscriptionRepository
@@ -1787,6 +1789,23 @@ class TestMetaTags:
             resp = client.get("/")
         assert 'rel="canonical"' in resp.text
 
+    def test_homepage_uses_base_url_for_canonical_and_og_url(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
+        app = create_app()
+
+        with TestClient(app, base_url="https://testserver") as client:
+            resp = client.get("/")
+
+        assert '<link rel="canonical" href="https://spawnradar.com/" />' in (
+            resp.text
+        )
+        assert (
+            '<meta property="og:url" content="https://spawnradar.com/" />'
+            in resp.text
+        )
+
     def test_pricing_has_meta_description(self, monkeypatch, tmp_path):
         with _make_client(monkeypatch, tmp_path) as client:
             resp = client.get("/pricing")
@@ -1853,6 +1872,41 @@ class TestAuthRoutes:
         assert response.status_code == 303
         assert "Secure" in response.headers["set-cookie"]
         assert "HttpOnly" in response.headers["set-cookie"]
+
+    def test_google_login_uses_canonical_base_url_for_callback(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("DB_PATH", str(tmp_path / "test.sqlite3"))
+        monkeypatch.setenv("SECRET_KEY", "test-secret")
+        monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
+        monkeypatch.setenv("RESEND_API_KEY", "")
+        app = create_app()
+
+        class _GoogleStub:
+            async def authorize_redirect(
+                self, request: Any, redirect_uri: str
+            ):
+                return RedirectResponse(
+                    url=(
+                        "https://accounts.google.com/o/oauth2/auth"
+                        f"?redirect_uri={quote(redirect_uri, safe='')}"
+                    ),
+                    status_code=302,
+                )
+
+        app.state.oauth._clients["google"] = object()  # type: ignore[attr-defined]
+        app.state.oauth.google = _GoogleStub()
+
+        with TestClient(
+            app, base_url="https://spawnradar.com"
+        ) as client:
+            response = client.get("/auth/google", follow_redirects=False)
+
+        assert response.status_code == 302
+        assert (
+            "redirect_uri=https%3A%2F%2Fspawnradar.com%2Fauth%2Fgoogle%2Fcallback"
+            in response.headers["location"]
+        )
 
     def test_login_with_wrong_password_shows_error(
         self, monkeypatch, tmp_path
@@ -2445,6 +2499,26 @@ class TestHealthRoute:
 
         assert health.status_code == 200
         assert metrics.status_code == 200
+
+    def test_www_alias_redirects_to_canonical_base_url(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("DB_PATH", str(tmp_path / "test.sqlite3"))
+        monkeypatch.setenv("SECRET_KEY", "test-secret")
+        monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
+        monkeypatch.setenv("RESEND_API_KEY", "")
+        app = create_app()
+
+        with TestClient(
+            app, base_url="https://www.spawnradar.com"
+        ) as client:
+            resp = client.get("/pricing?ref=www", follow_redirects=False)
+
+        assert resp.status_code == 308
+        assert (
+            resp.headers["location"]
+            == "https://spawnradar.com/pricing?ref=www"
+        )
 
 
 class TestAccessGate:
