@@ -16,15 +16,10 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from app.auth.dependencies import (
-    require_user_or_anonymous,
-)
-from app.auth.models import User
-from app.billing.models import FREE_LIMITS, TIER_LIMITS
-from app.billing.service import BillingService
+from app.auth.models import Actor
+from app.billing.models import TIER_LIMITS
 from app.config import Settings
 from app.dependencies import (
-    get_billing_service,
     get_customer_game_repo,
     get_customer_game_service,
     get_game_import_service,
@@ -47,6 +42,12 @@ from app.igdb.taxonomy import (
     IGDBTheme,
     keyword_label_for_value,
 )
+from app.ownership.dependencies import (
+    get_or_create_guest_ownership_context,
+    get_ownership_context,
+    require_ownership_context,
+)
+from app.ownership.service import OwnershipContext
 from app.security import (
     RateLimitRule,
     client_ip_key,
@@ -264,24 +265,22 @@ def _platform_values_from_import(platform_labels: list[str]) -> list[str]:
 @router.get("/games", response_class=HTMLResponse)
 def list_games(
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
+    ownership: OwnershipContext = Depends(get_ownership_context),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
-    billing_service: BillingService = Depends(get_billing_service),
-    settings: Settings = Depends(get_settings),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the dashboard showing all of the user's games."""
-    games = game_repo.list_by_user(user.user_id)
-
-    subscription = billing_service.get_subscription(user.user_id)
-    can_add_game = billing_service.check_game_limit(user.user_id)
+    user = ownership.actor
+    games = (
+        game_repo.list_by_workspace(user.workspace_id)
+        if user is not None
+        else []
+    )
+    subscription = ownership.subscription
+    can_add_game = ownership.can_add_game
     max_game_slots = max(limit["games"] for limit in TIER_LIMITS.values())
-    is_limited = subscription is None or not subscription.has_access
-    if is_limited:
-        current_game_limit = FREE_LIMITS["games"]
-    else:
-        assert subscription is not None  # narrowing for type checker
-        current_game_limit = TIER_LIMITS[subscription.effective_tier]["games"]
+    is_limited = ownership.is_limited
+    current_game_limit = ownership.game_limit
     game_match_counts: dict[str, int] = {}
     placeholder_slots = max(0, max_game_slots - len(games))
     unlocked_placeholder_slots = max(0, current_game_limit - len(games))
@@ -305,11 +304,9 @@ def list_games(
 @router.get("/games/igdb-search")
 def search_cached_igdb_games(
     q: str,
-    user: User = Depends(require_user_or_anonymous),
     settings: Settings = Depends(get_settings),
 ) -> list[dict[str, object]]:
     """Return cached IGDB game name suggestions for similar-games inputs."""
-    del user
     rows = IGDBRepository(settings.db_path).search_by_name(q)
     return [
         {
@@ -324,7 +321,6 @@ def search_cached_igdb_games(
 @router.post("/games/import-url")
 async def import_url_json(
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
     game_import_service: GameImportService = Depends(get_game_import_service),
 ) -> dict[str, object]:
     """Return imported game data as JSON for client-side form filling."""
@@ -408,16 +404,10 @@ def _parse_game_form(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/games/new")
-def new_game_redirect() -> Response:
-    """Backward-compatible redirect from old create page."""
-    return RedirectResponse(url="/games/setup", status_code=301)
-
-
 @router.get("/games/setup", response_class=HTMLResponse)
 def new_game_setup_page(
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
+    ownership: OwnershipContext = Depends(get_ownership_context),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the setup page for a new game (empty form)."""
@@ -425,7 +415,7 @@ def new_game_setup_page(
         request,
         "games/setup.html",
         {
-            "user": user,
+            "user": ownership.actor,
             "game": None,
             "error": None,
             "form_state": _game_form_state(),
@@ -437,18 +427,20 @@ def new_game_setup_page(
 @router.post("/games/setup")
 async def create_game_post(
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
+    ownership: OwnershipContext = Depends(
+        get_or_create_guest_ownership_context
+    ),
     name: str = Form(default=""),
     summary: str = Form(default=""),
     description: str = Form(default=""),
     website_url: str = Form(default=""),
-    billing_service: BillingService = Depends(get_billing_service),
     game_service: CustomerGameService = Depends(get_customer_game_service),
     settings: Settings = Depends(get_settings),
     templates: Jinja2Templates = Depends(get_templates),
     _csrf: None = Depends(require_csrf_form),
 ) -> Response:
     """Handle game creation form submission."""
+    user = ownership.require_actor()
     form = await request.form()
     igdb_genre_ids, igdb_theme_ids, igdb_game_mode_ids, \
         igdb_player_perspective_ids, igdb_keyword_ids, platforms, \
@@ -458,7 +450,7 @@ async def create_game_post(
         )
 
     # Rate-limit anonymous game creation
-    if user.is_anonymous and not consume_rate_limit(settings.db_path, "game_create_anon", [
+    if ownership.is_anonymous and not consume_rate_limit(settings.db_path, "game_create_anon", [
         RateLimitRule(key=client_ip_key(request), limit=3, window_seconds=600),
     ]):
         response = _render_game_setup_form(
@@ -473,7 +465,7 @@ async def create_game_post(
         return response
 
     # Check subscription limit
-    if not billing_service.check_game_limit(user.user_id):
+    if not ownership.can_add_game:
         response = _render_game_setup_form(
             request,
             templates,
@@ -488,6 +480,7 @@ async def create_game_post(
     try:
         game_service.create_game(
             user_id=user.user_id,
+            workspace_id=user.workspace_id,
             name=name,
             description=description,
             website_url=website_url or None,
@@ -519,13 +512,14 @@ async def create_game_post(
 def game_setup_page(
     slug: str,
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
+    ownership: OwnershipContext = Depends(require_ownership_context),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the game setup page."""
+    user = ownership.require_actor()
     game = game_repo.get_by_slug(slug)
-    if game is None or (game.user_id != user.user_id and not user.is_admin):
+    if game is None or not ownership.can_access_workspace(game.workspace_id):
         raise HTTPException(status_code=404, detail="Game not found.")
 
     return templates.TemplateResponse(
@@ -544,7 +538,7 @@ def game_setup_page(
 def _render_game_setup_form(
     request: Request,
     templates: Jinja2Templates,
-    user: User,
+    user: Actor | None,
     game: object,
     *,
     error: str | None,
@@ -568,7 +562,7 @@ def _render_game_setup_form(
 async def update_game_post(
     slug: str,
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
+    ownership: OwnershipContext = Depends(require_ownership_context),
     name: str = Form(default=""),
     summary: str = Form(default=""),
     description: str = Form(default=""),
@@ -579,6 +573,7 @@ async def update_game_post(
     _csrf: None = Depends(require_csrf_form),
 ) -> Response:
     """Handle game info update form submission."""
+    user = ownership.require_actor()
     form = await request.form()
     igdb_genre_ids, igdb_theme_ids, igdb_game_mode_ids, \
         igdb_player_perspective_ids, igdb_keyword_ids, platforms, \
@@ -588,13 +583,14 @@ async def update_game_post(
         )
 
     game = game_repo.get_by_slug(slug)
-    if game is None or (game.user_id != user.user_id and not user.is_admin):
+    if game is None or not ownership.can_access_workspace(game.workspace_id):
         raise HTTPException(status_code=404, detail="Game not found.")
 
     try:
         game_service.update_game(
             customer_game_id=game.customer_game_id,
-            user_id=game.user_id,  # use owner's ID so service ownership check passes
+            workspace_id=game.workspace_id,
+            user_id=user.user_id,
             name=name,
             description=description,
             website_url=website_url or None,
@@ -631,22 +627,26 @@ async def update_game_post(
 def duplicate_game_post(
     slug: str,
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
+    ownership: OwnershipContext = Depends(require_ownership_context),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     game_service: CustomerGameService = Depends(get_customer_game_service),
-    billing_service: BillingService = Depends(get_billing_service),
     _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Duplicate a game, redirecting to the copy's setup page."""
+    user = ownership.require_actor()
     game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
+    if game is None or not ownership.can_access_workspace(game.workspace_id):
         raise HTTPException(status_code=404, detail="Game not found.")
-    if not billing_service.check_game_limit(user.user_id):
+    if not ownership.can_add_game:
         raise HTTPException(
             status_code=400,
             detail="Game limit reached. Upgrade your plan to add more games.",
         )
-    game_service.duplicate_game(game.customer_game_id, user.user_id)
+    game_service.duplicate_game(
+        game.customer_game_id,
+        user_id=user.user_id,
+        workspace_id=user.workspace_id,
+    )
     return RedirectResponse(url="/games", status_code=303)
 
 
@@ -654,14 +654,19 @@ def duplicate_game_post(
 def delete_game_post(
     slug: str,
     request: Request,
-    user: User = Depends(require_user_or_anonymous),
+    ownership: OwnershipContext = Depends(require_ownership_context),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     game_service: CustomerGameService = Depends(get_customer_game_service),
     _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Permanently delete a game and all its data."""
+    user = ownership.require_actor()
     game = game_repo.get_by_slug(slug)
-    if game is None or game.user_id != user.user_id:
+    if game is None or not ownership.can_access_workspace(game.workspace_id):
         raise HTTPException(status_code=404, detail="Game not found.")
-    game_service.delete_game(game.customer_game_id, user.user_id)
+    game_service.delete_game(
+        game.customer_game_id,
+        user_id=user.user_id,
+        workspace_id=user.workspace_id,
+    )
     return RedirectResponse(url="/games", status_code=303)

@@ -14,28 +14,55 @@ def get_dashboard_data(db_path: str) -> dict:
         stats = conn.execute(
             """
             SELECT
-                (SELECT count(*) FROM users) AS total_accounts,
+                (SELECT count(*)
+                 FROM workspaces w
+                 LEFT JOIN users u ON u.user_id = w.owner_user_id
+                 WHERE COALESCE(u.is_admin, 0) = 0) AS total_workspaces,
+                (SELECT count(*) FROM users WHERE is_admin = 0) AS total_accounts,
+                (SELECT count(*)
+                 FROM workspaces w
+                 LEFT JOIN users u ON u.user_id = w.owner_user_id
+                 WHERE w.workspace_type = 'guest'
+                   AND COALESCE(u.is_admin, 0) = 0) AS guest_workspaces,
                 (SELECT count(*) FROM customer_games) AS total_games,
-                (SELECT count(*) FROM subscriptions WHERE status = 'comped') AS comped_accounts,
-                (SELECT count(*) FROM subscriptions
-                 WHERE status = 'active' AND current_period_end IS NOT NULL) AS paid_accounts
+                (SELECT count(*)
+                 FROM subscriptions s
+                 JOIN workspaces w ON w.workspace_id = s.workspace_id
+                 LEFT JOIN users u ON u.user_id = w.owner_user_id
+                 WHERE COALESCE(u.is_admin, 0) = 0
+                   AND s.status = 'comped') AS comped_workspaces,
+                (SELECT count(*)
+                 FROM subscriptions s
+                 JOIN workspaces w ON w.workspace_id = s.workspace_id
+                 LEFT JOIN users u ON u.user_id = w.owner_user_id
+                 WHERE COALESCE(u.is_admin, 0) = 0
+                   AND s.status = 'active'
+                   AND s.current_period_end IS NOT NULL) AS paid_workspaces
             """
         ).fetchone()
 
-        # All users with subscription info
-        users = conn.execute(
+        # All non-admin workspaces with owner/guest/subscription info.
+        workspaces = conn.execute(
             """
             SELECT
-                u.user_id,
+                w.workspace_id,
+                w.workspace_type,
+                w.owner_user_id,
+                w.guest_id,
+                w.created_at,
+                w.updated_at,
                 u.email,
                 u.google_id IS NOT NULL AS signed_up_with_google,
-                u.is_anonymous,
-                u.created_at,
+                g.claimed_by_user_id,
+                g.first_path,
+                g.first_seen_at,
                 s.status AS sub_status
-            FROM users u
-            LEFT JOIN subscriptions s ON u.user_id = s.user_id
-            WHERE u.is_admin = 0
-            ORDER BY u.created_at DESC
+            FROM workspaces w
+            LEFT JOIN users u ON u.user_id = w.owner_user_id
+            LEFT JOIN guest_identities g ON g.guest_id = w.guest_id
+            LEFT JOIN subscriptions s ON s.workspace_id = w.workspace_id
+            WHERE COALESCE(u.is_admin, 0) = 0
+            ORDER BY COALESCE(g.first_seen_at, w.created_at) DESC
             """
         ).fetchall()
 
@@ -44,7 +71,7 @@ def get_dashboard_data(db_path: str) -> dict:
             """
             SELECT
                 cg.customer_game_id,
-                cg.user_id,
+                cg.workspace_id,
                 cg.name,
                 cg.slug,
                 cg.summary,
@@ -65,23 +92,30 @@ def get_dashboard_data(db_path: str) -> dict:
             """
         ).fetchall()
 
-    # Group games by user_id
-    games_by_user: dict[str, list[dict]] = {}
+    # Group games by workspace_id (personal workspaces are keyed by user_id).
+    games_by_workspace: dict[str, list[dict]] = {}
     for g in games:
-        games_by_user.setdefault(g["user_id"], []).append(g)
+        games_by_workspace.setdefault(g["workspace_id"], []).append(g)
 
-    customers = []
-    for u in users:
-        customers.append(
+    workspace_cards = []
+    for workspace in workspaces:
+        is_guest = workspace["workspace_type"] == "guest"
+        workspace_cards.append(
             {
-                **u,
-                "games": games_by_user.get(u["user_id"], []),
+                **workspace,
+                "is_anonymous": is_guest,
+                "display_name": workspace["email"]
+                or workspace["guest_id"]
+                or workspace["workspace_id"],
+                "display_created_at": workspace["first_seen_at"]
+                or workspace["created_at"],
+                "games": games_by_workspace.get(workspace["workspace_id"], []),
             }
         )
 
     return {
         **stats,
-        "customers": customers,
+        "workspaces": workspace_cards,
     }
 
 

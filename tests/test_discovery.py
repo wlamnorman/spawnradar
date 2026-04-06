@@ -21,7 +21,7 @@ from app.igdb.models import IGDBGame
 def _make_customer_game(**overrides) -> CustomerGame:
     defaults: dict = {
         "customer_game_id": "cg-1",
-        "user_id": "u-1",
+        "workspace_id": "u-1",
         "name": "Test Game",
         "summary": "A test game.",
         "description": "Full description.",

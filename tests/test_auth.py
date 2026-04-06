@@ -63,7 +63,7 @@ def test_session_expires_check_returns_none_for_past_expiry(
     # Create a session with an expiry in the past
     session_id = str(uuid.uuid4())
     past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-    session_repo.create(session_id, registered_user.user_id, past)
+    session_repo.create(session_id, registered_user.user_id, None, past)
 
     result = auth_service.get_session(session_id)
     assert result is None

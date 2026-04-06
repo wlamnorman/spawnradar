@@ -35,7 +35,7 @@ class Subscription:
     """A developer's active subscription record."""
 
     subscription_id: str
-    user_id: str
+    workspace_id: str
     paddle_customer_id: str | None
     paddle_subscription_id: str | None
     tier: Tier
@@ -43,6 +43,11 @@ class Subscription:
     current_period_end: str | None
     created_at: str
     updated_at: str
+
+    @property
+    def user_id(self) -> str:
+        """Convenience alias for personal-workspace callers."""
+        return self.workspace_id
 
     @property
     def has_subscription(self) -> bool:

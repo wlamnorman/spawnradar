@@ -1,4 +1,4 @@
-"""Backward-compatible wrapper around shared Steam tag mapping rules."""
+"""Shared Steam tag mapping exports for game import flows."""
 
 from __future__ import annotations
 

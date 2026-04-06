@@ -23,7 +23,7 @@ from app.igdb.taxonomy import canonical_keyword_for_igdb_name
 
 _GAME_DEFAULTS = {
     "customer_game_id": "g1",
-    "user_id": "u1",
+    "workspace_id": "u1",
     "name": "Test Game",
     "summary": None,
     "description": "",

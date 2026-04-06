@@ -6,7 +6,10 @@ from pathlib import Path
 
 import frontmatter
 import markdown as md
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from app.ownership.dependencies import get_ownership_context
+from app.ownership.service import OwnershipContext
 
 router = APIRouter()
 
@@ -44,29 +47,28 @@ _POST_BY_SLUG = {p["slug"]: p for p in _POSTS}
 
 
 @router.get("/blog")
-async def blog_index(request: Request):
-    session_id = request.cookies.get("session_id")
-    user = None
-    if session_id:
-        user = request.app.state.auth_service.get_user_for_session(session_id)
+async def blog_index(
+    request: Request,
+    ownership: OwnershipContext = Depends(get_ownership_context),
+):
     return request.app.state.templates.TemplateResponse(
         request,
         "marketing/blog.html",
-        {"user": user, "posts": _POSTS},
+        {"user": ownership.actor, "posts": _POSTS},
     )
 
 
 @router.get("/blog/{slug}")
-async def blog_post(slug: str, request: Request):
+async def blog_post(
+    slug: str,
+    request: Request,
+    ownership: OwnershipContext = Depends(get_ownership_context),
+):
     post = _POST_BY_SLUG.get(slug)
     if post is None:
         raise HTTPException(status_code=404, detail="Post not found")
-    session_id = request.cookies.get("session_id")
-    user = None
-    if session_id:
-        user = request.app.state.auth_service.get_user_for_session(session_id)
     return request.app.state.templates.TemplateResponse(
         request,
         "marketing/blog_post.html",
-        {"user": user, "post": post},
+        {"user": ownership.actor, "post": post},
     )

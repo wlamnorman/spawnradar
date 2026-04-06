@@ -154,8 +154,8 @@ def test_run_snapshot_game_preset_updates_seed_payload_from_saved_game(
         if game.name == "Strife Of Stars"
     )
     service.update_game(
-        game.customer_game_id,
-        user.user_id,
+        customer_game_id=game.customer_game_id,
+        user_id=user.user_id,
         name="Strife Of Stars",
         summary="A tighter tactical fleet roguelite for PC strategy fans.",
         description="Updated description from the setup page.",
@@ -211,8 +211,8 @@ def test_run_strife_of_stars_round_trips_all_settings_after_snapshot(
         if game.name == "Strife Of Stars"
     )
     service.update_game(
-        game.customer_game_id,
-        user.user_id,
+        customer_game_id=game.customer_game_id,
+        user_id=user.user_id,
         name="Strife Of Stars",
         summary="A tighter tactical fleet roguelite for PC strategy fans.",
         description="Updated description from the setup page.",
@@ -269,8 +269,8 @@ def test_run_forgetting_hour_round_trips_all_settings_after_snapshot(
         if game.name == "The Forgetting Hour"
     )
     service.update_game(
-        game.customer_game_id,
-        user.user_id,
+        customer_game_id=game.customer_game_id,
+        user_id=user.user_id,
         name="The Forgetting Hour",
         summary="A cozy time-loop mystery for handheld and PC players.",
         description="Updated forgetting hour description from the setup page.",
@@ -330,8 +330,8 @@ def test_run_volgarr_the_viking_ii_round_trips_all_settings_after_snapshot(
         if game.name == "Volgarr the Viking II"
     )
     service.update_game(
-        game.customer_game_id,
-        user.user_id,
+        customer_game_id=game.customer_game_id,
+        user_id=user.user_id,
         name="Volgarr the Viking II",
         summary="A brutal retro action platformer inspired by 1980s arcade design.",
         description="Updated Volgarr description from the setup page.",

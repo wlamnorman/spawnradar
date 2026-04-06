@@ -51,6 +51,7 @@ class MetricsService:
         metric: CounterMetricDefinition,
         *,
         user_id: str | None = None,
+        workspace_id: str | None = None,
         customer_game_id: str | None = None,
         occurred_at: str,
         value: float = 1.0,
@@ -61,6 +62,7 @@ class MetricsService:
         return self._repo.record_metric_event(
             metric.key,
             user_id=user_id,
+            workspace_id=workspace_id,
             customer_game_id=customer_game_id,
             occurred_at=occurred_at,
             value=value,
@@ -101,6 +103,7 @@ class MetricsService:
             lambda: self.record_event(
                 PAID_SUBSCRIPTIONS_STARTED,
                 user_id=subscription.user_id,
+                workspace_id=subscription.workspace_id,
                 occurred_at=subscription.updated_at,
                 dedupe_key=(
                     "paid_subscription_started:"
@@ -129,6 +132,7 @@ class MetricsService:
             lambda: self.record_event(
                 PAID_ACCESS_ENDED,
                 user_id=subscription.user_id,
+                workspace_id=subscription.workspace_id,
                 occurred_at=occurred_at,
                 dedupe_key=(
                     "paid_access_ended:"
@@ -141,7 +145,8 @@ class MetricsService:
     def record_game_created(
         self,
         *,
-        user_id: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
         customer_game_id: str | None = None,
         occurred_at: str,
     ) -> bool:
@@ -151,6 +156,7 @@ class MetricsService:
             lambda: self.record_event(
                 GAMES_CREATED,
                 user_id=user_id,
+                workspace_id=workspace_id,
                 customer_game_id=customer_game_id,
                 occurred_at=occurred_at,
             ),
@@ -159,7 +165,8 @@ class MetricsService:
     def record_game_deleted(
         self,
         *,
-        user_id: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
         customer_game_id: str | None = None,
         occurred_at: str,
     ) -> bool:
@@ -169,6 +176,7 @@ class MetricsService:
             lambda: self.record_event(
                 GAMES_DELETED,
                 user_id=user_id,
+                workspace_id=workspace_id,
                 customer_game_id=customer_game_id,
                 occurred_at=occurred_at,
             ),
@@ -177,7 +185,8 @@ class MetricsService:
     def record_game_duplicated(
         self,
         *,
-        user_id: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
         customer_game_id: str | None = None,
         occurred_at: str,
     ) -> bool:
@@ -187,6 +196,7 @@ class MetricsService:
             lambda: self.record_event(
                 GAMES_DUPLICATED,
                 user_id=user_id,
+                workspace_id=workspace_id,
                 customer_game_id=customer_game_id,
                 occurred_at=occurred_at,
             ),
@@ -213,7 +223,8 @@ class MetricsService:
     def record_prospect_page_viewed(
         self,
         *,
-        user_id: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
         customer_game_id: str,
     ) -> bool:
         """Record one prospect page view."""
@@ -223,6 +234,7 @@ class MetricsService:
             lambda: self.record_event(
                 PROSPECT_PAGES_VIEWED,
                 user_id=user_id,
+                workspace_id=workspace_id,
                 customer_game_id=customer_game_id,
                 occurred_at=datetime.now(UTC).isoformat(),
             ),

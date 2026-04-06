@@ -99,11 +99,12 @@ class TestVerifyAdminAccess:
 class TestGetDashboardData:
     def test_empty_database(self, db_path):
         data = get_dashboard_data(db_path)
+        assert data["total_workspaces"] == 0
         assert data["total_accounts"] == 0
         assert data["total_games"] == 0
-        assert data["comped_accounts"] == 0
-        assert data["paid_accounts"] == 0
-        assert data["customers"] == []
+        assert data["comped_workspaces"] == 0
+        assert data["paid_workspaces"] == 0
+        assert data["workspaces"] == []
 
     def test_user_with_no_games(self, db_path, auth_service, billing_service, sub_repo):
         import uuid
@@ -112,11 +113,12 @@ class TestGetDashboardData:
         user = auth_service.register("alice@test.com", "pass123")
         sub_repo.create(str(uuid.uuid4()), user.user_id, Tier.INDIE)
         data = get_dashboard_data(db_path)
+        assert data["total_workspaces"] == 1
         assert data["total_accounts"] == 1
-        assert len(data["customers"]) == 1
-        c = data["customers"][0]
-        assert c["email"] == "alice@test.com"
-        assert c["games"] == []
+        assert len(data["workspaces"]) == 1
+        workspace = data["workspaces"][0]
+        assert workspace["email"] == "alice@test.com"
+        assert workspace["games"] == []
 
     def test_user_with_game(
         self, db_path, auth_service, billing_service, game_service, sub_repo
@@ -136,8 +138,8 @@ class TestGetDashboardData:
         )
         data = get_dashboard_data(db_path)
         assert data["total_games"] == 1
-        assert len(data["customers"][0]["games"]) == 1
-        g = data["customers"][0]["games"][0]
+        assert len(data["workspaces"][0]["games"]) == 1
+        g = data["workspaces"][0]["games"][0]
         assert g["name"] == "TestGame"
         assert g["summary"] == "A test game"
         assert g["prospect_count"] == 0
@@ -147,7 +149,36 @@ class TestGetDashboardData:
         user = auth_service.register("comped@test.com", "pass123")
         sub_repo.grant_comped_access(user.user_id)
         data = get_dashboard_data(db_path)
-        assert data["comped_accounts"] == 1
+        assert data["comped_workspaces"] == 1
+
+    def test_guest_workspace_with_game_is_listed(
+        self, db_path, auth_service, game_service
+    ):
+        guest_actor, _ = auth_service.create_guest_actor(
+            first_path="/games/setup",
+            first_referrer=None,
+            first_user_agent="pytest",
+        )
+        game_service.create_game(
+            workspace_id=guest_actor.workspace_id,
+            name="GuestGame",
+            summary="Guest-owned game",
+            description="Created before signup",
+            website_url=None,
+            igdb_genre_ids=[9],
+        )
+
+        data = get_dashboard_data(db_path)
+
+        assert data["total_workspaces"] == 1
+        assert data["guest_workspaces"] == 1
+        assert len(data["workspaces"]) == 1
+        workspace = data["workspaces"][0]
+        assert workspace["workspace_type"] == "guest"
+        assert workspace["guest_id"] == guest_actor.guest_id
+        assert workspace["display_name"] == guest_actor.guest_id
+        assert len(workspace["games"]) == 1
+        assert workspace["games"][0]["name"] == "GuestGame"
 
 
 class TestAdminBypassGameSetup:
@@ -269,4 +300,37 @@ class TestAdminRouteAccessControl:
             "/admin?key=test-admin-secret", follow_redirects=False
         )
         assert resp.status_code == 200
-        assert "admin@test.com" not in resp.text  # admin excluded from customer list
+        assert "admin@test.com" not in resp.text  # admin excluded from workspace list
+
+    def test_admin_dashboard_shows_guest_workspace_games(self, admin_client):
+        _register_and_login(admin_client, "admin2@test.com", "pass123")
+        db_path = os.environ.get("DB_PATH", "")
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "UPDATE users SET is_admin = 1 WHERE email = ?",
+                ("admin2@test.com",),
+            )
+
+        auth_service = admin_client.app.state.auth_service
+        game_service = admin_client.app.state.customer_game_service
+        guest_actor, _ = auth_service.create_guest_actor(
+            first_path="/games/setup",
+            first_referrer=None,
+            first_user_agent="pytest",
+        )
+        game_service.create_game(
+            workspace_id=guest_actor.workspace_id,
+            name="Guest Dashboard Game",
+            summary="Guest summary",
+            description="Guest description",
+            website_url=None,
+            igdb_genre_ids=[9],
+        )
+
+        resp = admin_client.get(
+            "/admin?key=test-admin-secret", follow_redirects=False
+        )
+
+        assert resp.status_code == 200
+        assert "Guest Dashboard Game" in resp.text
+        assert guest_actor.guest_id in resp.text

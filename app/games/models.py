@@ -40,7 +40,7 @@ class CustomerGame:
     """A customer-created game with IGDB taxonomy tags and metadata."""
 
     customer_game_id: str
-    user_id: str
+    workspace_id: str
     name: str
     summary: str | None
     description: str
@@ -58,6 +58,11 @@ class CustomerGame:
     similar_game_names: list[str] = field(default_factory=list)
     llm_similar_game_names: list[str] = field(default_factory=list)
     llm_broad_game_names: list[str] = field(default_factory=list)
+
+    @property
+    def user_id(self) -> str:
+        """Convenience alias for personal-workspace callers."""
+        return self.workspace_id
 
     @property
     def platform_labels(self) -> list[str]:

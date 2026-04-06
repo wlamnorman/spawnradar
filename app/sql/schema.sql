@@ -5,26 +5,57 @@ CREATE TABLE IF NOT EXISTS users (
     google_id     TEXT UNIQUE,                 -- NULL for password-only accounts
     is_admin      INTEGER NOT NULL DEFAULT 0,
     email_verified INTEGER NOT NULL DEFAULT 0,
-    is_anonymous  INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS guest_identities (
+    guest_id            TEXT PRIMARY KEY,
+    claimed_by_user_id  TEXT REFERENCES users(user_id) ON DELETE SET NULL,
+    first_path          TEXT,
+    first_referrer      TEXT,
+    first_user_agent    TEXT,
+    first_seen_at       TEXT NOT NULL,
+    last_seen_at        TEXT NOT NULL,
+    claimed_at          TEXT,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS workspaces (
+    workspace_id    TEXT PRIMARY KEY,
+    owner_user_id   TEXT UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+    guest_id        TEXT UNIQUE REFERENCES guest_identities(guest_id) ON DELETE CASCADE,
+    workspace_type  TEXT NOT NULL, -- personal | guest
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (
+        (owner_user_id IS NOT NULL AND guest_id IS NULL AND workspace_type = 'personal')
+        OR
+        (owner_user_id IS NULL AND guest_id IS NOT NULL AND workspace_type = 'guest')
+    )
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
     session_id  TEXT PRIMARY KEY,
-    user_id     TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id     TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+    guest_id    TEXT REFERENCES guest_identities(guest_id) ON DELETE CASCADE,
     expires_at  TEXT NOT NULL,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (
+        (user_id IS NOT NULL AND guest_id IS NULL)
+        OR
+        (user_id IS NULL AND guest_id IS NOT NULL)
+    )
 );
 
 CREATE TABLE IF NOT EXISTS subscriptions (
     subscription_id    TEXT PRIMARY KEY,
-    user_id            TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    workspace_id       TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
     paddle_customer_id     TEXT,
     paddle_subscription_id TEXT,
     tier               TEXT NOT NULL DEFAULT 'indie',    -- indie
     status             TEXT NOT NULL DEFAULT 'active',  -- active | canceled | past_due | paused | comped
-    trial_ends_at      TEXT,                            -- legacy column, no longer used
     current_period_end TEXT,
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
@@ -48,7 +79,7 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
 
 CREATE TABLE IF NOT EXISTS customer_games (
     customer_game_id   TEXT PRIMARY KEY,
-    user_id            TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    workspace_id       TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
     name               TEXT NOT NULL,
     summary            TEXT,                         -- 1-2 sentence elevator pitch
     description        TEXT NOT NULL,
@@ -72,6 +103,7 @@ CREATE TABLE IF NOT EXISTS metric_events (
     event_id    TEXT PRIMARY KEY,
     metric_key  TEXT NOT NULL,
     user_id     TEXT REFERENCES users(user_id) ON DELETE SET NULL,
+    workspace_id TEXT REFERENCES workspaces(workspace_id) ON DELETE SET NULL,
     customer_game_id TEXT REFERENCES customer_games(customer_game_id) ON DELETE SET NULL,
     occurred_at TEXT NOT NULL,
     value       REAL NOT NULL DEFAULT 1,
@@ -89,7 +121,8 @@ CREATE TABLE IF NOT EXISTS request_rate_limits (
 CREATE INDEX IF NOT EXISTS idx_request_rate_limits_scope_key_created
     ON request_rate_limits(scope, key_hash, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_customer_games_user ON customer_games(user_id);
+CREATE INDEX IF NOT EXISTS idx_workspaces_owner_user ON workspaces(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_workspaces_guest ON workspaces(guest_id);
 
 -- Relational tag rows for customer games, mirroring igdb_game_tags shape.
 -- The JSON columns on customer_games remain as a denormalized cache;

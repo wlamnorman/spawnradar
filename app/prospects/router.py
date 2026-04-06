@@ -16,10 +16,7 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from app.auth.dependencies import (
-    require_product_access,
-    require_user_or_anonymous,
-)
+from app.auth.dependencies import require_product_access
 from app.auth.models import User
 from app.billing.service import BillingService
 from app.config import Settings
@@ -31,6 +28,8 @@ from app.dependencies import (
 )
 from app.games.repository import CustomerGameRepository
 from app.igdb.taxonomy import IGDBGenre, IGDBTheme, keyword_label_for_value
+from app.ownership.dependencies import require_ownership_context
+from app.ownership.service import OwnershipContext
 from app.prospects.models import (
     PROSPECT_WORKFLOW_STATUS_LABELS,
     ProspectWorkflowStatus,
@@ -168,13 +167,13 @@ def game_prospects_page(
     max_overlap: int = _OVERLAP_FILTER_MAX,
     min_games: int = 0,
     max_games: int | None = None,
-    user: User = Depends(require_user_or_anonymous),
-    billing_service: BillingService = Depends(get_billing_service),
+    ownership: OwnershipContext = Depends(require_ownership_context),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
     settings: Settings = Depends(get_settings),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> Response:
     """Render ranked creator prospects for a customer game."""
+    user = ownership.require_actor()
     started_at = time.perf_counter()
     # Rate limit: generous enough for active filtering and workflow updates.
     if user.is_anonymous:
@@ -197,7 +196,7 @@ def game_prospects_page(
         raise HTTPException(status_code=429, detail="Too many requests.")
 
     game = game_repo.get_by_slug(slug)
-    if game is None or (game.user_id != user.user_id and not user.is_admin):
+    if game is None or not ownership.can_access_workspace(game.workspace_id):
         raise HTTPException(status_code=404, detail="Game not found.")
 
     # Record page view metric (best-effort)
@@ -211,6 +210,7 @@ def game_prospects_page(
             SubscriptionRepository(settings.db_path),
         ).record_prospect_page_viewed(
             user_id=user.user_id,
+            workspace_id=user.workspace_id,
             customer_game_id=game.customer_game_id,
         )
     except Exception:
@@ -226,8 +226,7 @@ def game_prospects_page(
 
     # Determine subscription status early so we can skip expensive
     # filter-range queries for free users who can't use filters.
-    subscription = billing_service.get_subscription(user.user_id)
-    is_limited = subscription is None or not subscription.has_access
+    is_limited = ownership.is_limited
 
     if is_limited:
         # Free users can't filter — use cheap defaults instead of
@@ -334,7 +333,7 @@ def game_prospects_page(
     log.info(
         "[prospects] GET slug=%s user_id=%s page=%s status=%s total=%s rendered=%s elapsed_ms=%.1f",
         slug,
-        user.user_id,
+        user.user_id or user.guest_id,
         page,
         status,
         total_count,

@@ -15,7 +15,8 @@ from app.games.models import CustomerGame
 
 log = logging.getLogger(__name__)
 
-_CATALOG_USER_ID = "__catalog__"
+_CATALOG_WORKSPACE_ID = "__catalog__"
+_CATALOG_USER_ID = _CATALOG_WORKSPACE_ID
 
 
 def _slug_from_name(name: str) -> str:
@@ -31,7 +32,7 @@ def load_catalog_game(path: Path) -> CustomerGame:
     The JSON is expected to have the structure used in
     ``sandbox/crawl_experiments/initial_experiments/game_defs/``.
 
-    Returns a :class:`CustomerGame` with ``user_id`` set to the
+    Returns a :class:`CustomerGame` with ``workspace_id`` set to the
     catalog sentinel value (``__catalog__``).
     """
     data = json.loads(path.read_text())
@@ -50,7 +51,7 @@ def load_catalog_game(path: Path) -> CustomerGame:
 
     return CustomerGame(
         customer_game_id=customer_game_id,
-        user_id=_CATALOG_USER_ID,
+        workspace_id=_CATALOG_WORKSPACE_ID,
         name=name,
         summary=data.get("baseline_summary", ""),
         description=data.get("baseline_summary", ""),

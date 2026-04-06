@@ -93,6 +93,13 @@ async def login_post(
     _csrf: None = Depends(require_csrf_form),
 ) -> RedirectResponse:
     """Handle login form submission."""
+    guest_id = None
+    existing_session_id = request.cookies.get("session_id")
+    if existing_session_id:
+        existing_actor = auth.get_actor_for_session(existing_session_id)
+        if existing_actor is not None:
+            guest_id = existing_actor.guest_id
+
     if not _consume_auth_rate_limit(
         request,
         settings,
@@ -119,6 +126,9 @@ async def login_post(
         )
         return response  # type: ignore[return-value]
 
+    if guest_id is not None:
+        assert session.user_id is not None
+        auth.claim_guest_workspace(guest_id, session.user_id)
     redirect = RedirectResponse(url="/games", status_code=303)
     set_session_cookie(redirect, session.session_id, settings)
     return redirect
@@ -170,13 +180,13 @@ async def register_post(
         )
         return response  # type: ignore[return-value]
 
-    # Capture anonymous session before registration replaces it
-    anon_user = None
+    # Capture guest session before registration replaces it
+    guest_id = None
     existing_session_id = request.cookies.get("session_id")
     if existing_session_id:
-        existing = auth.get_user_for_session(existing_session_id)
-        if existing and existing.is_anonymous:
-            anon_user = existing
+        existing_actor = auth.get_actor_for_session(existing_session_id)
+        if existing_actor is not None:
+            guest_id = existing_actor.guest_id
 
     try:
         auth.register(email, password)
@@ -190,8 +200,8 @@ async def register_post(
     user = auth.get_user_for_session(session.session_id)
     if user:
         auth.send_verification_email(user, email_service, settings.base_url)
-    if anon_user and user:
-        auth.claim_anonymous_games(anon_user.user_id, user.user_id)
+    if guest_id and user:
+        auth.claim_guest_workspace(guest_id, user.user_id)
     redirect = RedirectResponse(url="/auth/verify-pending", status_code=303)
     set_session_cookie(redirect, session.session_id, settings)
     return redirect
@@ -434,19 +444,19 @@ async def google_callback(
     google_id: str = user_info["sub"]
     email: str = user_info["email"]
 
-    anon_user = None
+    guest_id = None
     existing_session_id = request.cookies.get("session_id")
     if existing_session_id:
-        existing = auth.get_user_for_session(existing_session_id)
-        if existing and existing.is_anonymous:
-            anon_user = existing
+        existing_actor = auth.get_actor_for_session(existing_session_id)
+        if existing_actor is not None:
+            guest_id = existing_actor.guest_id
 
     user = auth.get_or_create_google_user(google_id, email)
     auth.mark_google_user_verified(user.user_id)
     session = auth.create_session_for_user(user.user_id)
 
-    if anon_user:
-        auth.claim_anonymous_games(anon_user.user_id, user.user_id)
+    if guest_id is not None:
+        auth.claim_guest_workspace(guest_id, user.user_id)
 
     redirect = RedirectResponse(url="/games", status_code=303)
     set_session_cookie(redirect, session.session_id, settings)

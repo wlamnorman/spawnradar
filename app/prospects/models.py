@@ -110,8 +110,3 @@ class RankedProspect:
         default_factory=ProspectWorkflowState
     )
     relevant_games: tuple[RelevantGame, ...] = ()
-
-    @property
-    def overlap_score(self) -> float:
-        """Backward-compatible alias while callers migrate."""
-        return self.coverage_score

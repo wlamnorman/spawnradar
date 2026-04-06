@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime
 
 from app.auth.models import (
     EmailVerificationToken,
+    GuestIdentity,
     PasswordResetToken,
     Session,
     User,
+    Workspace,
 )
 from app.database import get_connection
 
@@ -26,16 +29,23 @@ class UserRepository:
         password_hash: str | None,
         is_admin: bool = False,
         google_id: str | None = None,
-        is_anonymous: bool = False,
     ) -> User:
         """Insert a new user and return the created record."""
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO users (user_id, email, password_hash, google_id, is_admin, is_anonymous)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO users (user_id, email, password_hash, google_id, is_admin)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (user_id, email, password_hash, google_id, int(is_admin), int(is_anonymous)),
+                (user_id, email, password_hash, google_id, int(is_admin)),
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO workspaces
+                    (workspace_id, owner_user_id, guest_id, workspace_type)
+                VALUES (?, ?, NULL, 'personal')
+                """,
+                (user_id, user_id),
             )
         return self.get_by_id(user_id)  # type: ignore[return-value]
 
@@ -106,18 +116,32 @@ class SessionRepository:
         self._db_path = db_path
 
     def create(
-        self, session_id: str, user_id: str, expires_at: str
+        self,
+        session_id: str,
+        user_id: str | None,
+        guest_id: str | None,
+        expires_at: str,
     ) -> Session:
         """Insert a new session and return the record."""
         with get_connection(self._db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO sessions (session_id, user_id, expires_at)
-                VALUES (?, ?, ?)
+                INSERT INTO sessions (session_id, user_id, guest_id, expires_at)
+                VALUES (?, ?, ?, ?)
                 """,
-                (session_id, user_id, expires_at),
+                (session_id, user_id, guest_id, expires_at),
             )
         return self.get_by_id(session_id)  # type: ignore[return-value]
+
+    def create_for_user(
+        self, session_id: str, user_id: str, expires_at: str
+    ) -> Session:
+        return self.create(session_id, user_id, None, expires_at)
+
+    def create_for_guest(
+        self, session_id: str, guest_id: str, expires_at: str
+    ) -> Session:
+        return self.create(session_id, None, guest_id, expires_at)
 
     def get_by_id(self, session_id: str) -> Session | None:
         """Fetch a session by primary key."""
@@ -147,6 +171,163 @@ class SessionRepository:
         """Delete all sessions for a user."""
         with get_connection(self._db_path) as conn:
             conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
+    def delete_all_for_guest(self, guest_id: str) -> None:
+        """Delete all sessions for a guest identity."""
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                "DELETE FROM sessions WHERE guest_id = ?", (guest_id,)
+            )
+
+
+class GuestIdentityRepository:
+    """CRUD operations for durable pre-signup guest identities."""
+
+    def __init__(self, db_path: str) -> None:
+        self._db_path = db_path
+
+    def create(
+        self,
+        guest_id: str,
+        *,
+        first_path: str | None,
+        first_referrer: str | None,
+        first_user_agent: str | None,
+        first_seen_at: str,
+    ) -> GuestIdentity:
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO guest_identities
+                    (guest_id, claimed_by_user_id, first_path, first_referrer,
+                     first_user_agent, first_seen_at, last_seen_at, claimed_at,
+                     created_at, updated_at)
+                VALUES (?, NULL, ?, ?, ?, ?, ?, NULL, ?, ?)
+                """,
+                (
+                    guest_id,
+                    first_path,
+                    first_referrer,
+                    first_user_agent,
+                    first_seen_at,
+                    first_seen_at,
+                    first_seen_at,
+                    first_seen_at,
+                ),
+            )
+        return self.get_by_id(guest_id)  # type: ignore[return-value]
+
+    def get_by_id(self, guest_id: str) -> GuestIdentity | None:
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM guest_identities WHERE guest_id = ?",
+                (guest_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_guest_identity(row)
+
+    def touch(self, guest_id: str, occurred_at: str) -> None:
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                UPDATE guest_identities
+                SET last_seen_at = ?, updated_at = ?
+                WHERE guest_id = ?
+                """,
+                (occurred_at, occurred_at, guest_id),
+            )
+
+    def mark_claimed(
+        self, guest_id: str, user_id: str, claimed_at: str
+    ) -> None:
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                UPDATE guest_identities
+                SET claimed_by_user_id = ?, claimed_at = ?, updated_at = ?
+                WHERE guest_id = ?
+                """,
+                (user_id, claimed_at, claimed_at, guest_id),
+            )
+
+
+class WorkspaceRepository:
+    """CRUD operations for workspace ownership records."""
+
+    def __init__(self, db_path: str) -> None:
+        self._db_path = db_path
+
+    def get_by_id(self, workspace_id: str) -> Workspace | None:
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM workspaces WHERE workspace_id = ?",
+                (workspace_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_workspace(row)
+
+    def get_by_user(self, user_id: str) -> Workspace | None:
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM workspaces WHERE owner_user_id = ?",
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_workspace(row)
+
+    def get_by_guest(self, guest_id: str) -> Workspace | None:
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM workspaces WHERE guest_id = ?",
+                (guest_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_workspace(row)
+
+    def get_or_create_for_user(
+        self, user_id: str, occurred_at: str | None = None
+    ) -> Workspace:
+        existing = self.get_by_user(user_id)
+        if existing is not None:
+            return existing
+        timestamp = occurred_at or datetime.now(UTC).isoformat()
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO workspaces
+                    (workspace_id, owner_user_id, guest_id, workspace_type,
+                     created_at, updated_at)
+                VALUES (?, ?, NULL, 'personal', ?, ?)
+                """,
+                (user_id, user_id, timestamp, timestamp),
+            )
+        return self.get_by_user(user_id)  # type: ignore[return-value]
+
+    def create_for_guest(
+        self, guest_id: str, occurred_at: str
+    ) -> Workspace:
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO workspaces
+                    (workspace_id, owner_user_id, guest_id, workspace_type,
+                     created_at, updated_at)
+                VALUES (?, NULL, ?, 'guest', ?, ?)
+                """,
+                (guest_id, guest_id, occurred_at, occurred_at),
+            )
+        return self.get_by_guest(guest_id)  # type: ignore[return-value]
+
+    def delete(self, workspace_id: str) -> None:
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                "DELETE FROM workspaces WHERE workspace_id = ?",
+                (workspace_id,),
+            )
 
 
 class PasswordResetTokenRepository:
@@ -202,7 +383,33 @@ def _row_to_user(row: sqlite3.Row) -> User:
         google_id=row["google_id"],
         is_admin=bool(row["is_admin"]),
         email_verified=bool(row["email_verified"]),
-        is_anonymous=bool(dict(row).get("is_anonymous", 0)),
+        is_anonymous=False,
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _row_to_guest_identity(row: sqlite3.Row) -> GuestIdentity:
+    return GuestIdentity(
+        guest_id=row["guest_id"],
+        claimed_by_user_id=row["claimed_by_user_id"],
+        first_path=row["first_path"],
+        first_referrer=row["first_referrer"],
+        first_user_agent=row["first_user_agent"],
+        first_seen_at=row["first_seen_at"],
+        last_seen_at=row["last_seen_at"],
+        claimed_at=row["claimed_at"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _row_to_workspace(row: sqlite3.Row) -> Workspace:
+    return Workspace(
+        workspace_id=row["workspace_id"],
+        owner_user_id=row["owner_user_id"],
+        guest_id=row["guest_id"],
+        workspace_type=row["workspace_type"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -212,6 +419,7 @@ def _row_to_session(row: sqlite3.Row) -> Session:
     return Session(
         session_id=row["session_id"],
         user_id=row["user_id"],
+        guest_id=row["guest_id"],
         expires_at=row["expires_at"],
         created_at=row["created_at"],
     )

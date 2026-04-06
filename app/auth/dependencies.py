@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import Cookie, Depends, HTTPException, Request
 
-from app.auth.models import User
+from app.auth.models import Actor, User
 from app.auth.service import AuthService
 from app.billing.service import BillingService
 from app.dependencies import get_auth_service, get_billing_service
@@ -18,6 +18,16 @@ async def get_current_user(
     if session_id is None:
         return None
     return auth_service.get_user_for_session(session_id)
+
+
+async def get_current_actor(
+    session_id: str | None = Cookie(default=None),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> Actor | None:
+    """Return the current actor from the session cookie, or None."""
+    if session_id is None:
+        return None
+    return auth_service.get_actor_for_session(session_id)
 
 
 async def require_user(
@@ -70,31 +80,36 @@ async def require_product_access(
     raise HTTPException(status_code=307, headers={"Location": "/pricing"})
 
 
-async def require_user_or_anonymous(
+async def get_or_create_guest_actor(
     request: Request,
-    session_id: str | None = Cookie(default=None),
+    actor: Actor | None = Depends(get_current_actor),
     auth_service: AuthService = Depends(get_auth_service),
-) -> User:
-    """Return the current user, creating an anonymous user if no valid session.
+) -> Actor:
+    """Return the current actor, creating a guest only on meaningful writes.
 
-    Unlike require_user (which redirects to login), this creates a cookie-based
-    anonymous identity on the spot. The new session ID is stored on
+    The new session ID is stored on
     ``request.state`` and picked up by :class:`AnonymousSessionMiddleware`
     which sets it as a cookie on the actual response.
-
-    Note: We cannot use FastAPI's ``Response`` dependency injection to set
-    cookies because it does not propagate into ``TemplateResponse`` /
-    ``HTMLResponse`` returns.
     """
-    if session_id:
-        user = auth_service.get_user_for_session(session_id)
-        if user is not None:
-            return user
-    # No valid session — create anonymous user
-    user, session = auth_service.create_anonymous_user()
-    # Signal the middleware to set the cookie on the actual response
+    if actor is not None:
+        return actor
+    actor, session = auth_service.create_guest_actor(
+        first_path=request.url.path,
+        first_referrer=request.headers.get("referer"),
+        first_user_agent=request.headers.get("user-agent"),
+    )
     request.state.new_session_id = session.session_id
-    return user
+    return actor
+
+
+async def require_actor(
+    request: Request,
+    actor: Actor | None = Depends(get_current_actor),
+) -> Actor:
+    """Require an existing user or guest actor without auto-creating one."""
+    if actor is not None:
+        return actor
+    raise HTTPException(status_code=307, headers={"Location": "/games"})
 
 
 def _reject(request: Request):

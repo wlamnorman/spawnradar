@@ -24,9 +24,9 @@ def _paddle_event(
     customer_id: str,
     sub_id: str,
     status: str = "active",
-    user_id: str | None = None,
+    workspace_id: str | None = None,
 ):
-    custom_data = {"user_id": user_id} if user_id else {}
+    custom_data = {"workspace_id": workspace_id} if workspace_id else {}
     return {
         "event_id": "evt_123",
         "event_type": event_type,
@@ -46,6 +46,12 @@ def _paddle_event(
     }
 
 
+def _workspace_id_for(workspace_repo, user_id: str) -> str:
+    workspace = workspace_repo.get_by_user(user_id)
+    assert workspace is not None
+    return workspace.workspace_id
+
+
 def test_get_subscription_returns_none_for_new_user(
     billing_service, registered_user
 ):
@@ -54,10 +60,10 @@ def test_get_subscription_returns_none_for_new_user(
 
 
 def test_get_subscription_returns_existing_sub(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
     sub = billing_service.get_subscription(registered_user.user_id)
     assert isinstance(sub, Subscription)
     assert sub.user_id == registered_user.user_id
@@ -92,13 +98,13 @@ def test_indie_tier_game_limit_is_three():
 def _make_sub(
     *,
     paddle_subscription_id=None,
-    user_id="u1",
+    workspace_id="u1",
     status="active",
 ):
     now = datetime.now(UTC).isoformat()
     return Subscription(
         subscription_id="sub_test",
-        user_id=user_id,
+        workspace_id=workspace_id,
         paddle_customer_id=None,
         paddle_subscription_id=paddle_subscription_id,
         tier=Tier.INDIE,
@@ -139,7 +145,7 @@ def test_has_access_false_for_past_due_subscription():
     base = _make_sub(paddle_subscription_id="sub_paid", status="past_due")
     sub = Subscription(
         subscription_id=base.subscription_id,
-        user_id=base.user_id,
+        workspace_id=base.workspace_id,
         paddle_customer_id=base.paddle_customer_id,
         paddle_subscription_id=base.paddle_subscription_id,
         tier=base.tier,
@@ -156,7 +162,7 @@ def test_canceled_subscription_loses_access_after_period_end():
     base = _make_sub(paddle_subscription_id="sub_paid", status="canceled")
     sub = Subscription(
         subscription_id=base.subscription_id,
-        user_id=base.user_id,
+        workspace_id=base.workspace_id,
         paddle_customer_id=base.paddle_customer_id,
         paddle_subscription_id=base.paddle_subscription_id,
         tier=base.tier,
@@ -190,19 +196,20 @@ def test_comped_access_gets_paid_limits(billing_service, registered_user):
 
 
 def test_subscription_lifecycle_free_to_paid(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
     """Limits and has_subscription reflect state correctly as a user moves
     from free through activation to cancellation."""
 
     uid = registered_user.user_id
+    workspace_id = _workspace_id_for(workspace_repo, uid)
 
     # --- Free phase (no sub row) ---
     sub = billing_service.get_subscription(uid)
     assert sub is None
 
     # Create sub row so webhook can update it
-    sub_repo.create(str(uuid.uuid4()), uid, Tier.INDIE)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
 
     # --- Webhook: subscription activated ---
     event = _paddle_event(
@@ -210,7 +217,7 @@ def test_subscription_lifecycle_free_to_paid(
         price_id="pri_indie",
         customer_id="ctm_life",
         sub_id="sub_life",
-        user_id=uid,
+        workspace_id=workspace_id,
     )
     billing_service._sync_subscription(event)
 
@@ -226,12 +233,12 @@ def test_subscription_lifecycle_free_to_paid(
         customer_id="ctm_life",
         sub_id="sub_life",
         status="canceled",
-        user_id=uid,
+        workspace_id=workspace_id,
     )
     billing_service._cancel_subscription(cancel_event)
 
     billing_service._subs.update_from_paddle(
-        uid,
+        workspace_id,
         current_period_end=(datetime.now(UTC) - timedelta(days=1)).isoformat(),
     )
 
@@ -243,29 +250,30 @@ def test_subscription_lifecycle_free_to_paid(
 
 
 def test_checkout_context_uses_indie_price_id(
-    billing_service, registered_user
+    billing_service, registered_user, workspace_repo
 ):
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
     ctx = billing_service.checkout_context(
-        registered_user.user_id, "dev@example.com"
+        workspace_id, "dev@example.com"
     )
     assert ctx.price_id == "pri_indie"
     assert ctx.environment == "sandbox"
     assert ctx.customer_email == "dev@example.com"
-    assert ctx.custom_data == {"user_id": registered_user.user_id}
+    assert ctx.custom_data == {"workspace_id": workspace_id}
 
 
 def test_sync_subscription_updates_customer_ids_and_status(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
 
     event = _paddle_event(
         "subscription.created",
         price_id="pri_indie",
         customer_id="ctm_42",
         sub_id="sub_abc",
-        user_id=registered_user.user_id,
+        workspace_id=workspace_id,
     )
     billing_service._sync_subscription(event)
 
@@ -278,17 +286,17 @@ def test_sync_subscription_updates_customer_ids_and_status(
 
 
 def test_sync_subscription_treats_legacy_price_ids_as_indie(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
 
     event = _paddle_event(
         "subscription.created",
         price_id="pri_studio_legacy",
         customer_id="ctm_legacy",
         sub_id="sub_legacy",
-        user_id=registered_user.user_id,
+        workspace_id=workspace_id,
     )
     billing_service._sync_subscription(event)
 
@@ -299,12 +307,12 @@ def test_sync_subscription_treats_legacy_price_ids_as_indie(
 
 
 def test_sync_subscription_falls_back_to_customer_id_lookup(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
     billing_service._subs.update_from_paddle(
-        registered_user.user_id, paddle_customer_id="ctm_lookup"
+        workspace_id, paddle_customer_id="ctm_lookup"
     )
 
     event = _paddle_event(
@@ -323,12 +331,12 @@ def test_sync_subscription_falls_back_to_customer_id_lookup(
 
 
 def test_cancel_subscription_marks_subscription_cancelled(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
     billing_service._subs.update_from_paddle(
-        registered_user.user_id,
+        workspace_id,
         paddle_customer_id="ctm_cancel",
         tier=Tier.INDIE,
         status="active",
@@ -340,7 +348,7 @@ def test_cancel_subscription_marks_subscription_cancelled(
         customer_id="ctm_cancel",
         sub_id="sub_cancel",
         status="canceled",
-        user_id=registered_user.user_id,
+        workspace_id=workspace_id,
     )
     billing_service._cancel_subscription(event)
 
@@ -378,10 +386,10 @@ def test_handle_webhook_is_noop_when_webhook_secret_missing(
 
 
 def test_handle_webhook_processes_without_api_key(
-    registered_user, sub_repo, game_repo
+    registered_user, sub_repo, game_repo, workspace_repo
 ):
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
     svc = BillingService(
         sub_repo,
         game_repo,
@@ -393,7 +401,7 @@ def test_handle_webhook_processes_without_api_key(
             price_id="pri_indie",
             customer_id="ctm_no_api",
             sub_id="sub_no_api",
-            user_id=registered_user.user_id,
+            workspace_id=workspace_id,
         )
     ).encode()
     ts = "1700000000"
@@ -436,11 +444,11 @@ def _mock_http_responses(transaction_data: dict, subscription_data: dict):
 
 @pytest.mark.anyio
 async def test_sync_from_transaction_activates_subscription(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
     """Success redirect with _ptxn activates the subscription immediately."""
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
 
     txn_data = {"subscription_id": "sub_txn", "customer_id": "ctm_txn"}
     sub_data = {
@@ -456,9 +464,7 @@ async def test_sync_from_transaction_activates_subscription(
     with patch(
         "app.billing.service.httpx.AsyncClient", return_value=mock_client
     ):
-        await billing_service.sync_from_transaction(
-            registered_user.user_id, "txn_abc"
-        )
+        await billing_service.sync_from_transaction(workspace_id, "txn_abc")
 
     sub = billing_service.get_subscription(registered_user.user_id)
     assert sub is not None
@@ -470,14 +476,15 @@ async def test_sync_from_transaction_activates_subscription(
 
 @pytest.mark.anyio
 async def test_sync_from_transaction_is_noop_without_api_key(
-    sub_repo, game_repo, registered_user
+    sub_repo, game_repo, registered_user, workspace_repo
 ):
     """No API key → silently skips, no sub row created."""
     svc = BillingService(
         sub_repo, game_repo, paddle_indie_price_id="pri_indie"
     )
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
 
-    await svc.sync_from_transaction(registered_user.user_id, "txn_abc")
+    await svc.sync_from_transaction(workspace_id, "txn_abc")
 
     sub = sub_repo.get_by_user(registered_user.user_id)
     assert sub is None
@@ -485,13 +492,13 @@ async def test_sync_from_transaction_is_noop_without_api_key(
 
 @pytest.mark.anyio
 async def test_sync_from_transaction_is_noop_without_transaction_id(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
     """Empty transaction ID → silently skips."""
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
 
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
-
-    await billing_service.sync_from_transaction(registered_user.user_id, "")
+    await billing_service.sync_from_transaction(workspace_id, "")
 
     sub = billing_service.get_subscription(registered_user.user_id)
     assert sub is not None
@@ -500,11 +507,11 @@ async def test_sync_from_transaction_is_noop_without_transaction_id(
 
 @pytest.mark.anyio
 async def test_sync_from_transaction_swallows_api_errors(
-    billing_service, registered_user, sub_repo
+    billing_service, registered_user, sub_repo, workspace_repo
 ):
     """Paddle API failure does not raise — webhook will recover."""
-
-    sub_repo.create(str(uuid.uuid4()), registered_user.user_id, Tier.INDIE)
+    workspace_id = _workspace_id_for(workspace_repo, registered_user.user_id)
+    sub_repo.create(str(uuid.uuid4()), workspace_id, Tier.INDIE)
 
     client = AsyncMock()
     client.__aenter__ = AsyncMock(return_value=client)
@@ -512,9 +519,7 @@ async def test_sync_from_transaction_swallows_api_errors(
     client.get = AsyncMock(side_effect=Exception("network error"))
 
     with patch("app.billing.service.httpx.AsyncClient", return_value=client):
-        await billing_service.sync_from_transaction(
-            registered_user.user_id, "txn_bad"
-        )
+        await billing_service.sync_from_transaction(workspace_id, "txn_bad")
 
     sub = billing_service.get_subscription(registered_user.user_id)
     assert sub is not None
@@ -535,7 +540,7 @@ def test_canceled_subscription_keeps_access_until_period_end():
     )
     sub = Subscription(
         subscription_id=sub.subscription_id,
-        user_id=sub.user_id,
+        workspace_id=sub.workspace_id,
         paddle_customer_id=sub.paddle_customer_id,
         paddle_subscription_id=sub.paddle_subscription_id,
         tier=sub.tier,

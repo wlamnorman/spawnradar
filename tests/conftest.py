@@ -1,6 +1,11 @@
 import pytest
 
-from app.auth.repository import SessionRepository, UserRepository
+from app.auth.repository import (
+    GuestIdentityRepository,
+    SessionRepository,
+    UserRepository,
+    WorkspaceRepository,
+)
 from app.auth.service import AuthService
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
@@ -29,9 +34,25 @@ def session_repo(db_path):
 
 
 @pytest.fixture
-def auth_service(user_repo, session_repo, metrics_service):
+def guest_repo(db_path):
+    return GuestIdentityRepository(db_path)
+
+
+@pytest.fixture
+def workspace_repo(db_path):
+    return WorkspaceRepository(db_path)
+
+
+@pytest.fixture
+def auth_service(
+    user_repo, session_repo, guest_repo, workspace_repo, metrics_service
+):
     return AuthService(
-        user_repo, session_repo, metrics_service=metrics_service
+        user_repo,
+        session_repo,
+        guest_repo=guest_repo,
+        workspace_repo=workspace_repo,
+        metrics_service=metrics_service,
     )
 
 
@@ -80,9 +101,13 @@ def registered_user(auth_service):
 
 @pytest.fixture
 def anonymous_user(auth_service):
-    """Create an anonymous user for testing."""
-    user, session = auth_service.create_anonymous_user()
-    return user
+    """Create a guest actor for testing."""
+    actor, session = auth_service.create_guest_actor(
+        first_path="/games/setup",
+        first_referrer=None,
+        first_user_agent="pytest",
+    )
+    return actor
 
 
 @pytest.fixture

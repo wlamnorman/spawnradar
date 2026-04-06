@@ -17,13 +17,13 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.router import router as admin_router
 from app.auth.cookies import AnonymousSessionMiddleware
-from app.auth.dependencies import get_current_user
-from app.auth.models import User
 from app.auth.repository import (
     EmailVerificationTokenRepository,
+    GuestIdentityRepository,
     PasswordResetTokenRepository,
     SessionRepository,
     UserRepository,
+    WorkspaceRepository,
 )
 from app.auth.router import router as auth_router
 from app.auth.service import AuthService
@@ -47,6 +47,8 @@ from app.games.service import CustomerGameService
 from app.metrics.repository import MetricsRepository
 from app.metrics.router import router as metrics_router
 from app.metrics.service import MetricsService
+from app.ownership.dependencies import get_ownership_context
+from app.ownership.service import OwnershipContext, OwnershipService
 from app.prospects.router import router as prospects_router
 from app.routes.blog import router as blog_router
 from app.routes.favicon import router as favicon_router
@@ -111,6 +113,8 @@ async def lifespan(app: FastAPI):
     session_repo = SessionRepository(db_path)
     reset_token_repo = PasswordResetTokenRepository(db_path)
     email_verification_token_repo = EmailVerificationTokenRepository(db_path)
+    guest_repo = GuestIdentityRepository(db_path)
+    workspace_repo = WorkspaceRepository(db_path)
     customer_game_repo = CustomerGameRepository(db_path)
     sub_repo = SubscriptionRepository(db_path)
     metrics_repo = MetricsRepository(db_path)
@@ -126,6 +130,8 @@ async def lifespan(app: FastAPI):
         session_repo,
         reset_token_repo,
         email_verification_token_repo,
+        guest_repo=guest_repo,
+        workspace_repo=workspace_repo,
         metrics_service=metrics_service,
     )
     # CustomerGameService gets wired with on_game_changed callback below
@@ -145,6 +151,7 @@ async def lifespan(app: FastAPI):
         paddle_environment=settings.paddle_environment,
         base_url=settings.base_url,
     )
+    ownership_service = OwnershipService(auth_service, billing_service)
     scheduler = None
     if settings.scheduler_enabled:
         scope_message = (
@@ -183,14 +190,9 @@ async def lifespan(app: FastAPI):
     def subscription_for(request: Request) -> Subscription | None:
         """Return the current user's subscription for use in base templates."""
         session_id = request.cookies.get("session_id")
-        if not session_id:
-            return None
-        user = request.app.state.auth_service.get_user_for_session(session_id)
-        if user is None:
-            return None
-        return request.app.state.billing_service.get_subscription(
-            user.user_id
-        )
+        return request.app.state.ownership_service.get_context_for_session(
+            session_id
+        ).subscription
 
     # Jinja2 templates
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -206,6 +208,7 @@ async def lifespan(app: FastAPI):
     app.state.customer_game_service = customer_game_service
     app.state.game_import_service = game_import_service
     app.state.billing_service = billing_service
+    app.state.ownership_service = ownership_service
     app.state.metrics_service = metrics_service
     app.state.user_repo = user_repo
     app.state.session_repo = session_repo
@@ -322,20 +325,20 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def root(
         request: Request,
-        user: User | None = Depends(get_current_user),
+        ownership: OwnershipContext = Depends(get_ownership_context),
         templates: Jinja2Templates = Depends(get_templates),
     ):
         """Render the public landing page."""
         return templates.TemplateResponse(
             request,
             "marketing/home.html",
-            {"user": user},
+            {"user": ownership.actor},
         )
 
     @app.get("/pricing")
     async def pricing(
         request: Request,
-        user: User | None = Depends(get_current_user),
+        ownership: OwnershipContext = Depends(get_ownership_context),
         templates: Jinja2Templates = Depends(get_templates),
         billing_service: BillingService = Depends(get_billing_service),
     ):
@@ -344,7 +347,7 @@ def create_app() -> FastAPI:
             request,
             "billing/pricing.html",
             {
-                "user": user,
+                "user": ownership.actor,
                 "billing_enabled": billing_service.checkout_enabled,
                 "tier_limits": TIER_LIMITS,
                 "tier_prices": TIER_PRICES,

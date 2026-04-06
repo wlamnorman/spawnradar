@@ -131,7 +131,6 @@ class CustomerGameService:
 
     def create_game(
         self,
-        user_id: str,
         name: str,
         description: str,
         website_url: str | None,
@@ -143,8 +142,13 @@ class CustomerGameService:
         igdb_player_perspective_ids: list[int] | None = None,
         igdb_keyword_ids: list[str] | None = None,
         similar_game_names: list[str] | None = None,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> CustomerGame:
         """Create and persist a new customer game."""
+        owner_workspace_id = workspace_id or user_id
+        if owner_workspace_id is None:
+            raise ValueError("workspace_id is required.")
         genres = igdb_genre_ids or []
         keywords = igdb_keyword_ids or []
         normalized_name, normalized_summary, normalized_description = (
@@ -163,7 +167,7 @@ class CustomerGameService:
         customer_game_id = str(uuid.uuid4())
         customer_game = self._customer_games.create(
             customer_game_id=customer_game_id,
-            user_id=user_id,
+            workspace_id=owner_workspace_id,
             name=normalized_name,
             summary=normalized_summary,
             description=normalized_description,
@@ -179,6 +183,7 @@ class CustomerGameService:
         if self._metrics is not None:
             self._metrics.record_game_created(
                 user_id=user_id,
+                workspace_id=owner_workspace_id,
                 customer_game_id=customer_game.customer_game_id,
                 occurred_at=customer_game.created_at,
             )
@@ -188,7 +193,6 @@ class CustomerGameService:
     def update_game(
         self,
         customer_game_id: str,
-        user_id: str,
         name: str,
         description: str,
         website_url: str | None,
@@ -200,10 +204,15 @@ class CustomerGameService:
         igdb_player_perspective_ids: list[int] | None = None,
         igdb_keyword_ids: list[str] | None = None,
         similar_game_names: list[str] | None = None,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> CustomerGame:
         """Update customer game fields, verifying ownership."""
+        owner_workspace_id = workspace_id or user_id
+        if owner_workspace_id is None:
+            raise ValueError("workspace_id is required.")
         customer_game = self._customer_games.get_by_id(customer_game_id)
-        if customer_game is None or customer_game.user_id != user_id:
+        if customer_game is None or customer_game.workspace_id != owner_workspace_id:
             raise ValueError("Customer game not found or access denied.")
 
         genres = igdb_genre_ids or []
@@ -238,25 +247,40 @@ class CustomerGameService:
         self._notify_game_changed(customer_game_id)
         return updated
 
-    def delete_game(self, customer_game_id: str, user_id: str) -> None:
+    def delete_game(
+        self,
+        customer_game_id: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
+    ) -> None:
         """Permanently delete a customer game and all its associated data."""
+        owner_workspace_id = workspace_id or user_id
+        if owner_workspace_id is None:
+            raise ValueError("workspace_id is required.")
         customer_game = self._customer_games.get_by_id(customer_game_id)
-        if customer_game is None or customer_game.user_id != user_id:
+        if customer_game is None or customer_game.workspace_id != owner_workspace_id:
             raise ValueError("Customer game not found or access denied.")
         if self._metrics is not None:
             self._metrics.record_game_deleted(
                 user_id=user_id,
+                workspace_id=owner_workspace_id,
                 customer_game_id=customer_game.customer_game_id,
                 occurred_at=datetime.now(UTC).isoformat(),
             )
         self._customer_games.delete(customer_game_id)
 
     def duplicate_game(
-        self, customer_game_id: str, user_id: str
+        self,
+        customer_game_id: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> CustomerGame:
         """Create a copy of a customer game with all its metadata and no child records."""
+        owner_workspace_id = workspace_id or user_id
+        if owner_workspace_id is None:
+            raise ValueError("workspace_id is required.")
         customer_game = self._customer_games.get_by_id(customer_game_id)
-        if customer_game is None or customer_game.user_id != user_id:
+        if customer_game is None or customer_game.workspace_id != owner_workspace_id:
             raise ValueError("Customer game not found or access denied.")
         new_customer_game_id = str(uuid.uuid4())
         new_name = f"Copy of {customer_game.name}"
@@ -268,6 +292,7 @@ class CustomerGameService:
         if self._metrics is not None:
             self._metrics.record_game_duplicated(
                 user_id=user_id,
+                workspace_id=owner_workspace_id,
                 customer_game_id=new_customer_game.customer_game_id,
                 occurred_at=new_customer_game.created_at,
             )

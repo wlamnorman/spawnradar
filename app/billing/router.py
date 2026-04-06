@@ -39,20 +39,6 @@ async def billing_page(
     )
 
 
-@router.get("/pricing")
-async def billing_pricing_redirect() -> RedirectResponse:
-    """Keep legacy pricing links working by redirecting to /pricing."""
-    return RedirectResponse(url="/pricing", status_code=303)
-
-
-@router.get("/checkout/{tier}")
-async def legacy_checkout_redirect(tier: str) -> RedirectResponse:
-    """Redirect legacy checkout links to the dedicated Paddle payment page."""
-    if tier not in ("indie", "studio"):
-        raise HTTPException(status_code=400, detail="Invalid tier.")
-    return RedirectResponse(url="/billing/pay", status_code=303)
-
-
 @router.get("/pay")
 async def pay(
     request: Request,

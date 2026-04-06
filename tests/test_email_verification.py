@@ -30,12 +30,18 @@ def email_verification_token_repo(db_path):
 
 @pytest.fixture
 def auth_service_with_verification(
-    user_repo, session_repo, email_verification_token_repo
+    user_repo,
+    session_repo,
+    email_verification_token_repo,
+    guest_repo,
+    workspace_repo,
 ):
     return AuthService(
         user_repo,
         session_repo,
         email_verification_token_repo=email_verification_token_repo,
+        guest_repo=guest_repo,
+        workspace_repo=workspace_repo,
     )
 
 

@@ -75,19 +75,28 @@ class BillingService:
         """Return True if backend Paddle API features are configured."""
         return bool(self._api_key)
 
+    def get_subscription_for_workspace(
+        self, workspace_id: str
+    ) -> Subscription | None:
+        """Return the workspace's subscription, if any."""
+        return self._subs.get_by_workspace(workspace_id)
+
     def get_subscription(self, user_id: str) -> Subscription | None:
-        """Return the user's subscription, or None if they have no subscription row."""
+        """Return the registered user's subscription."""
         return self._subs.get_by_user(user_id)
 
-    def check_game_limit(self, user_id: str) -> bool:
-        sub = self.get_subscription(user_id)
+    def check_game_limit_for_workspace(self, workspace_id: str) -> bool:
+        sub = self.get_subscription_for_workspace(workspace_id)
         limit = self._get_limits(sub)["games"]
-        current = self._customer_games.count_by_user(user_id)
+        current = self._customer_games.count_by_workspace(workspace_id)
         return current < limit
 
-    def grant_comped_access(self, user_id: str) -> Subscription | None:
+    def check_game_limit(self, user_id: str) -> bool:
+        return self.check_game_limit_for_workspace(user_id)
+
+    def grant_comped_access(self, workspace_id: str) -> Subscription | None:
         """Grant complimentary full access without a Paddle subscription."""
-        return self._subs.grant_comped_access(user_id, Tier.INDIE)
+        return self._subs.grant_comped_access(workspace_id, Tier.INDIE)
 
     def _get_limits(self, sub: Subscription | None) -> dict[str, int]:
         if sub is not None and sub.has_access:
@@ -95,7 +104,7 @@ class BillingService:
         return FREE_LIMITS
 
     def checkout_context(
-        self, user_id: str, customer_email: str | None = None
+        self, workspace_id: str, customer_email: str | None = None
     ) -> CheckoutContext:
         """Build client-side Paddle checkout settings for the single plan."""
         if not self.checkout_enabled:
@@ -107,11 +116,11 @@ class BillingService:
             environment=self._environment,
             success_url=f"{self._base_url}/billing/success",
             customer_email=customer_email,
-            custom_data={"user_id": user_id},
+            custom_data={"workspace_id": workspace_id},
         )
 
     async def sync_from_transaction(
-        self, user_id: str, transaction_id: str
+        self, workspace_id: str, transaction_id: str
     ) -> None:
         """Eagerly activate a subscription from a Paddle transaction ID.
 
@@ -151,9 +160,9 @@ class BillingService:
             current_period_end = _extract_period_end(sub_data)
             tier = self._tier_from_subscription(sub_data)
 
-            before = self._subs.get_by_user(user_id)
+            before = self._subs.get_by_workspace(workspace_id)
             self._subs.update_from_paddle(
-                user_id,
+                workspace_id,
                 paddle_customer_id=customer_id,
                 paddle_subscription_id=subscription_id,
                 tier=tier,
@@ -163,7 +172,7 @@ class BillingService:
             if self._metrics is not None:
                 self._metrics.record_subscription_transition(
                     before,
-                    self._subs.get_by_user(user_id),
+                    self._subs.get_by_workspace(workspace_id),
                 )
         except Exception:
             log.warning(
@@ -172,12 +181,12 @@ class BillingService:
                 transaction_id,
             )
 
-    async def get_portal_url(self, user_id: str) -> str:
+    async def get_portal_url(self, workspace_id: str) -> str:
         """Create a short-lived Paddle customer portal URL."""
         if not self.portal_enabled:
             return ""
 
-        sub = self.get_subscription(user_id)
+        sub = self.get_subscription_for_workspace(workspace_id)
         if sub is None or not sub.paddle_customer_id:
             return ""
 
@@ -238,13 +247,15 @@ class BillingService:
         current_period_end = _extract_period_end(data)
         tier = self._tier_from_subscription(data)
 
-        user_id = self._resolve_user_id(custom_data, paddle_customer_id)
-        if not user_id:
+        workspace_id = self._resolve_workspace_id(
+            custom_data, paddle_customer_id
+        )
+        if not workspace_id:
             return
 
-        before = self._subs.get_by_user(user_id)
+        before = self._subs.get_by_workspace(workspace_id)
         self._subs.update_from_paddle(
-            user_id,
+            workspace_id,
             paddle_customer_id=paddle_customer_id,
             paddle_subscription_id=paddle_subscription_id,
             tier=tier,
@@ -254,7 +265,7 @@ class BillingService:
         if self._metrics is not None:
             self._metrics.record_subscription_transition(
                 before,
-                self._subs.get_by_user(user_id),
+                self._subs.get_by_workspace(workspace_id),
             )
 
     def _cancel_subscription(self, event: dict[str, Any]) -> None:
@@ -262,36 +273,38 @@ class BillingService:
         custom_data = _as_dict(data.get("custom_data"))
         paddle_customer_id = _as_str(data.get("customer_id"))
 
-        user_id = self._resolve_user_id(custom_data, paddle_customer_id)
-        if not user_id:
+        workspace_id = self._resolve_workspace_id(
+            custom_data, paddle_customer_id
+        )
+        if not workspace_id:
             return
 
-        before = self._subs.get_by_user(user_id)
+        before = self._subs.get_by_workspace(workspace_id)
         self._subs.update_from_paddle(
-            user_id,
+            workspace_id,
             status="canceled",
             tier=Tier.INDIE,
         )
         if self._metrics is not None:
             self._metrics.record_subscription_transition(
                 before,
-                self._subs.get_by_user(user_id),
+                self._subs.get_by_workspace(workspace_id),
             )
 
-    def _resolve_user_id(
+    def _resolve_workspace_id(
         self, custom_data: dict[str, Any], paddle_customer_id: str
     ) -> str | None:
-        user_id = _as_str(custom_data.get("user_id"))
-        if not user_id and paddle_customer_id:
+        workspace_id = _as_str(custom_data.get("workspace_id"))
+        if not workspace_id and paddle_customer_id:
             sub = self._subs.get_by_paddle_customer(paddle_customer_id)
             if sub:
-                user_id = sub.user_id
-        if not user_id:
+                workspace_id = sub.workspace_id
+        if not workspace_id:
             log.warning(
-                "Paddle webhook: could not resolve user for customer %s",
+                "Paddle webhook: could not resolve workspace for customer %s",
                 paddle_customer_id,
             )
-        return user_id or None
+        return workspace_id or None
 
     def _tier_from_subscription(self, data: dict[str, Any]) -> Tier:
         for item in _as_list(data.get("items")):

@@ -27,9 +27,9 @@ def admin_dashboard(
     """Render the admin dashboard."""
     data = get_dashboard_data(settings.db_path)
 
-    # Parse game JSON fields for each customer
-    for customer in data["customers"]:
-        for game in customer["games"]:
+    # Parse game JSON fields for each workspace card.
+    for workspace in data["workspaces"]:
+        for game in workspace["games"]:
             game["platforms_list"] = json.loads(game["platforms"] or "[]")
 
     return templates.TemplateResponse(

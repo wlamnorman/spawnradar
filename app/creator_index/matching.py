@@ -178,11 +178,6 @@ class ProfileGameMatch:
     coverage_score: float
     overlap_tags: tuple[TagKey, ...]
 
-    @property
-    def overlap_score(self) -> float:
-        """Backward-compatible alias for older callers."""
-        return self.coverage_score
-
 
 def match_creator_tags_to_game(
     customer_game: CustomerGame,

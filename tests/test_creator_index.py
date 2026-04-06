@@ -552,7 +552,7 @@ def test_async_persisted_creator_becomes_rankable_prospect(db_path):
 
     game = CustomerGame(
         customer_game_id="cg-1",
-        user_id="u-1",
+        workspace_id="u-1",
         name="Test Strategy Game",
         summary=None,
         description="Test strategy game",
@@ -574,7 +574,7 @@ def test_async_persisted_creator_becomes_rankable_prospect(db_path):
 
     assert len(prospects) == 1
     assert prospects[0].profile.handle == "prospect-tv"
-    assert prospects[0].overlap_score > 0
+    assert prospects[0].coverage_score > 0
 
 
 # ---------------------------------------------------------------------------

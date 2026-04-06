@@ -77,10 +77,21 @@ def _get_user_id(db_path: str, email: str) -> str:
     return row["user_id"]
 
 
-def _get_sub_row(db_path: str, user_id: str) -> dict:
+def _get_workspace_id(db_path: str, user_id: str) -> str:
     with get_connection(db_path) as conn:
         row = conn.execute(
-            "SELECT * FROM subscriptions WHERE user_id = ?", (user_id,)
+            "SELECT workspace_id FROM workspaces WHERE owner_user_id = ?",
+            (user_id,),
+        ).fetchone()
+    assert row is not None
+    return row["workspace_id"]
+
+
+def _get_sub_row(db_path: str, user_id: str) -> dict:
+    workspace_id = _get_workspace_id(db_path, user_id)
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM subscriptions WHERE workspace_id = ?", (workspace_id,)
         ).fetchone()
     assert row is not None, f"No subscription found for user {user_id}"
     return dict(row)
@@ -112,7 +123,7 @@ def _post_webhook(client: TestClient, payload: dict, **kwargs) -> Response:
 
 
 def _activation_event(
-    user_id: str,
+    workspace_id: str,
     *,
     event_type: str = "subscription.activated",
     customer_id: str = "ctm_test",
@@ -132,7 +143,7 @@ def _activation_event(
                 "starts_at": datetime.now(UTC).isoformat(),
                 "ends_at": period_end,
             },
-            "custom_data": {"user_id": user_id},
+            "custom_data": {"workspace_id": workspace_id},
         },
     }
 
@@ -143,7 +154,10 @@ def _create_sub_row(db_path: str, user_id: str) -> None:
 
     from app.billing.models import Tier
     from app.billing.repository import SubscriptionRepository
-    SubscriptionRepository(db_path).create(str(uuid.uuid4()), user_id, Tier.INDIE)
+    workspace_id = _get_workspace_id(db_path, user_id)
+    SubscriptionRepository(db_path).create(
+        str(uuid.uuid4()), workspace_id, Tier.INDIE
+    )
 
 
 def _activate_subscription(
@@ -152,7 +166,7 @@ def _activate_subscription(
     """Register, verify and fire an activation webhook. Returns user_id."""
     _register_and_verify(client, db_path, email)
     user_id = _get_user_id(db_path, email)
-    event = _activation_event(user_id)
+    event = _activation_event(_get_workspace_id(db_path, user_id))
     resp = _post_webhook(client, event)
     assert resp.status_code == 200
     return user_id
@@ -169,7 +183,7 @@ class TestWebhookSignatureVerification:
         with client:
             _register_and_verify(client, db_path)
             user_id = _get_user_id(db_path, "user@example.com")
-            event = _activation_event(user_id)
+            event = _activation_event(_get_workspace_id(db_path, user_id))
             response = _post_webhook(client, event)
         assert response.status_code == 200
 
@@ -281,7 +295,8 @@ class TestWebhookEventHandling:
             _register_and_verify(client, db_path)
             user_id = _get_user_id(db_path, "user@example.com")
             event = _activation_event(
-                user_id, event_type="subscription.created"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.created",
             )
             _post_webhook(client, event)
         sub = _get_sub_row(db_path, user_id)
@@ -297,7 +312,8 @@ class TestWebhookEventHandling:
             _register_and_verify(client, db_path)
             user_id = _get_user_id(db_path, "user@example.com")
             event = _activation_event(
-                user_id, event_type="subscription.activated"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.activated",
             )
             _post_webhook(client, event)
         sub = _get_sub_row(db_path, user_id)
@@ -309,7 +325,9 @@ class TestWebhookEventHandling:
         with client:
             user_id = _activate_subscription(client, db_path)
             cancel = _activation_event(
-                user_id, event_type="subscription.canceled", status="canceled"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.canceled",
+                status="canceled",
             )
             _post_webhook(client, cancel)
         sub = _get_sub_row(db_path, user_id)
@@ -321,7 +339,9 @@ class TestWebhookEventHandling:
         with client:
             user_id = _activate_subscription(client, db_path)
             event = _activation_event(
-                user_id, event_type="subscription.past_due", status="past_due"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.past_due",
+                status="past_due",
             )
             _post_webhook(client, event)
         sub = _get_sub_row(db_path, user_id)
@@ -332,7 +352,9 @@ class TestWebhookEventHandling:
         with client:
             user_id = _activate_subscription(client, db_path)
             event = _activation_event(
-                user_id, event_type="subscription.paused", status="paused"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.paused",
+                status="paused",
             )
             _post_webhook(client, event)
         sub = _get_sub_row(db_path, user_id)
@@ -343,7 +365,9 @@ class TestWebhookEventHandling:
         with client:
             user_id = _activate_subscription(client, db_path)
             event = _activation_event(
-                user_id, event_type="subscription.updated", status="active"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.updated",
+                status="active",
             )
             _post_webhook(client, event)
         sub = _get_sub_row(db_path, user_id)
@@ -357,9 +381,10 @@ class TestWebhookEventHandling:
             _register_and_verify(client, db_path)
             user_id = _get_user_id(db_path, "user@example.com")
             _create_sub_row(db_path, user_id)
+            workspace_id = _get_workspace_id(db_path, user_id)
             event = {
                 "event_type": "transaction.completed",
-                "data": {"custom_data": {"user_id": user_id}},
+                "data": {"custom_data": {"workspace_id": workspace_id}},
             }
             response = _post_webhook(client, event)
         assert response.status_code == 200
@@ -375,12 +400,13 @@ class TestWebhookEventHandling:
             _register_and_verify(client, db_path)
             user_id = _get_user_id(db_path, "user@example.com")
             _create_sub_row(db_path, user_id)
+            workspace_id = _get_workspace_id(db_path, user_id)
 
             # Pre-link the customer ID to this user's subscription
             with get_connection(db_path) as conn:
                 conn.execute(
-                    "UPDATE subscriptions SET paddle_customer_id = 'ctm_lookup' WHERE user_id = ?",
-                    (user_id,),
+                    "UPDATE subscriptions SET paddle_customer_id = 'ctm_lookup' WHERE workspace_id = ?",
+                    (workspace_id,),
                 )
 
             # Webhook with no user_id in custom_data
@@ -409,10 +435,10 @@ class TestWebhookEventHandling:
     def test_webhook_for_unknown_user_is_accepted_gracefully(
         self, monkeypatch, tmp_path
     ):
-        """Webhook for a user_id that doesn't exist must not crash the server."""
+        """Webhook for an unknown workspace must not crash the server."""
         client, db_path = _make_client(monkeypatch, tmp_path)
         with client:
-            event = _activation_event("uid_does_not_exist")
+            event = _activation_event("ws_does_not_exist")
             response = _post_webhook(client, event)
         assert response.status_code == 200
 
@@ -451,14 +477,17 @@ class TestBillingStatusEndpoint:
         with client:
             user_id = _activate_subscription(client, db_path)
             cancel = _activation_event(
-                user_id, event_type="subscription.canceled", status="canceled"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.canceled",
+                status="canceled",
             )
             _post_webhook(client, cancel)
             past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+            workspace_id = _get_workspace_id(db_path, user_id)
             with get_connection(db_path) as conn:
                 conn.execute(
-                    "UPDATE subscriptions SET current_period_end = ? WHERE user_id = ?",
-                    (past, user_id),
+                    "UPDATE subscriptions SET current_period_end = ? WHERE workspace_id = ?",
+                    (past, workspace_id),
                 )
             response = client.get("/billing/status")
         assert response.status_code == 200
@@ -559,7 +588,9 @@ class TestBillingManagementPage:
         with client:
             user_id = _activate_subscription(client, db_path)
             cancel = _activation_event(
-                user_id, event_type="subscription.canceled", status="canceled"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.canceled",
+                status="canceled",
             )
             _post_webhook(client, cancel)
             response = client.get("/billing")
@@ -574,7 +605,9 @@ class TestBillingManagementPage:
         with client:
             user_id = _activate_subscription(client, db_path)
             event = _activation_event(
-                user_id, event_type="subscription.past_due", status="past_due"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.past_due",
+                status="past_due",
             )
             _post_webhook(client, event)
             response = client.get("/billing")
@@ -649,7 +682,9 @@ class TestFullActivationFlow:
 
             # Step 4: webhook arrives
             event = _activation_event(
-                user_id, customer_id="ctm_e2e", sub_id="sub_e2e"
+                _get_workspace_id(db_path, user_id),
+                customer_id="ctm_e2e",
+                sub_id="sub_e2e",
             )
             webhook_resp = _post_webhook(client, event)
             assert webhook_resp.status_code == 200
@@ -679,12 +714,17 @@ class TestFullActivationFlow:
             assert client.get("/billing/status").json() == {"active": False}
 
             # Activate
-            _post_webhook(client, _activation_event(user_id))
+            _post_webhook(
+                client,
+                _activation_event(_get_workspace_id(db_path, user_id)),
+            )
             assert client.get("/billing/status").json() == {"active": True}
 
             # Cancel
             cancel = _activation_event(
-                user_id, event_type="subscription.canceled", status="canceled"
+                _get_workspace_id(db_path, user_id),
+                event_type="subscription.canceled",
+                status="canceled",
             )
             _post_webhook(client, cancel)
 
@@ -694,10 +734,11 @@ class TestFullActivationFlow:
 
             # Expire the billing period and verify billing page shows Canceled
             past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+            workspace_id = _get_workspace_id(db_path, user_id)
             with get_connection(db_path) as conn:
                 conn.execute(
-                    "UPDATE subscriptions SET current_period_end = ? WHERE user_id = ?",
-                    (past, user_id),
+                    "UPDATE subscriptions SET current_period_end = ? WHERE workspace_id = ?",
+                    (past, workspace_id),
                 )
 
             # Billing page still renders (not redirected to /pricing) and shows Canceled

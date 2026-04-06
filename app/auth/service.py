@@ -9,12 +9,14 @@ from typing import TYPE_CHECKING
 
 import bcrypt
 
-from app.auth.models import Session, User
+from app.auth.models import Actor, GuestIdentity, Session, User, Workspace
 from app.auth.repository import (
     EmailVerificationTokenRepository,
+    GuestIdentityRepository,
     PasswordResetTokenRepository,
     SessionRepository,
     UserRepository,
+    WorkspaceRepository,
 )
 from app.email.service import EmailMessage, EmailService
 
@@ -53,12 +55,16 @@ class AuthService:
         reset_token_repo: PasswordResetTokenRepository | None = None,
         email_verification_token_repo: EmailVerificationTokenRepository
         | None = None,
+        guest_repo: GuestIdentityRepository | None = None,
+        workspace_repo: WorkspaceRepository | None = None,
         metrics_service: MetricsService | None = None,
     ) -> None:
         self._users = user_repo
         self._sessions = session_repo
         self._reset_tokens = reset_token_repo
         self._email_verification_tokens = email_verification_token_repo
+        self._guests = guest_repo
+        self._workspaces = workspace_repo
         self._metrics = metrics_service
 
     def register(self, email: str, password: str) -> User:
@@ -75,6 +81,7 @@ class AuthService:
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         user_id = str(uuid.uuid4())
         user = self._users.create(user_id, email, hashed)
+        self.get_or_create_workspace_for_user(user.user_id)
         if self._metrics is not None:
             self._metrics.record_account_created(user.user_id, user.created_at)
         return user
@@ -90,10 +97,12 @@ class AuthService:
             raise ValueError("Email is required.")
         existing = self._users.get_by_email(email)
         if existing is not None:
+            self.get_or_create_workspace_for_user(existing.user_id)
             return existing
 
         user_id = str(uuid.uuid4())
         user = self._users.create(user_id, email, password_hash=None)
+        self.get_or_create_workspace_for_user(user.user_id)
         if self._metrics is not None:
             self._metrics.record_account_created(user.user_id, user.created_at)
         return user
@@ -118,7 +127,10 @@ class AuthService:
         expires_at = (
             datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
         ).isoformat()
-        session = self._sessions.create(session_id, user.user_id, expires_at)
+        self.get_or_create_workspace_for_user(user.user_id)
+        session = self._sessions.create_for_user(
+            session_id, user.user_id, expires_at
+        )
         if self._metrics is not None:
             self._metrics.record_session_started(
                 user.user_id, session.created_at
@@ -140,22 +152,41 @@ class AuthService:
         expires_at = (
             datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)
         ).isoformat()
-        session = self._sessions.create(session_id, user_id, expires_at)
+        self.get_or_create_workspace_for_user(user_id)
+        session = self._sessions.create_for_user(
+            session_id, user_id, expires_at
+        )
         if self._metrics is not None:
             self._metrics.record_session_started(user_id, session.created_at)
         return session
 
-    def create_anonymous_user(self) -> tuple[User, Session]:
-        """Create an anonymous user with a session for cookie-based access."""
-        user_id = str(uuid.uuid4())
-        email = f"{user_id}@anonymous.local"
-        user = self._users.create(
-            user_id, email, password_hash=None, is_anonymous=True,
+    def create_guest_actor(
+        self,
+        *,
+        first_path: str | None,
+        first_referrer: str | None,
+        first_user_agent: str | None,
+    ) -> tuple[Actor, Session]:
+        """Create a durable guest identity and a browser session for it."""
+        if self._sessions is None or self._guests is None or self._workspaces is None:
+            raise ValueError("Guest session storage is not configured.")
+
+        guest_id = str(uuid.uuid4())
+        now = datetime.now(UTC).isoformat()
+        guest = self._guests.create(
+            guest_id,
+            first_path=first_path,
+            first_referrer=first_referrer,
+            first_user_agent=first_user_agent,
+            first_seen_at=now,
         )
-        session = self.create_session_for_user(user_id)
-        if self._metrics is not None:
-            self._metrics.record_account_created(user.user_id, user.created_at)
-        return user, session
+        workspace = self._workspaces.create_for_guest(guest.guest_id, now)
+        session = self._sessions.create_for_guest(
+            str(uuid.uuid4()),
+            guest.guest_id,
+            (datetime.now(UTC) + timedelta(days=SESSION_LIFETIME_DAYS)).isoformat(),
+        )
+        return self._actor_from_guest(guest, workspace.workspace_id), session
 
     def get_or_create_google_user(self, google_id: str, email: str) -> User:
         """Return an existing user matched by Google ID or email, creating one if absent.
@@ -168,12 +199,14 @@ class AuthService:
         # 1. Exact match on google_id
         user = self._users.get_by_google_id(google_id)
         if user is not None:
+            self.get_or_create_workspace_for_user(user.user_id)
             return user
 
         # 2. Existing account with same email — link the Google ID
         user = self._users.get_by_email(email)
         if user is not None:
             self._users.link_google_id(user.user_id, google_id)
+            self.get_or_create_workspace_for_user(user.user_id)
             return self._users.get_by_id(user.user_id)  # type: ignore[return-value]
 
         # 3. New user — create a password-less account
@@ -200,9 +233,35 @@ class AuthService:
     def get_user_for_session(self, session_id: str) -> User | None:
         """Return the User associated with a valid session, or None."""
         session = self.get_session(session_id)
-        if session is None:
+        if session is None or session.user_id is None:
             return None
         return self._users.get_by_id(session.user_id)
+
+    def get_actor_for_session(self, session_id: str) -> Actor | None:
+        """Return the current request actor for a session."""
+        session = self.get_session(session_id)
+        if session is None:
+            return None
+        if session.user_id is not None:
+            user = self._users.get_by_id(session.user_id)
+            if user is None:
+                return None
+            workspace = self.get_or_create_workspace_for_user(user.user_id)
+            return self._actor_from_user(user, workspace.workspace_id)
+        if session.guest_id is None or self._guests is None or self._workspaces is None:
+            return None
+        guest = self._guests.get_by_id(session.guest_id)
+        workspace = self._workspaces.get_by_guest(session.guest_id)
+        if guest is None or workspace is None:
+            return None
+        self._guests.touch(guest.guest_id, datetime.now(UTC).isoformat())
+        return self._actor_from_guest(guest, workspace.workspace_id)
+
+    def get_or_create_workspace_for_user(self, user_id: str) -> Workspace:
+        """Return the user's personal workspace, creating it if needed."""
+        if self._workspaces is None:
+            raise ValueError("Workspace storage is not configured.")
+        return self._workspaces.get_or_create_for_user(user_id)
 
     def request_password_reset(
         self,
@@ -335,27 +394,61 @@ class AuthService:
         """Mark a Google-authenticated user's email as verified."""
         self._users.mark_email_verified(user_id)
 
-    def claim_anonymous_games(self, anon_user_id: str, new_user_id: str) -> int:
-        """Transfer games from anonymous user to real account, then delete anon user.
-
-        The customer_game_tags and prospect_statuses rows survive because
-        they're keyed by customer_game_id, not user_id.
-
-        Returns count of games transferred.
-        """
+    def claim_guest_workspace(self, guest_id: str, new_user_id: str) -> int:
+        """Transfer guest-owned product data into the user's personal workspace."""
         from app.billing.repository import SubscriptionRepository
         from app.games.repository import CustomerGameRepository
 
-        game_repo = CustomerGameRepository(self._users._db_path)
-        transferred = game_repo.transfer_ownership(anon_user_id, new_user_id)
+        if self._guests is None or self._workspaces is None:
+            return 0
 
-        # Clean up the anonymous identity
+        guest_workspace = self._workspaces.get_by_guest(guest_id)
+        if guest_workspace is None:
+            return 0
+        user_workspace = self.get_or_create_workspace_for_user(new_user_id)
+        game_repo = CustomerGameRepository(self._users._db_path)
+        transferred = game_repo.transfer_workspace(
+            guest_workspace.workspace_id,
+            user_workspace.workspace_id,
+        )
+
         sub_repo = SubscriptionRepository(self._users._db_path)
-        sub_repo.delete_by_user(anon_user_id)
+        sub_repo.transfer_to_workspace(
+            guest_workspace.workspace_id,
+            user_workspace.workspace_id,
+        )
         if self._sessions is not None:
-            self._sessions.delete_all_for_user(anon_user_id)
-        self._users.delete(anon_user_id)
+            self._sessions.delete_all_for_guest(guest_id)
+        now = datetime.now(UTC).isoformat()
+        self._guests.mark_claimed(guest_id, new_user_id, now)
+        self._workspaces.delete(guest_workspace.workspace_id)
         return transferred
+
+    def _actor_from_user(self, user: User, workspace_id: str) -> Actor:
+        return Actor(
+            workspace_id=workspace_id,
+            user_id=user.user_id,
+            guest_id=None,
+            email=user.email,
+            is_admin=user.is_admin,
+            email_verified=user.email_verified,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )
+
+    def _actor_from_guest(
+        self, guest: GuestIdentity, workspace_id: str
+    ) -> Actor:
+        return Actor(
+            workspace_id=workspace_id,
+            user_id=None,
+            guest_id=guest.guest_id,
+            email=None,
+            is_admin=False,
+            email_verified=False,
+            created_at=guest.created_at,
+            updated_at=guest.updated_at,
+        )
 
     def reset_password(self, token_id: str, new_password: str) -> None:
         """Reset a user's password using a valid reset token.

@@ -6,13 +6,12 @@
 block og_description %}Manage your games and track creator discovery from one
 dashboard.{% endblock %} {% block twitter_title %}My Games — SpawnRadar{%
 endblock %} {% block twitter_description %}Manage your games and track creator
-discovery from one dashboard.{% endblock %} {% block content %} {% if
+discovery from one dashboard.{% endblock %} {% block content %} {% if user and
 user.is_anonymous %}
 <div class="free-banner">
-    <strong>You're trying SpawnRadar!</strong>
     <a href="/auth/register">Sign up</a> to save your game permanently.
 </div>
-{% elif is_limited %}
+{% elif user and is_limited %}
 <div class="free-banner">
     <a href="/pricing">Subscribe</a> for up unrestricted access to creators,
     multiple games, smart filters, and outreach workflow tools.
@@ -100,10 +99,9 @@ user.is_anonymous %}
             <div class="game-card-actions">
                 {% if game_match_counts.get(game.customer_game_id) %}
                 <p class="game-card-meta subtle">
-                    {{ game_match_counts[game.customer_game_id] }}
-                    matched creator{% if
-                    game_match_counts[game.customer_game_id] != 1 %}s{%
-                    endif %}
+                    {{ game_match_counts[game.customer_game_id] }} matched
+                    creator{% if game_match_counts[game.customer_game_id] != 1
+                    %}s{% endif %}
                 </p>
                 {% endif %}
                 <a href="/games/{{ game.slug }}/prospects" class="button"

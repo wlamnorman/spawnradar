@@ -21,43 +21,10 @@ def initialize_database(db_path: str) -> None:
     schema_sql = schema_path.read_text(encoding="utf-8")
 
     with sqlite3.connect(str(path)) as conn:
+        conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(schema_sql)
-        _ensure_customer_games_compat(conn)
-        _ensure_igdb_games_compat(conn)
-        _ensure_users_is_anonymous_compat(conn)
         conn.commit()
-
-
-def _column_exists(
-    conn: sqlite3.Connection, table_name: str, column_name: str
-) -> bool:
-    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-    return any(row[1] == column_name for row in rows)
-
-
-def _ensure_customer_games_compat(conn: sqlite3.Connection) -> None:
-    """Add newly introduced columns for existing local databases."""
-    if not _column_exists(conn, "customer_games", "platforms"):
-        conn.execute(
-            "ALTER TABLE customer_games ADD COLUMN platforms TEXT NOT NULL DEFAULT '[]'"
-        )
-
-
-def _ensure_igdb_games_compat(conn: sqlite3.Connection) -> None:
-    """Add newly introduced columns for existing cached IGDB games."""
-    if not _column_exists(conn, "igdb_games", "developer_names_json"):
-        conn.execute(
-            "ALTER TABLE igdb_games ADD COLUMN developer_names_json TEXT NOT NULL DEFAULT '[]'"
-        )
-
-
-def _ensure_users_is_anonymous_compat(conn: sqlite3.Connection) -> None:
-    """Add is_anonymous column for existing local databases."""
-    if not _column_exists(conn, "users", "is_anonymous"):
-        conn.execute(
-            "ALTER TABLE users ADD COLUMN is_anonymous INTEGER NOT NULL DEFAULT 0"
-        )
 
 
 @contextmanager

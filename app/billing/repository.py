@@ -17,11 +17,35 @@ class SubscriptionRepository:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
-    def get_by_user(self, user_id: str) -> Subscription | None:
-        """Fetch the active subscription for a user."""
+    def get_by_workspace(self, workspace_id: str) -> Subscription | None:
+        """Fetch the active subscription for a workspace."""
         with get_connection(self._db_path) as conn:
             row = conn.execute(
-                "SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+                """
+                SELECT *
+                FROM subscriptions
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (workspace_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_subscription(row)
+
+    def get_by_user(self, user_id: str) -> Subscription | None:
+        """Fetch the active subscription for a registered user's workspace."""
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT s.*
+                FROM subscriptions s
+                JOIN workspaces w ON w.workspace_id = s.workspace_id
+                WHERE w.owner_user_id = ?
+                ORDER BY s.created_at DESC
+                LIMIT 1
+                """,
                 (user_id,),
             ).fetchone()
         if row is None:
@@ -52,7 +76,7 @@ class SubscriptionRepository:
     def create(
         self,
         subscription_id: str,
-        user_id: str,
+        workspace_id: str,
         tier: Tier = Tier.INDIE,
     ) -> Subscription:
         """Create a new subscription row."""
@@ -61,22 +85,22 @@ class SubscriptionRepository:
             conn.execute(
                 """
                 INSERT INTO subscriptions
-                    (subscription_id, user_id, tier, status, created_at, updated_at)
+                    (subscription_id, workspace_id, tier, status, created_at, updated_at)
                 VALUES (?, ?, ?, 'active', ?, ?)
                 """,
                 (
                     subscription_id,
-                    user_id,
+                    workspace_id,
                     tier.value,
                     now,
                     now,
                 ),
             )
-        return self.get_by_user(user_id)  # type: ignore[return-value]
+        return self.get_by_workspace(workspace_id)  # type: ignore[return-value]
 
     def update_from_paddle(
         self,
-        user_id: str,
+        workspace_id: str,
         *,
         paddle_customer_id: str | None = None,
         paddle_subscription_id: str | None = None,
@@ -91,13 +115,15 @@ class SubscriptionRepository:
         If the user does not exist (FK violation) the upsert is skipped silently.
         """
 
-        sub = self.get_by_user(user_id)
+        sub = self.get_by_workspace(workspace_id)
         if sub is None:
             try:
-                self.create(_uuid.uuid4().hex, user_id, tier or Tier.INDIE)
+                self.create(
+                    _uuid.uuid4().hex, workspace_id, tier or Tier.INDIE
+                )
             except sqlite3.IntegrityError:
                 return
-            sub = self.get_by_user(user_id)
+            sub = self.get_by_workspace(workspace_id)
         if sub is None:
             return
 
@@ -127,18 +153,32 @@ class SubscriptionRepository:
                 ),
             )
 
-    def delete_by_user(self, user_id: str) -> None:
-        """Delete all subscriptions for a user."""
+    def delete_by_workspace(self, workspace_id: str) -> None:
+        """Delete all subscriptions for a workspace."""
         with get_connection(self._db_path) as conn:
             conn.execute(
-                "DELETE FROM subscriptions WHERE user_id = ?", (user_id,)
+                "DELETE FROM subscriptions WHERE workspace_id = ?",
+                (workspace_id,),
+            )
+
+    def delete_by_user(self, user_id: str) -> None:
+        """Delete all subscriptions for a registered user's workspace."""
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                DELETE FROM subscriptions
+                WHERE workspace_id IN (
+                    SELECT workspace_id FROM workspaces WHERE owner_user_id = ?
+                )
+                """,
+                (user_id,),
             )
 
     def grant_comped_access(
-        self, user_id: str, tier: Tier = Tier.INDIE
+        self, workspace_id: str, tier: Tier = Tier.INDIE
     ) -> Subscription | None:
         """Grant complimentary access without a Paddle subscription."""
-        sub = self.get_by_user(user_id)
+        sub = self.get_by_workspace(workspace_id)
         now = datetime.now(UTC).isoformat()
 
         with get_connection(self._db_path) as conn:
@@ -146,12 +186,12 @@ class SubscriptionRepository:
                 conn.execute(
                     """
                     INSERT INTO subscriptions
-                        (subscription_id, user_id, tier, status, current_period_end, created_at, updated_at)
+                        (subscription_id, workspace_id, tier, status, current_period_end, created_at, updated_at)
                     VALUES (?, ?, ?, 'comped', NULL, ?, ?)
                     """,
                     (
-                        f"comped_{user_id}",
-                        user_id,
+                        f"comped_{workspace_id}",
+                        workspace_id,
                         tier.value,
                         now,
                         now,
@@ -171,13 +211,61 @@ class SubscriptionRepository:
                     (tier.value, now, sub.subscription_id),
                 )
 
-        return self.get_by_user(user_id)
+        return self.get_by_workspace(workspace_id)
+
+    def transfer_to_workspace(
+        self, from_workspace_id: str, to_workspace_id: str
+    ) -> None:
+        """Merge or move subscriptions from one workspace to another."""
+        source = self.get_by_workspace(from_workspace_id)
+        if source is None:
+            return
+        target = self.get_by_workspace(to_workspace_id)
+        with get_connection(self._db_path) as conn:
+            if target is None:
+                conn.execute(
+                    """
+                    UPDATE subscriptions
+                    SET workspace_id = ?, updated_at = ?
+                    WHERE workspace_id = ?
+                    """,
+                    (
+                        to_workspace_id,
+                        datetime.now(UTC).isoformat(),
+                        from_workspace_id,
+                    ),
+                )
+                return
+
+            source_better = source.has_access and not target.has_access
+            if source_better:
+                conn.execute(
+                    """
+                    UPDATE subscriptions
+                    SET paddle_customer_id = ?, paddle_subscription_id = ?,
+                        tier = ?, status = ?, current_period_end = ?, updated_at = ?
+                    WHERE subscription_id = ?
+                    """,
+                    (
+                        source.paddle_customer_id,
+                        source.paddle_subscription_id,
+                        source.tier.value,
+                        source.status,
+                        source.current_period_end,
+                        datetime.now(UTC).isoformat(),
+                        target.subscription_id,
+                    ),
+                )
+            conn.execute(
+                "DELETE FROM subscriptions WHERE workspace_id = ?",
+                (from_workspace_id,),
+            )
 
 
 def _row_to_subscription(row: Any) -> Subscription:
     return Subscription(
         subscription_id=row["subscription_id"],
-        user_id=row["user_id"],
+        workspace_id=row["workspace_id"],
         paddle_customer_id=row["paddle_customer_id"],
         paddle_subscription_id=row["paddle_subscription_id"],
         tier=_coerce_tier(row["tier"]),
@@ -189,7 +277,7 @@ def _row_to_subscription(row: Any) -> Subscription:
 
 
 def _coerce_tier(value: Any) -> Tier:
-    """Map legacy plan values onto the single supported tier."""
+    """Normalize persisted tier values onto the single supported tier."""
     if value == Tier.INDIE.value:
         return Tier.INDIE
     return Tier.INDIE

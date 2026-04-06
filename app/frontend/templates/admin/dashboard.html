@@ -10,45 +10,47 @@
 <h1>Admin Dashboard</h1>
 
 <div class="admin-stats">
+    <div class="admin-stat"><strong>{{ total_workspaces }}</strong> workspaces</div>
     <div class="admin-stat"><strong>{{ total_accounts }}</strong> accounts</div>
+    <div class="admin-stat"><strong>{{ guest_workspaces }}</strong> guests</div>
     <div class="admin-stat"><strong>{{ total_games }}</strong> games</div>
-    <div class="admin-stat"><strong>{{ comped_accounts }}</strong> comped</div>
-    <div class="admin-stat"><strong>{{ paid_accounts }}</strong> paid</div>
+    <div class="admin-stat"><strong>{{ comped_workspaces }}</strong> comped</div>
+    <div class="admin-stat"><strong>{{ paid_workspaces }}</strong> paid</div>
 </div>
 
-{% for customer in customers %}
+{% for workspace in workspaces %}
 <div class="admin-customer-card">
     <div class="admin-customer-header">
         <div class="admin-customer-header-left">
-            <span class="admin-customer-email">{{ customer.email }}</span>
+            <span class="admin-customer-email">{{ workspace.display_name }}</span>
 
-            {% if customer.is_anonymous %}
-            <span class="admin-badge admin-badge-anon">Anonymous</span>
-            {% elif customer.signed_up_with_google %}
+            {% if workspace.is_anonymous %}
+            <span class="admin-badge admin-badge-anon">Guest</span>
+            {% elif workspace.signed_up_with_google %}
             <span class="admin-badge admin-badge-google">Google</span>
             {% else %}
             <span class="admin-badge admin-badge-email">Email</span>
             {% endif %}
 
-            {% if customer.sub_status == 'comped' %}
+            {% if workspace.sub_status == 'comped' %}
             <span class="admin-badge admin-badge-comped">comped</span>
-            {% elif customer.sub_status == 'active' %}
+            {% elif workspace.sub_status == 'active' %}
             <span class="admin-badge admin-badge-active">active</span>
-            {% elif customer.sub_status == 'canceled' %}
+            {% elif workspace.sub_status == 'canceled' %}
             <span class="admin-badge admin-badge-canceled">canceled</span>
-            {% elif customer.sub_status == 'past_due' %}
+            {% elif workspace.sub_status == 'past_due' %}
             <span class="admin-badge admin-badge-past-due">past due</span>
-            {% elif customer.sub_status == 'paused' %}
+            {% elif workspace.sub_status == 'paused' %}
             <span class="admin-badge admin-badge-paused">paused</span>
             {% else %}
             <span class="admin-badge admin-badge-none">free</span>
             {% endif %}
         </div>
-        <span class="admin-customer-date">Joined {{ customer.created_at[:10] }}</span>
+        <span class="admin-customer-date">Created {{ workspace.display_created_at[:10] }}</span>
     </div>
 
-    {% if customer.games %}
-    {% for g in customer.games %}
+    {% if workspace.games %}
+    {% for g in workspace.games %}
     <div class="admin-game-toggle">&#9656; {{ g.name }}</div>
     <div class="admin-game-detail" style="display: none;">
         {% if g.platforms_list %}

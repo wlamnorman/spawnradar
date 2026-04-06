@@ -18,6 +18,7 @@ from app.game_import.service import GameImportService
 from app.games.repository import CustomerGameRepository
 from app.games.service import CustomerGameService
 from app.metrics.service import MetricsService
+from app.ownership.service import OwnershipService
 
 
 def get_settings(request: Request) -> Settings:
@@ -50,6 +51,10 @@ def get_billing_service(request: Request) -> BillingService:
 
 def get_metrics_service(request: Request) -> MetricsService:
     return request.app.state.metrics_service
+
+
+def get_ownership_service(request: Request) -> OwnershipService:
+    return request.app.state.ownership_service
 
 
 def get_customer_game_repo(request: Request) -> CustomerGameRepository:

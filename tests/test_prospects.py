@@ -530,8 +530,15 @@ class TestProspectRepository:
             )
             conn.execute(
                 """
+                INSERT INTO workspaces (
+                    workspace_id, owner_user_id, guest_id, workspace_type
+                ) VALUES ('workflow-user', 'workflow-user', NULL, 'personal')
+                """
+            )
+            conn.execute(
+                """
                 INSERT INTO customer_games (
-                    customer_game_id, user_id, name, summary, description, slug
+                    customer_game_id, workspace_id, name, summary, description, slug
                 ) VALUES (
                     'workflow-game',
                     'workflow-user',

@@ -437,7 +437,13 @@
         button.classList.toggle("is-active", isActive);
         button.setAttribute("aria-selected", isActive ? "true" : "false");
       });
-      buttons[nextIndex].scrollIntoView({ block: "nearest" });
+      if (
+        suggestions &&
+        !suggestions.hidden &&
+        document.activeElement === searchInput
+      ) {
+        buttons[nextIndex].scrollIntoView({ block: "nearest" });
+      }
     }
 
     function moveActiveSuggestion(direction) {
@@ -727,7 +733,7 @@
       hideSuggestions();
     });
 
-    render();
+    renderPreview();
     hideSuggestions();
 
     document.addEventListener("pointerdown", (event) => {

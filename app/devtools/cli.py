@@ -13,7 +13,11 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import cast
 
-from app.auth.repository import PasswordResetTokenRepository, UserRepository
+from app.auth.repository import (
+    PasswordResetTokenRepository,
+    UserRepository,
+    WorkspaceRepository,
+)
 from app.auth.service import AuthService
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
@@ -595,6 +599,7 @@ def run_grant_comp(
         user_repo,
         session_repo=None,  # type: ignore[arg-type]
         reset_token_repo=PasswordResetTokenRepository(db_path),
+        workspace_repo=WorkspaceRepository(db_path),
     )
     billing = BillingService(
         SubscriptionRepository(db_path),

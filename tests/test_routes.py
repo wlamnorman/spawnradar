@@ -179,6 +179,38 @@ def _create_game_for_user_and_return_id(
     return str(row["customer_game_id"])
 
 
+def _get_personal_workspace_id(
+    db_path: str,
+    *,
+    email: str | None = None,
+    user_id: str | None = None,
+) -> str:
+    """Return the personal workspace ID for a registered user."""
+    assert email is not None or user_id is not None
+    with get_connection(db_path) as conn:
+        if email is not None:
+            row = conn.execute(
+                """
+                SELECT w.workspace_id
+                FROM workspaces w
+                JOIN users u ON u.user_id = w.owner_user_id
+                WHERE u.email = ?
+                """,
+                (email,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT workspace_id
+                FROM workspaces
+                WHERE owner_user_id = ?
+                """,
+                (user_id,),
+            ).fetchone()
+    assert row is not None
+    return str(row["workspace_id"])
+
+
 def _verify_user_email(db_path: str, email: str) -> None:
     """Mark a user's email as verified directly in the DB."""
     with get_connection(db_path) as conn:
@@ -221,10 +253,13 @@ def _grant_subscription(db_path: str, email: str) -> None:
         ).fetchone()
     if row is None:
         return
+    workspace_id = _get_personal_workspace_id(
+        db_path, user_id=str(row["user_id"])
+    )
     repo = SubscriptionRepository(db_path)
-    repo.create(str(_uuid.uuid4()), row["user_id"], Tier.INDIE)
+    repo.create(str(_uuid.uuid4()), workspace_id, Tier.INDIE)
     repo.update_from_paddle(
-        row["user_id"],
+        workspace_id,
         paddle_subscription_id="test_sub",
         paddle_customer_id="test_cust",
         status="active",
@@ -253,13 +288,19 @@ def _expire_trial(db_path: str, email: str) -> str:
     """
     with get_connection(db_path) as conn:
         row = conn.execute(
-            "SELECT user_id, subscription_id FROM users JOIN subscriptions USING(user_id) WHERE email = ?",
+            """
+            SELECT u.user_id, s.subscription_id
+            FROM users u
+            JOIN workspaces w ON w.owner_user_id = u.user_id
+            JOIN subscriptions s ON s.workspace_id = w.workspace_id
+            WHERE u.email = ?
+            """,
             (email,),
         ).fetchone()
         assert row is not None
         conn.execute(
             "UPDATE subscriptions SET status = 'canceled', paddle_subscription_id = NULL, "
-            "current_period_end = ?, trial_ends_at = NULL, updated_at = ? WHERE subscription_id = ?",
+            "current_period_end = ?, updated_at = ? WHERE subscription_id = ?",
             (
                 "2000-01-01T00:00:00+00:00",
                 "2000-01-01T00:00:00+00:00",
@@ -272,7 +313,13 @@ def _expire_trial(db_path: str, email: str) -> str:
 def _expire_paid_subscription(db_path: str, email: str) -> str:
     with get_connection(db_path) as conn:
         row = conn.execute(
-            "SELECT user_id, subscription_id FROM users JOIN subscriptions USING(user_id) WHERE email = ?",
+            """
+            SELECT u.user_id, s.subscription_id
+            FROM users u
+            JOIN workspaces w ON w.owner_user_id = u.user_id
+            JOIN subscriptions s ON s.workspace_id = w.workspace_id
+            WHERE u.email = ?
+            """,
             (email,),
         ).fetchone()
         assert row is not None
@@ -292,7 +339,13 @@ def _expire_paid_subscription(db_path: str, email: str) -> str:
 def _activate_paid_subscription(db_path: str, email: str) -> str:
     with get_connection(db_path) as conn:
         row = conn.execute(
-            "SELECT user_id, subscription_id FROM users JOIN subscriptions USING(user_id) WHERE email = ?",
+            """
+            SELECT u.user_id, s.subscription_id
+            FROM users u
+            JOIN workspaces w ON w.owner_user_id = u.user_id
+            JOIN subscriptions s ON s.workspace_id = w.workspace_id
+            WHERE u.email = ?
+            """,
             (email,),
         ).fetchone()
         assert row is not None
@@ -321,11 +374,12 @@ def _grant_comped_access(db_path: str, email: str) -> str:
         ).fetchone()
         assert row is not None
     user_id = str(row["user_id"])
+    workspace_id = _get_personal_workspace_id(db_path, user_id=user_id)
     billing = BillingService(
         SubscriptionRepository(db_path),
         CustomerGameRepository(db_path),
     )
-    billing.grant_comped_access(user_id)
+    billing.grant_comped_access(workspace_id)
     return user_id
 
 
@@ -1793,6 +1847,7 @@ class TestMetaTags:
         self, monkeypatch, tmp_path
     ):
         monkeypatch.setenv("BASE_URL", "https://spawnradar.com")
+        monkeypatch.setenv("DB_PATH", str(tmp_path / "test.sqlite3"))
         app = create_app()
 
         with TestClient(app, base_url="https://testserver") as client:
@@ -1897,9 +1952,7 @@ class TestAuthRoutes:
         app.state.oauth._clients["google"] = object()  # type: ignore[attr-defined]
         app.state.oauth.google = _GoogleStub()
 
-        with TestClient(
-            app, base_url="https://spawnradar.com"
-        ) as client:
+        with TestClient(app, base_url="https://spawnradar.com") as client:
             response = client.get("/auth/google", follow_redirects=False)
 
         assert response.status_code == 302
@@ -2236,10 +2289,8 @@ class TestBillingRoutes:
                 post_path="/auth/login",
                 data={"email": "tier@example.com", "password": "testpass"},
             )
-            resp = client.get(
-                "/billing/checkout/enterprise", follow_redirects=False
-            )
-        assert resp.status_code == 400
+            resp = client.get("/billing/checkout/enterprise")
+        assert resp.status_code == 404
 
     def test_portal_returns_error_page_when_paddle_not_configured(
         self, monkeypatch, tmp_path
@@ -2338,11 +2389,15 @@ class TestBillingRoutes:
 
             assert user_row is not None
             user_id = user_row["user_id"]
+            workspace_id = _get_personal_workspace_id(
+                str(db_path), user_id=str(user_id)
+            )
 
             # Verify no subscription row before webhook
             with get_connection(str(db_path)) as conn:
                 sub_before = conn.execute(
-                    "SELECT * FROM subscriptions WHERE user_id = ?", (user_id,)
+                    "SELECT * FROM subscriptions WHERE workspace_id = ?",
+                    (workspace_id,),
                 ).fetchone()
             assert sub_before is None
 
@@ -2361,7 +2416,7 @@ class TestBillingRoutes:
                             "starts_at": "2026-05-01T00:00:00Z",
                             "ends_at": "2026-06-01T00:00:00Z",
                         },
-                        "custom_data": {"user_id": user_id},
+                        "custom_data": {"workspace_id": workspace_id},
                     },
                 },
                 "whsec_test",
@@ -2376,8 +2431,12 @@ class TestBillingRoutes:
 
         with get_connection(str(db_path)) as conn:
             sub_row = conn.execute(
-                "SELECT tier, status, paddle_customer_id, paddle_subscription_id FROM subscriptions WHERE user_id = ?",
-                (user_id,),
+                """
+                SELECT tier, status, paddle_customer_id, paddle_subscription_id
+                FROM subscriptions
+                WHERE workspace_id = ?
+                """,
+                (workspace_id,),
             ).fetchone()
 
         assert sub_row is not None
@@ -2468,10 +2527,11 @@ class TestBillingRoutes:
                     ("comp@example.com",),
                 ).fetchone()
             user_id = row["user_id"]
+            workspace_id = _get_personal_workspace_id(db, user_id=str(user_id))
 
             sub_repo = SubscriptionRepository(db)
             billing = BillingService(sub_repo, CustomerGameRepository(db))
-            billing.grant_comped_access(user_id)
+            billing.grant_comped_access(workspace_id)
 
             resp = client.get("/billing/pay", follow_redirects=False)
         assert resp.status_code in (302, 303)
@@ -2509,9 +2569,7 @@ class TestHealthRoute:
         monkeypatch.setenv("RESEND_API_KEY", "")
         app = create_app()
 
-        with TestClient(
-            app, base_url="https://www.spawnradar.com"
-        ) as client:
+        with TestClient(app, base_url="https://www.spawnradar.com") as client:
             resp = client.get("/pricing?ref=www", follow_redirects=False)
 
         assert resp.status_code == 308
@@ -2594,27 +2652,39 @@ def _get_game_slug(db_path: str, name: str) -> str:
 
 
 def _setup_anonymous_session(db_path: str, client: TestClient) -> str:
-    """Create an anonymous user + session in the DB and set the cookie on the
-    client so that all subsequent requests in the same client instance are
-    attributed to the same anonymous user.
+    """Create a durable guest session and set the cookie on the client.
 
-    Background: FastAPI's Response-dependency approach for setting cookies does
-    not propagate into HTMLResponse / TemplateResponse route handlers (the
-    background response headers are dropped).  We work around this in tests by
-    creating the anonymous user directly via the service layer and injecting the
-    session_id cookie manually.
+    Background: durable guests are created only on meaningful writes. Some
+    integration tests need an existing guest before the first GET, so they
+    create the guest actor directly and inject the session cookie manually.
 
-    Returns the anonymous user_id.
+    Returns the guest workspace_id.
     """
-    from app.auth.repository import SessionRepository, UserRepository
+    from app.auth.repository import (
+        GuestIdentityRepository,
+        SessionRepository,
+        UserRepository,
+        WorkspaceRepository,
+    )
     from app.auth.service import AuthService
 
     user_repo = UserRepository(db_path)
     session_repo = SessionRepository(db_path)
-    auth = AuthService(user_repo, session_repo)
-    anon_user, anon_session = auth.create_anonymous_user()
-    client.cookies.set("session_id", anon_session.session_id)
-    return str(anon_user.user_id)
+    guest_repo = GuestIdentityRepository(db_path)
+    workspace_repo = WorkspaceRepository(db_path)
+    auth = AuthService(
+        user_repo,
+        session_repo,
+        guest_repo=guest_repo,
+        workspace_repo=workspace_repo,
+    )
+    actor, session = auth.create_guest_actor(
+        first_path="/games/setup",
+        first_referrer=None,
+        first_user_agent="pytest",
+    )
+    client.cookies.set("session_id", session.session_id)
+    return str(actor.workspace_id)
 
 
 class TestAnonymousFlows:
@@ -2628,14 +2698,14 @@ class TestAnonymousFlows:
         with _make_client(monkeypatch, tmp_path) as client:
             response = client.get("/games")
 
-        # Anonymous user is auto-created on first request; page renders OK
+        # Public GET does not create a durable guest; page still renders OK.
         assert response.status_code == 200
-        # Verify an anonymous user row was created in the DB
         with get_connection(db_path) as conn:
             row = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM users WHERE is_anonymous = 1"
+                "SELECT COUNT(*) AS cnt FROM guest_identities"
             ).fetchone()
-        assert row["cnt"] >= 1
+        assert row["cnt"] == 0
+        assert client.cookies.get("session_id") is None
 
     # ------------------------------------------------------------------
     # 2. Anonymous user can create a game
@@ -2808,17 +2878,17 @@ class TestAnonymousFlows:
 
         with _make_client(monkeypatch, tmp_path) as client:
             # Bootstrap anonymous session and create a game
-            anon_user_id = _setup_anonymous_session(db_path, client)
+            anon_workspace_id = _setup_anonymous_session(db_path, client)
             _create_game_for_user(client, "Claimed Game")
 
-            # Verify the game belongs to the anonymous user
+            # Verify the game belongs to the guest workspace
             with get_connection(db_path) as conn:
                 game_row = conn.execute(
-                    "SELECT user_id FROM customer_games WHERE name = ?",
+                    "SELECT workspace_id FROM customer_games WHERE name = ?",
                     ("Claimed Game",),
                 ).fetchone()
             assert game_row is not None
-            assert str(game_row["user_id"]) == anon_user_id
+            assert str(game_row["workspace_id"]) == anon_workspace_id
 
             # Register on the same client; the server reads the session_id
             # cookie to discover and claim the anonymous games.
@@ -2945,8 +3015,8 @@ class TestAnonymousFlows:
             response = client.get("/")
 
         assert response.status_code == 200
-        assert "Try Free" in response.text
-        assert "/games/setup" in response.text
+        assert "Try For Free" in response.text
+        assert 'href="/games"' in response.text
 
     # ------------------------------------------------------------------
     # 13. Anonymous rate limit returns form with error, not raw JSON
@@ -3072,14 +3142,20 @@ class TestAnonymousFlows:
                 client,
                 get_path="/auth/register",
                 post_path="/auth/register",
-                data={"email": "free-wf@example.com", "password": "password123"},
+                data={
+                    "email": "free-wf@example.com",
+                    "password": "password123",
+                },
             )
             _verify_user_email(db_path, "free-wf@example.com")
             _post_form(
                 client,
                 get_path="/auth/login",
                 post_path="/auth/login",
-                data={"email": "free-wf@example.com", "password": "password123"},
+                data={
+                    "email": "free-wf@example.com",
+                    "password": "password123",
+                },
             )
             _create_game_for_user(client, "Free WF Game")
             slug = _get_game_slug(db_path, "Free WF Game")
@@ -3159,7 +3235,9 @@ class TestAnonymousFlows:
     ) -> None:
         db_path = str(tmp_path / "test.sqlite3")
         with _make_client(monkeypatch, tmp_path) as client:
-            _register_and_login(client, "paid-filter@example.com", "password123")
+            _register_and_login(
+                client, "paid-filter@example.com", "password123"
+            )
             _create_game_for_user(client, "Paid Filter Range Game")
             slug = _get_game_slug(db_path, "Paid Filter Range Game")
 

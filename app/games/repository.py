@@ -31,7 +31,8 @@ class CustomerGameRepository:
         self,
         *,
         customer_game_id: str,
-        user_id: str,
+        workspace_id: str | None = None,
+        user_id: str | None = None,
         name: str,
         summary: str | None,
         description: str,
@@ -45,6 +46,9 @@ class CustomerGameRepository:
         similar_game_names: list[str] | None = None,
     ) -> CustomerGame:
         """Insert a new customer game record."""
+        owner_workspace_id = workspace_id or user_id
+        if owner_workspace_id is None:
+            raise ValueError("workspace_id is required.")
         genre_ids = igdb_genre_ids or []
         theme_ids = igdb_theme_ids or []
         game_mode_ids = igdb_game_mode_ids or []
@@ -57,7 +61,7 @@ class CustomerGameRepository:
             conn.execute(
                 """
                 INSERT INTO customer_games
-                    (customer_game_id, user_id, name, summary, description, slug,
+                    (customer_game_id, workspace_id, name, summary, description, slug,
                      website_url, platforms,
                      igdb_genre_ids, igdb_theme_ids,
                      igdb_game_mode_ids, igdb_player_perspective_ids,
@@ -66,7 +70,7 @@ class CustomerGameRepository:
                 """,
                 (
                     customer_game_id,
-                    user_id,
+                    owner_workspace_id,
                     name,
                     summary,
                     description,
@@ -113,11 +117,26 @@ class CustomerGameRepository:
             return None
         return _row_to_game(row)
 
-    def list_by_user(self, user_id: str) -> list[CustomerGame]:
-        """Return all active customer games for a user, newest first."""
+    def list_by_workspace(self, workspace_id: str) -> list[CustomerGame]:
+        """Return all active customer games for one workspace."""
         with get_connection(self._db_path) as conn:
             rows = conn.execute(
-                "SELECT * FROM customer_games WHERE user_id = ? AND status = 'active' ORDER BY created_at ASC",
+                "SELECT * FROM customer_games WHERE workspace_id = ? AND status = 'active' ORDER BY created_at ASC",
+                (workspace_id,),
+            ).fetchall()
+        return [_row_to_game(r) for r in rows]
+
+    def list_by_user(self, user_id: str) -> list[CustomerGame]:
+        """Return all active customer games for a registered user's workspace."""
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT cg.*
+                FROM customer_games cg
+                JOIN workspaces w ON w.workspace_id = cg.workspace_id
+                WHERE w.owner_user_id = ? AND cg.status = 'active'
+                ORDER BY cg.created_at ASC
+                """,
                 (user_id,),
             ).fetchall()
         return [_row_to_game(r) for r in rows]
@@ -258,11 +277,25 @@ class CustomerGameRepository:
             )
         return self.get_by_id(customer_game_id)  # type: ignore[return-value]
 
-    def count_by_user(self, user_id: str) -> int:
-        """Return the number of active customer games owned by a user."""
+    def count_by_workspace(self, workspace_id: str) -> int:
+        """Return the number of active customer games for one workspace."""
         with get_connection(self._db_path) as conn:
             row = conn.execute(
-                "SELECT COUNT(*) FROM customer_games WHERE user_id = ? AND status = 'active'",
+                "SELECT COUNT(*) FROM customer_games WHERE workspace_id = ? AND status = 'active'",
+                (workspace_id,),
+            ).fetchone()
+        return row[0] if row else 0
+
+    def count_by_user(self, user_id: str) -> int:
+        """Return the number of active games for a registered user's workspace."""
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM customer_games cg
+                JOIN workspaces w ON w.workspace_id = cg.workspace_id
+                WHERE w.owner_user_id = ? AND cg.status = 'active'
+                """,
                 (user_id,),
             ).fetchone()
         return row[0] if row else 0
@@ -298,12 +331,18 @@ class CustomerGameRepository:
                 (customer_game_id,),
             )
 
-    def transfer_ownership(self, from_user_id: str, to_user_id: str) -> int:
-        """Move all games from one user to another. Returns count transferred."""
+    def transfer_workspace(
+        self, from_workspace_id: str, to_workspace_id: str
+    ) -> int:
+        """Move all games from one workspace to another."""
         with get_connection(self._db_path) as conn:
             cursor = conn.execute(
-                "UPDATE customer_games SET user_id = ?, updated_at = datetime('now') WHERE user_id = ?",
-                (to_user_id, from_user_id),
+                """
+                UPDATE customer_games
+                SET workspace_id = ?, updated_at = datetime('now')
+                WHERE workspace_id = ?
+                """,
+                (to_workspace_id, from_workspace_id),
             )
             return cursor.rowcount
 
@@ -329,7 +368,7 @@ class CustomerGameRepository:
             conn.execute(
                 """
                 INSERT INTO customer_games
-                    (customer_game_id, user_id, name, summary, description, slug,
+                    (customer_game_id, workspace_id, name, summary, description, slug,
                      website_url, platforms,
                      igdb_genre_ids, igdb_theme_ids,
                      igdb_game_mode_ids, igdb_player_perspective_ids,
@@ -338,7 +377,7 @@ class CustomerGameRepository:
                 """,
                 (
                     new_customer_game_id,
-                    source.user_id,
+                    source.workspace_id,
                     new_name,
                     source.summary,
                     source.description,
@@ -439,7 +478,7 @@ def _row_to_game(row: sqlite3.Row) -> CustomerGame:
 
     return CustomerGame(
         customer_game_id=customer_game_id,
-        user_id=row["user_id"],
+        workspace_id=row["workspace_id"],
         name=name,
         summary=row["summary"] if "summary" in row_keys else None,
         description=row["description"],

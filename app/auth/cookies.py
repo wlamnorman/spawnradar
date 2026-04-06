@@ -1,4 +1,4 @@
-"""Session cookie helpers shared by auth routes and anonymous user creation."""
+"""Session cookie helpers shared by auth routes and guest creation."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ from app.config import Settings
 
 
 class AnonymousSessionMiddleware(BaseHTTPMiddleware):
-    """Set the session cookie for newly created anonymous users.
+    """Set the session cookie for newly created guest actors.
 
-    ``require_user_or_anonymous`` stores the new session ID on
+    ``get_or_create_guest_actor`` stores the new session ID on
     ``request.state.new_session_id``.  FastAPI's ``Response`` dependency
     injection does **not** propagate cookies into ``TemplateResponse`` /
     ``HTMLResponse`` returns, so a middleware is needed to reliably set

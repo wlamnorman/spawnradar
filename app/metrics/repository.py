@@ -14,6 +14,7 @@ class MetricEvent:
     event_id: str
     metric_key: str
     user_id: str | None
+    workspace_id: str | None
     customer_game_id: str | None
     occurred_at: str
     value: float
@@ -35,6 +36,7 @@ class MetricsRepository:
         metric_key: str,
         *,
         user_id: str | None = None,
+        workspace_id: str | None = None,
         customer_game_id: str | None = None,
         occurred_at: str,
         value: float = 1.0,
@@ -48,14 +50,15 @@ class MetricsRepository:
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO metric_events
-                    (event_id, metric_key, user_id, customer_game_id, occurred_at, value,
-                     dedupe_key, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (event_id, metric_key, user_id, workspace_id, customer_game_id,
+                     occurred_at, value, dedupe_key, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event_id,
                     metric_key,
                     user_id,
+                    workspace_id,
                     customer_game_id,
                     occurred_at,
                     value,
@@ -81,6 +84,7 @@ class MetricsRepository:
                 event_id=row["event_id"],
                 metric_key=row["metric_key"],
                 user_id=row["user_id"],
+                workspace_id=row["workspace_id"],
                 customer_game_id=row["customer_game_id"],
                 occurred_at=row["occurred_at"],
                 value=float(row["value"]),
