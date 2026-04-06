@@ -115,6 +115,11 @@ The matching thresholds themselves become the candidate-limiting mechanism.
 - Remove the `fetch_limit` parameter or repurpose it as a safety cap
 - Return the derived filter bounds in `_FilteredCandidates`
 
+**Logging**:
+- Update log format strings in `rank_prospects()`, `count_ranked_prospects()`,
+  and related methods to remove `fetch_limit` references and reflect the new
+  pipeline shape
+
 **Remove `max_reach()`, `max_relevant_games()`, and `count_prospects()`**:
 - No longer needed; filter bounds are derived from the matched set
 - `count_prospects()` is dead code with no callers
@@ -123,6 +128,11 @@ The matching thresholds themselves become the candidate-limiting mechanism.
 - Return the derived filter bounds alongside prospects, total count, and status
   counts
 - Remove the `fetch_limit` computation
+
+**`count_ranked_prospects()`**:
+- Remove the `fetch_limit` parameter (currently defaults to 5000)
+- The method delegates to `_build_filtered_candidates()` which will use the new
+  threshold-based filtering instead of a fetch limit
 
 ### `app/prospects/router.py`
 
@@ -139,13 +149,37 @@ The matching thresholds themselves become the candidate-limiting mechanism.
   after the upsert, which delegates to `_build_filtered_candidates()` and will
   inherit the new threshold automatically
 
-### `app/prospects/models.py`
+### `app/prospects/service.py` — `_FilteredCandidates` (internal class)
 
 - Add `reach_filter_max: int` and `games_filter_max: int` fields to
-  `_FilteredCandidates` (or a new return dataclass if the internal class is not
-  suitable for the public API)
+  `_FilteredCandidates` (this is a private class in `service.py`, not in
+  `models.py`)
 - These fields are populated by `_build_filtered_candidates()` and surfaced
   through `rank_prospects()` to the router
+
+### `app/prospects/models.py`
+
+- No changes needed; `_FilteredCandidates` is internal to the service
+
+### `tests/test_prospects.py`
+
+- Update tests that pass `max_reach` and `max_relevant_games` to
+  `rank_prospects()` — these parameters remain on the method but the tests
+  should verify behavior with the new coverage threshold
+- Add tests for the 50% coverage floor: creators at exactly 0.5 are excluded,
+  creators above 0.5 are included
+- Add test for the `overlap_count >= 2` SQL pre-filter
+- Update any tests that depend on the old `fetch_limit` parameter on
+  `count_ranked_prospects()`
+- Existing filter tests (`test_rank_prospects_applies_reach_and_overlap_filters`,
+  `test_rank_prospects_applies_max_relevant_games_filter`, etc.) need their test
+  data to produce creators above the 50% coverage floor, otherwise the creators
+  will be excluded before the filter under test is reached
+
+### `tests/test_routes.py`
+
+- Route-level tests that assert filter HTML elements (`name="max_reach"`) remain
+  valid; the filter UI does not change, only the source of the bound values
 
 ### `app/frontend/templates/games/prospects.html`
 
