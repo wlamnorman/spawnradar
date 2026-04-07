@@ -517,7 +517,7 @@ def test_async_persisted_creator_becomes_rankable_prospect(db_path):
                 name="Slay the Spire",
                 slug="slay-the-spire",
                 summary=None,
-                genre_ids=[IGDBGenre.STRATEGY],
+                genre_ids=[IGDBGenre.STRATEGY, IGDBGenre.TACTICAL],
                 theme_ids=[],
                 first_release_date=None,
                 cover_url=None,
@@ -561,7 +561,7 @@ def test_async_persisted_creator_becomes_rankable_prospect(db_path):
         slug="test-strategy-game",
         created_at="2026-03-24T10:00:00+00:00",
         updated_at="2026-03-24T10:00:00+00:00",
-        igdb_genre_ids=[IGDBGenre.STRATEGY],
+        igdb_genre_ids=[IGDBGenre.STRATEGY, IGDBGenre.TACTICAL],
         igdb_theme_ids=[],
         igdb_game_mode_ids=[],
         igdb_player_perspective_ids=[],
@@ -570,7 +570,7 @@ def test_async_persisted_creator_becomes_rankable_prospect(db_path):
         llm_similar_game_names=[],
     )
 
-    prospects, total, _ = ProspectRankingService(db_path).rank_prospects(game)
+    prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(game)
 
     assert len(prospects) == 1
     assert prospects[0].profile.handle == "prospect-tv"

@@ -118,5 +118,5 @@ def sample_game(game_service, registered_user):
         summary="A daily browser word puzzle challenge for fast-thinking trivia fans.",
         description="A daily browser-based puzzle game for word puzzle fans",
         website_url=None,
-        igdb_genre_ids=[9],  # Puzzle
+        igdb_genre_ids=[9, 24],  # Puzzle, Tactical
     )

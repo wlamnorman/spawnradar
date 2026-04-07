@@ -54,20 +54,6 @@ class CreatorRankingProfile:
 
 
 @dataclass(frozen=True)
-class CreatorRankingFilterProfile:
-    """Lightweight profile data used only for ranking/filtering."""
-
-    account_id: str
-    platform: str
-    canonical_url: str | None
-    recent_audience: int
-    reach: int
-    contact_emails: tuple[str, ...] = ()
-    contact_discord_urls: tuple[str, ...] = ()
-    contact_social_links: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
 class RelevantGame:
     """A game this creator plays that overlaps with the customer game."""
 

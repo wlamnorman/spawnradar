@@ -553,7 +553,7 @@ def test_run_customer_ids_lists_active_games(db_path, registered_user):
         summary="Fleet tactics for strategy players.",
         description="Fleet tactics.",
         website_url=None,
-        igdb_genre_ids=[12],
+        igdb_genre_ids=[12, 24],
     )
     second = service.create_game(
         user_id=registered_user.user_id,
@@ -561,7 +561,7 @@ def test_run_customer_ids_lists_active_games(db_path, registered_user):
         summary="Wiki racing for trivia players.",
         description="Wiki speedruns.",
         website_url="https://wikiquests.com",
-        igdb_genre_ids=[9],
+        igdb_genre_ids=[9, 24],
     )
 
     result = run_customer_ids(db_path)
@@ -812,7 +812,7 @@ def test_main_get_profiles_returns_zero(db_path, registered_user):
         summary="Fleet tactics for strategy players.",
         description="Fleet tactics.",
         website_url=None,
-        igdb_genre_ids=[12],
+        igdb_genre_ids=[12, 24],
     )
 
     exit_code = main(

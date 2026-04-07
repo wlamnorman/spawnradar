@@ -4,18 +4,15 @@ from __future__ import annotations
 
 import logging
 import time
-from urllib.parse import urlparse
 
 from app.creator_index.matching import (
-    TagCounts,
+    customer_game_tag_counts,
     customer_game_tag_keys,
-    match_creator_tags_to_game,
+    tag_weight,
 )
 from app.games.models import CustomerGame
 from app.prospects.models import (
     PROSPECT_WORKFLOW_STATUS_ORDER,
-    CreatorRankingFilterProfile,
-    CreatorRankingProfile,
     ObservedTag,
     ProspectWorkflowState,
     ProspectWorkflowStatus,
@@ -26,123 +23,11 @@ from app.prospects.repository import ProspectRepository
 log = logging.getLogger(__name__)
 
 
-def _social_link_matches(
-    links: tuple[str, ...], *, domains: tuple[str, ...]
-) -> bool:
-    """Return whether any public social link matches one of the domains."""
-    for link in links:
-        try:
-            hostname = (urlparse(link).hostname or "").casefold()
-        except ValueError:
-            continue
-        if any(
-            hostname == domain or hostname.endswith(f".{domain}")
-            for domain in domains
-        ):
-            return True
-    return False
-
-
-def _profile_has_contact_method(
-    profile: CreatorRankingFilterProfile | CreatorRankingProfile,
-    contact_method: str,
-) -> bool:
-    """Return whether a creator exposes the requested contact method."""
-    if contact_method == "email":
-        return bool(profile.contact_emails)
-    if contact_method == "discord":
-        return bool(profile.contact_discord_urls)
-    if contact_method == "twitch":
-        return (
-            profile.platform == "twitch" and bool(profile.canonical_url)
-        ) or _social_link_matches(
-            profile.contact_social_links,
-            domains=("twitch.tv",),
-        )
-    if contact_method == "youtube":
-        return (
-            profile.platform == "youtube" and bool(profile.canonical_url)
-        ) or _social_link_matches(
-            profile.contact_social_links,
-            domains=("youtube.com", "youtu.be"),
-        )
-    if contact_method == "x":
-        return _social_link_matches(
-            profile.contact_social_links,
-            domains=("x.com", "twitter.com"),
-        )
-    if contact_method == "instagram":
-        return _social_link_matches(
-            profile.contact_social_links,
-            domains=("instagram.com",),
-        )
-    if contact_method == "tiktok":
-        return _social_link_matches(
-            profile.contact_social_links,
-            domains=("tiktok.com",),
-        )
-    if contact_method == "bluesky":
-        return _social_link_matches(
-            profile.contact_social_links,
-            domains=("bsky.app",),
-        )
-    return False
-
-
-def _profile_has_any_contact_method(
-    profile: CreatorRankingFilterProfile | CreatorRankingProfile,
-    contact_methods: tuple[str, ...],
-) -> bool:
-    """Return whether a creator matches any selected contact method."""
-    if not contact_methods:
-        return True
-    return any(
-        _profile_has_contact_method(profile, contact_method)
-        for contact_method in contact_methods
-    )
-
-
 class ProspectRankingService:
     """Rank content creators by coverage evidence for a customer game."""
 
     def __init__(self, db_path: str) -> None:
         self._repo = ProspectRepository(db_path)
-
-    def count_prospects(
-        self, customer_game: CustomerGame, *, min_reach: int = 0
-    ) -> int:
-        """Return the unfiltered count of creators with any positive overlap."""
-        game_tags = customer_game_tag_keys(customer_game)
-        if not game_tags:
-            return 0
-        return self._repo.count_creators_with_overlap(
-            game_tags=game_tags,
-            min_reach=min_reach,
-        )
-
-    def max_reach(
-        self, customer_game: CustomerGame, *, min_reach: int = 0
-    ) -> int:
-        """Return the maximum reach among overlapping creators."""
-        game_tags = customer_game_tag_keys(customer_game)
-        if not game_tags:
-            return 0
-        return self._repo.max_reach_with_overlap(
-            game_tags=game_tags,
-            min_reach=min_reach,
-        )
-
-    def max_relevant_games(
-        self, customer_game: CustomerGame, *, min_reach: int = 0
-    ) -> int:
-        """Return the maximum relevant-game count among overlapping creators."""
-        game_tags = customer_game_tag_keys(customer_game)
-        if not game_tags:
-            return 0
-        return self._repo.max_relevant_games_with_overlap(
-            game_tags=game_tags,
-            min_reach=min_reach,
-        )
 
     def rank_prospects(
         self,
@@ -152,8 +37,6 @@ class ProspectRankingService:
         offset: int = 0,
         min_reach: int = 0,
         max_reach: int | None = None,
-        min_overlap_score: float = 0.0,
-        max_overlap_score: float = 1.0,
         min_relevant_games: int = 0,
         max_relevant_games: int | None = None,
         contact_methods: tuple[str, ...] = (),
@@ -162,92 +45,118 @@ class ProspectRankingService:
         list[RankedProspect],
         int,
         dict[ProspectWorkflowStatus, int],
+        int,  # reach_filter_max
+        int,  # games_filter_max
     ]:
         """Return ranked creator prospects for one customer game.
 
-        Returns ``(prospects, total_count, status_counts)`` where *total_count*
-        is the number of creators in the current status view and
-        *status_counts* reflects the available workflow counts after the
-        numeric/contact filters but before status pagination.
-
-        1. Query per-creator tag counts from resolved game plays.
-        2. Score each creator using coverage of the customer game's tags.
-        3. Sort by (coverage, audience, reach) descending.
-        4. Slice to the requested page and fetch display profiles.
+        Uses a SQL-based scoring path that pushes coverage scoring,
+        reach filtering, sorting, and pagination into a single query.
+        Only the final page slice is hydrated with profiles, relevant
+        games, and workflow state.
         """
         started_at = time.perf_counter()
-        fetch_limit = max((offset + limit) * 4, 5000)
-        filtered = self._build_filtered_candidates(
-            customer_game,
-            min_reach=min_reach,
-            max_reach=max_reach,
-            min_overlap_score=min_overlap_score,
-            max_overlap_score=max_overlap_score,
-            min_relevant_games=min_relevant_games,
-            max_relevant_games=max_relevant_games,
-            contact_methods=contact_methods,
-            status_filter=status_filter,
-            fetch_limit=fetch_limit,
-        )
-        if filtered is None:
-            log.info(
-                "[prospects] rank empty game_id=%s fetch_limit=%s elapsed_ms=%.1f",
-                customer_game.customer_game_id,
-                fetch_limit,
-                (time.perf_counter() - started_at) * 1000,
-            )
+        game_tags = customer_game_tag_keys(customer_game)
+        if not game_tags:
             return (
                 [],
                 0,
                 dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0),
+                0,
+                0,
             )
 
-        filtered_scored = filtered.filtered_scored
-        creator_tag_counts = filtered.creator_tag_counts
-        workflow_states = filtered.workflow_states
-        status_counts = filtered.status_counts
-        total_count = len(filtered_scored)
-        if not filtered_scored:
-            return [], 0, status_counts
+        cg_tags = customer_game_tag_counts(customer_game)
+        total_weight = sum(tag_weight(k) for k in cg_tags)
 
-        # Paginate
-        page_slice = filtered_scored[offset : offset + limit]
-        page_ids = [s[0] for s in page_slice]
-        relevant_game_counts = self._relevant_game_counts_for_page(
-            page_ids, filtered
+        page_rows, total_count, reach_filter_max, status_counts = (
+            self._repo.rank_scored_page(
+                game_tags=game_tags,
+                total_weight=total_weight,
+                customer_game_id=customer_game.customer_game_id,
+                min_reach=min_reach,
+                max_reach=max_reach,
+                min_relevant_games=min_relevant_games,
+                max_relevant_games=max_relevant_games,
+                contact_methods=contact_methods,
+                status_filter=status_filter,
+                limit=limit,
+                offset=offset,
+            )
         )
-        profiles = self._repo.get_creator_profiles(page_ids)
+        elapsed_ms = (time.perf_counter() - started_at) * 1000
 
-        # Fetch relevant games with covers for this page only
+        if not page_rows:
+            log.info(
+                "[prospects] rank empty game_id=%s elapsed_ms=%.1f",
+                customer_game.customer_game_id,
+                elapsed_ms,
+            )
+            return (
+                [],
+                0,
+                status_counts,
+                reach_filter_max,
+                0,
+            )
+
+        page_ids = [r[0] for r in page_rows]
+
+        # --- Hydrate page rows -----------------------------------------
+        hydrate_started_at = time.perf_counter()
+        profiles = self._repo.get_creator_profiles(page_ids)
         relevant_games = self._repo.get_relevant_games(
             page_ids,
-            filtered.game_tags,
+            game_tags,
             per_account_limit=10,
         )
-        hydration_elapsed_ms = (
-            time.perf_counter() - filtered.post_filter_started_at
-        ) * 1000
+        relevant_game_counts = self._repo.count_relevant_games(
+            page_ids,
+            game_tags,
+        )
+        games_filter_max = max(relevant_game_counts.values(), default=0)
+
+        # Per-creator tag counts for the overlap-tag display
+        page_tag_counts = self._repo.query_creator_tag_counts(
+            game_tags=game_tags,
+            account_ids=page_ids,
+        )
+        # Compute overlap tags per page creator
+        overlap_tags_by_id: dict[str, tuple[tuple[str, int | str], ...]] = {}
+        for account_id in page_ids:
+            tc = page_tag_counts.get(account_id, {})
+            overlap_tags_by_id[account_id] = tuple(
+                sorted(
+                    (k for k in cg_tags if k in tc),
+                    key=lambda k: (k[0], str(k[1])),
+                )
+            )
+
+        workflow_states = self._repo.get_prospect_workflow_states(
+            customer_game_id=customer_game.customer_game_id,
+            account_ids=page_ids,
+        )
+        hydrate_elapsed_ms = (time.perf_counter() - hydrate_started_at) * 1000
 
         results: list[RankedProspect] = []
-        for account_id, score, overlap_tags in page_slice:
+        for account_id, coverage_score, _reach in page_rows:
             profile = profiles.get(account_id)
             if profile is None:
                 continue
-            tag_counts = creator_tag_counts.get(account_id, {})
+            tc = page_tag_counts.get(account_id, {})
+            overlap = overlap_tags_by_id.get(account_id, ())
             results.append(
                 RankedProspect(
                     profile=profile,
-                    coverage_score=score,
-                    overlap_tags=overlap_tags,
+                    coverage_score=coverage_score,
+                    overlap_tags=overlap,
                     observed_tags=tuple(
                         ObservedTag(
                             tag_type=tag_type,
                             tag_id=tag_id,
-                            observed_game_count=tag_counts.get(
-                                (tag_type, tag_id), 0
-                            ),
+                            observed_game_count=tc.get((tag_type, tag_id), 0),
                         )
-                        for tag_type, tag_id in overlap_tags
+                        for tag_type, tag_id in overlap
                     ),
                     relevant_game_count=relevant_game_counts.get(
                         account_id, 0
@@ -258,22 +167,23 @@ class ProspectRankingService:
                     relevant_games=tuple(relevant_games.get(account_id, [])),
                 )
             )
+
         log.info(
-            "[prospects] rank complete game_id=%s fetch_limit=%s scored=%s filtered=%s page_size=%s total=%s candidate_ms=%.1f profile_ms=%.1f relevant_count_ms=%.1f workflow_ms=%.1f hydration_ms=%.1f total_ms=%.1f",
+            "[prospects] rank complete game_id=%s total=%s page_size=%s sql_ms=%.1f hydrate_ms=%.1f total_ms=%.1f",
             customer_game.customer_game_id,
-            fetch_limit,
-            filtered.scored_count,
-            filtered.pre_status_filtered_count,
-            len(results),
             total_count,
-            filtered.creator_tag_query_elapsed_ms,
-            filtered.filter_profile_query_elapsed_ms,
-            filtered.relevant_game_count_elapsed_ms,
-            filtered.workflow_state_elapsed_ms,
-            hydration_elapsed_ms,
+            len(results),
+            elapsed_ms,
+            hydrate_elapsed_ms,
             (time.perf_counter() - started_at) * 1000,
         )
-        return results, total_count, status_counts
+        return (
+            results,
+            total_count,
+            status_counts,
+            reach_filter_max,
+            games_filter_max,
+        )
 
     def count_ranked_prospects(
         self,
@@ -281,50 +191,36 @@ class ProspectRankingService:
         *,
         min_reach: int = 0,
         max_reach: int | None = None,
-        min_overlap_score: float = 0.0,
-        max_overlap_score: float = 1.0,
         min_relevant_games: int = 0,
         max_relevant_games: int | None = None,
         contact_methods: tuple[str, ...] = (),
         status_filter: str = "all",
-        fetch_limit: int = 5000,
     ) -> tuple[int, dict[ProspectWorkflowStatus, int]]:
         """Return filtered prospect counts without page-row hydration."""
-        started_at = time.perf_counter()
-        filtered = self._build_filtered_candidates(
-            customer_game,
-            min_reach=min_reach,
-            max_reach=max_reach,
-            min_overlap_score=min_overlap_score,
-            max_overlap_score=max_overlap_score,
-            min_relevant_games=min_relevant_games,
-            max_relevant_games=max_relevant_games,
-            contact_methods=contact_methods,
-            status_filter=status_filter,
-            fetch_limit=fetch_limit,
-        )
-        if filtered is None:
-            log.info(
-                "[prospects] count empty game_id=%s fetch_limit=%s elapsed_ms=%.1f",
-                customer_game.customer_game_id,
-                fetch_limit,
-                (time.perf_counter() - started_at) * 1000,
-            )
+        game_tags = customer_game_tag_keys(customer_game)
+        if not game_tags:
             return 0, dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0)
-        log.info(
-            "[prospects] count complete game_id=%s fetch_limit=%s scored=%s filtered=%s total=%s candidate_ms=%.1f profile_ms=%.1f relevant_count_ms=%.1f workflow_ms=%.1f total_ms=%.1f",
-            customer_game.customer_game_id,
-            fetch_limit,
-            filtered.scored_count,
-            filtered.pre_status_filtered_count,
-            len(filtered.filtered_scored),
-            filtered.creator_tag_query_elapsed_ms,
-            filtered.filter_profile_query_elapsed_ms,
-            filtered.relevant_game_count_elapsed_ms,
-            filtered.workflow_state_elapsed_ms,
-            (time.perf_counter() - started_at) * 1000,
+
+        cg_tags = customer_game_tag_counts(customer_game)
+        total_weight = sum(tag_weight(k) for k in cg_tags)
+
+        # Use limit=1 so the SQL returns at least one row with total_count.
+        _page_rows, total_count, _reach_max, status_counts = (
+            self._repo.rank_scored_page(
+                game_tags=game_tags,
+                total_weight=total_weight,
+                customer_game_id=customer_game.customer_game_id,
+                min_reach=min_reach,
+                max_reach=max_reach,
+                min_relevant_games=min_relevant_games,
+                max_relevant_games=max_relevant_games,
+                contact_methods=contact_methods,
+                status_filter=status_filter,
+                limit=1,
+                offset=0,
+            )
         )
-        return len(filtered.filtered_scored), filtered.status_counts
+        return total_count, status_counts
 
     def update_prospect_workflow(
         self,
@@ -341,228 +237,3 @@ class ProspectRankingService:
             status=status,
             notes=notes,
         )
-
-    def _build_filtered_candidates(
-        self,
-        customer_game: CustomerGame,
-        *,
-        min_reach: int,
-        max_reach: int | None,
-        min_overlap_score: float,
-        max_overlap_score: float,
-        min_relevant_games: int,
-        max_relevant_games: int | None,
-        contact_methods: tuple[str, ...],
-        status_filter: str,
-        fetch_limit: int,
-    ) -> _FilteredCandidates | None:
-        """Build the filtered candidate set shared by page and workflow paths."""
-        query_started_at = time.perf_counter()
-        game_tags = customer_game_tag_keys(customer_game)
-        if not game_tags:
-            return None
-
-        creator_tag_counts = self._repo.query_creator_tag_counts(
-            game_tags=game_tags,
-            limit=fetch_limit,
-        )
-        creator_tag_query_elapsed_ms = (
-            time.perf_counter() - query_started_at
-        ) * 1000
-        if not creator_tag_counts:
-            return None
-
-        score_started_at = time.perf_counter()
-        scored: list[tuple[str, float, tuple[tuple[str, int | str], ...]]] = []
-        for account_id, tag_counts in creator_tag_counts.items():
-            match = match_creator_tags_to_game(
-                customer_game, creator_tag_counts=tag_counts
-            )
-            if match.coverage_score > 0:
-                scored.append(
-                    (account_id, match.coverage_score, match.overlap_tags)
-                )
-
-        scored_ids = [account_id for account_id, _, _ in scored]
-        profile_started_at = time.perf_counter()
-        ranking_profiles = self._repo.get_creator_filter_profiles(
-            scored_ids,
-            include_contacts=bool(contact_methods),
-        )
-        filter_profile_query_elapsed_ms = (
-            time.perf_counter() - profile_started_at
-        ) * 1000
-
-        filtered_scored = [
-            item
-            for item in scored
-            if item[1] >= min_overlap_score
-            and item[1] <= max_overlap_score
-            and ranking_profiles.get(item[0]) is not None
-            and ranking_profiles[item[0]].reach >= min_reach
-            and (
-                max_reach is None
-                or ranking_profiles[item[0]].reach <= max_reach
-            )
-        ]
-        if not filtered_scored:
-            return None
-
-        filtered_ids = [account_id for account_id, _, _ in filtered_scored]
-        relevant_count_started_at = time.perf_counter()
-        needs_relevant_game_filter = (
-            min_relevant_games > 0 or max_relevant_games is not None
-        )
-        relevant_game_counts = (
-            self._repo.count_relevant_games(
-                filtered_ids,
-                game_tags,
-            )
-            if needs_relevant_game_filter
-            else {}
-        )
-        relevant_game_count_elapsed_ms = (
-            time.perf_counter() - relevant_count_started_at
-        ) * 1000
-
-        if needs_relevant_game_filter:
-            filtered_scored = [
-                item
-                for item in filtered_scored
-                if relevant_game_counts.get(item[0], 0) >= min_relevant_games
-                and (
-                    max_relevant_games is None
-                    or relevant_game_counts.get(item[0], 0)
-                    <= max_relevant_games
-                )
-                and _profile_has_any_contact_method(
-                    ranking_profiles[item[0]], contact_methods
-                )
-            ]
-        else:
-            filtered_scored = [
-                item
-                for item in filtered_scored
-                if _profile_has_any_contact_method(
-                    ranking_profiles[item[0]], contact_methods
-                )
-            ]
-        if not filtered_scored:
-            return None
-
-        filtered_ids = [account_id for account_id, _, _ in filtered_scored]
-        workflow_started_at = time.perf_counter()
-        workflow_states = self._repo.get_prospect_workflow_states(
-            customer_game_id=customer_game.customer_game_id,
-            account_ids=filtered_ids,
-        )
-        workflow_state_elapsed_ms = (
-            time.perf_counter() - workflow_started_at
-        ) * 1000
-        status_counts = dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0)
-        for account_id in filtered_ids:
-            workflow_status = workflow_states.get(
-                account_id, ProspectWorkflowState()
-            ).status
-            status_counts[workflow_status] += 1
-
-        if status_filter == "all":
-            filtered_scored = [
-                item
-                for item in filtered_scored
-                if workflow_states.get(item[0], ProspectWorkflowState()).status
-                != "not_pursuing"
-            ]
-        else:
-            filtered_scored = [
-                item
-                for item in filtered_scored
-                if workflow_states.get(item[0], ProspectWorkflowState()).status
-                == status_filter
-            ]
-
-        filtered_scored.sort(
-            key=lambda item: (
-                item[1],
-                (
-                    ranking_profiles[item[0]].reach
-                    if item[0] in ranking_profiles
-                    else 0
-                ),
-                item[0],
-            ),
-            reverse=True,
-        )
-        return _FilteredCandidates(
-            game_tags=game_tags,
-            creator_tag_counts=creator_tag_counts,
-            filtered_scored=filtered_scored,
-            ranking_profiles=ranking_profiles,
-            relevant_game_counts=relevant_game_counts,
-            workflow_states=workflow_states,
-            status_counts=status_counts,
-            needs_relevant_game_filter=needs_relevant_game_filter,
-            scored_count=len(scored),
-            pre_status_filtered_count=len(filtered_ids),
-            creator_tag_query_elapsed_ms=creator_tag_query_elapsed_ms,
-            filter_profile_query_elapsed_ms=filter_profile_query_elapsed_ms,
-            relevant_game_count_elapsed_ms=relevant_game_count_elapsed_ms,
-            workflow_state_elapsed_ms=workflow_state_elapsed_ms,
-            post_filter_started_at=score_started_at,
-        )
-
-    def _relevant_game_counts_for_page(
-        self,
-        page_ids: list[str],
-        filtered: _FilteredCandidates,
-    ) -> dict[str, int]:
-        """Return relevant-game counts for the current page rows."""
-        if not page_ids:
-            return {}
-        if filtered.needs_relevant_game_filter:
-            return {
-                account_id: filtered.relevant_game_counts.get(account_id, 0)
-                for account_id in page_ids
-            }
-        return self._repo.count_relevant_games(page_ids, filtered.game_tags)
-
-
-class _FilteredCandidates:
-    """Internal shared result for filtered prospect candidates."""
-
-    def __init__(
-        self,
-        *,
-        game_tags: tuple[tuple[str, int | str], ...],
-        creator_tag_counts: dict[str, TagCounts],
-        filtered_scored: list[
-            tuple[str, float, tuple[tuple[str, int | str], ...]]
-        ],
-        ranking_profiles: dict[str, CreatorRankingFilterProfile],
-        relevant_game_counts: dict[str, int],
-        workflow_states: dict[str, ProspectWorkflowState],
-        status_counts: dict[ProspectWorkflowStatus, int],
-        needs_relevant_game_filter: bool,
-        scored_count: int,
-        pre_status_filtered_count: int,
-        creator_tag_query_elapsed_ms: float,
-        filter_profile_query_elapsed_ms: float,
-        relevant_game_count_elapsed_ms: float,
-        workflow_state_elapsed_ms: float,
-        post_filter_started_at: float,
-    ) -> None:
-        self.game_tags = game_tags
-        self.creator_tag_counts = creator_tag_counts
-        self.filtered_scored = filtered_scored
-        self.ranking_profiles = ranking_profiles
-        self.relevant_game_counts = relevant_game_counts
-        self.workflow_states = workflow_states
-        self.status_counts = status_counts
-        self.needs_relevant_game_filter = needs_relevant_game_filter
-        self.scored_count = scored_count
-        self.pre_status_filtered_count = pre_status_filtered_count
-        self.creator_tag_query_elapsed_ms = creator_tag_query_elapsed_ms
-        self.filter_profile_query_elapsed_ms = filter_profile_query_elapsed_ms
-        self.relevant_game_count_elapsed_ms = relevant_game_count_elapsed_ms
-        self.workflow_state_elapsed_ms = workflow_state_elapsed_ms
-        self.post_filter_started_at = post_filter_started_at

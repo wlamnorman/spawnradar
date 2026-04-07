@@ -29,8 +29,8 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
         <summary class="button secondary">
             Filters {% if filters_active %}<span class="prospects-filter-badge"
                 >{{ (1 if reach_filter_active else 0) + (1 if
-                overlap_filter_active else 0) + (1 if games_filter_active else
-                0) + (1 if contact_filter_active else 0) }}</span
+                games_filter_active else 0) + (1 if contact_filter_active else
+                0) }}</span
             >{% endif %}
         </summary>
         <form
@@ -87,54 +87,7 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 </div>
             </div>
             <div class="form-group">
-                <label>Evidenced interest overlap</label>
-                <div class="prospects-range-values">
-                    <label class="prospects-range-input">
-                        <span>Min</span>
-                        <input
-                            type="text"
-                            name="min_overlap"
-                            inputmode="numeric"
-                            value="{{ min_overlap }}"
-                            data-range-number="min_overlap"
-                        />
-                    </label>
-                    <label class="prospects-range-input">
-                        <span>Max</span>
-                        <input
-                            type="text"
-                            name="max_overlap"
-                            inputmode="numeric"
-                            value="{{ max_overlap }}"
-                            data-range-number="max_overlap"
-                        />
-                    </label>
-                </div>
-                <div class="prospects-dual-range" data-range-wrapper="overlap">
-                    <div class="prospects-dual-range-track"></div>
-                    <div class="prospects-dual-range-active"></div>
-                    <input
-                        type="range"
-                        min="0"
-                        max="{{ overlap_filter_max }}"
-                        step="1"
-                        value="{{ min_overlap }}"
-                        data-range-input="min_overlap"
-                        data-range-kind="overlap"
-                    />
-                    <input
-                        type="range"
-                        min="0"
-                        max="{{ overlap_filter_max }}"
-                        step="1"
-                        value="{{ max_overlap }}"
-                        data-range-input="max_overlap"
-                        data-range-kind="overlap"
-                    />
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="prospects-min-games">Played games</label>
+                <label for="prospects-min-games">Relevant Games Played</label>
                 <div class="prospects-range-values">
                     <label class="prospects-range-input">
                         <span>Min</span>
@@ -364,10 +317,10 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
     <p>
         {% if active_status_filter != "all" %}Creators will appear here once you
         move them into this workflow stage.{% elif filters_active %}Try lowering
-        your reach or interest overlap thresholds to see more creator matches.{%
-        else %}Our system is continuously building its data bank. As more
-        creators are discovered and their game libraries are mapped, matches
-        will appear here.{% endif %}
+        your reach thresholds to see more creator matches.{% else %}Our system
+        is continuously building its data bank. As more creators are discovered
+        and their game libraries are mapped, matches will appear here.{% endif
+        %}
     </p>
 </div>
 {% else %}
@@ -377,7 +330,7 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
             <tr>
                 <th class="col-rank">#</th>
                 <th class="col-creator">Creator</th>
-                <th class="col-games">Played Games</th>
+                <th class="col-games">Relevant Games Played</th>
                 <th class="col-tags">Observed Matching Tags</th>
                 <th class="col-score">Evidenced Interest<br />Overlap</th>
                 <th class="col-reach">Reach</th>
@@ -929,8 +882,6 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 active_status: params.get("status") || "all",
                 min_reach: params.get("min_reach") || "",
                 max_reach: params.get("max_reach") || "",
-                min_overlap: params.get("min_overlap") || "",
-                max_overlap: params.get("max_overlap") || "",
                 min_games: params.get("min_games") || "",
                 max_games: params.get("max_games") || "",
                 reachable_via: params.getAll("reachable_via"),
@@ -1251,12 +1202,6 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 var reachMax = form.querySelector(
                     '[data-range-input="max_reach"]',
                 );
-                var overlapMin = form.querySelector(
-                    '[data-range-input="min_overlap"]',
-                );
-                var overlapMax = form.querySelector(
-                    '[data-range-input="max_overlap"]',
-                );
                 var gamesMin = form.querySelector(
                     '[data-range-input="min_games"]',
                 );
@@ -1269,12 +1214,6 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 var numberMaxReach = form.querySelector(
                     '[data-range-number="max_reach"]',
                 );
-                var numberMinOverlap = form.querySelector(
-                    '[data-range-number="min_overlap"]',
-                );
-                var numberMaxOverlap = form.querySelector(
-                    '[data-range-number="max_overlap"]',
-                );
                 var numberMinGames = form.querySelector(
                     '[data-range-number="min_games"]',
                 );
@@ -1283,9 +1222,6 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 );
                 var reachWrapper = form.querySelector(
                     '[data-range-wrapper="reach"]',
-                );
-                var overlapWrapper = form.querySelector(
-                    '[data-range-wrapper="overlap"]',
                 );
                 var gamesWrapper = form.querySelector(
                     '[data-range-wrapper="games"]',
@@ -1324,8 +1260,7 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                     if (Number(minInput.value) > Number(maxInput.value)) {
                         if (
                             document.activeElement === minInput ||
-                            document.activeElement === numberMinReach ||
-                            document.activeElement === numberMinOverlap
+                            document.activeElement === numberMinReach
                         ) {
                             maxInput.value = minInput.value;
                         } else {
@@ -1336,12 +1271,9 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
 
                 function render() {
                     clampPair(reachMin, reachMax, reachCeiling);
-                    clampPair(overlapMin, overlapMax, 100);
                     clampPair(gamesMin, gamesMax, gamesCeiling);
                     numberMinReach.value = reachMin.value;
                     numberMaxReach.value = reachMax.value;
-                    numberMinOverlap.value = overlapMin.value;
-                    numberMaxOverlap.value = overlapMax.value;
                     numberMinGames.value = gamesMin.value;
                     numberMaxGames.value = gamesMax.value;
                     reachWrapper.style.setProperty(
@@ -1351,14 +1283,6 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                     reachWrapper.style.setProperty(
                         "--range-end",
                         (Number(reachMax.value) / safeReachCeiling) * 100 + "%",
-                    );
-                    overlapWrapper.style.setProperty(
-                        "--range-start",
-                        Number(overlapMin.value) + "%",
-                    );
-                    overlapWrapper.style.setProperty(
-                        "--range-end",
-                        Number(overlapMax.value) + "%",
                     );
                     gamesWrapper.style.setProperty(
                         "--range-start",
@@ -1370,21 +1294,14 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                     );
                 }
 
-                [
-                    reachMin,
-                    reachMax,
-                    overlapMin,
-                    overlapMax,
-                    gamesMin,
-                    gamesMax,
-                ].forEach(function (input) {
-                    input.addEventListener("input", render);
-                });
+                [reachMin, reachMax, gamesMin, gamesMax].forEach(
+                    function (input) {
+                        input.addEventListener("input", render);
+                    },
+                );
                 [
                     [numberMinReach, reachMin, reachCeiling],
                     [numberMaxReach, reachMax, reachCeiling],
-                    [numberMinOverlap, overlapMin, 100],
-                    [numberMaxOverlap, overlapMax, 100],
                     [numberMinGames, gamesMin, gamesCeiling],
                     [numberMaxGames, gamesMax, gamesCeiling],
                 ].forEach(function (pair) {
@@ -1408,8 +1325,6 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                     [
                         [numberMinReach, reachMin, reachCeiling],
                         [numberMaxReach, reachMax, reachCeiling],
-                        [numberMinOverlap, overlapMin, 100],
-                        [numberMaxOverlap, overlapMax, 100],
                         [numberMinGames, gamesMin, gamesCeiling],
                         [numberMaxGames, gamesMax, gamesCeiling],
                     ].forEach(function (pair) {

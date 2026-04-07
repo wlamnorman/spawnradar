@@ -40,7 +40,6 @@ from app.security import RateLimitRule, client_ip_key, consume_rate_limit
 router = APIRouter(tags=["prospects"])
 log = logging.getLogger(__name__)
 
-_OVERLAP_FILTER_MAX = 100
 _CONTACT_METHOD_OPTIONS = (
     {"value": "email", "label": "Email", "icon_class": "contact-icon--email"},
     {
@@ -163,8 +162,6 @@ def game_prospects_page(
     status: str = "all",
     min_reach: int = 0,
     max_reach: int | None = None,
-    min_overlap: int = 0,
-    max_overlap: int = _OVERLAP_FILTER_MAX,
     min_games: int = 0,
     max_games: int | None = None,
     ownership: OwnershipContext = Depends(require_ownership_context),
@@ -224,33 +221,12 @@ def game_prospects_page(
         raise HTTPException(status_code=400, detail="Invalid status filter.")
     default_min_reach = settings.creator_index_twitch_min_followers
 
-    # Determine subscription status early so we can skip expensive
-    # filter-range queries for free users who can't use filters.
     is_limited = ownership.is_limited
 
-    if is_limited:
-        # Free users can't filter — use cheap defaults instead of
-        # running two heavy aggregate queries.
-        reach_filter_max = default_min_reach
-        games_filter_max = 1
-    else:
-        reach_filter_max = max(
-            default_min_reach,
-            service.max_reach(game, min_reach=default_min_reach),
-        )
-        games_filter_max = max(
-            1,
-            service.max_relevant_games(game, min_reach=default_min_reach),
-        )
-    page = max(1, page)
+    # min_reach always gets the platform floor.
     min_reach = max(default_min_reach, min_reach)
-    max_reach = reach_filter_max if max_reach is None else max(0, max_reach)
-    max_reach = min(reach_filter_max, max_reach)
-    min_overlap = max(0, min(_OVERLAP_FILTER_MAX, min_overlap))
-    max_overlap = max(0, min(_OVERLAP_FILTER_MAX, max_overlap))
-    min_games = max(0, min_games)
-    max_games = games_filter_max if max_games is None else max(0, max_games)
-    max_games = min(games_filter_max, max_games)
+
+    page = max(1, page)
     valid_contact_methods = {
         option["value"] for option in _CONTACT_METHOD_OPTIONS
     }
@@ -270,21 +246,50 @@ def game_prospects_page(
     else:
         reachable_via = requested_reachable_via
         contact_methods = requested_reachable_via
+
+    offset = (page - 1) * _PAGE_SIZE
+
+    prospects, total_count, status_counts, raw_reach_max, raw_games_max = service.rank_prospects(
+        game,
+        limit=_PAGE_SIZE,
+        offset=offset,
+        min_reach=min_reach,
+        max_reach=max_reach,
+        min_relevant_games=min_games,
+        max_relevant_games=max_games,
+        contact_methods=contact_methods,
+        status_filter=status,
+    )
+
+    # Derive filter bounds from the ranking return value.
+    if not is_limited:
+        reach_filter_max = max(default_min_reach, raw_reach_max)
+        games_filter_max = max(1, raw_games_max)
+    else:
+        reach_filter_max = default_min_reach
+        games_filter_max = 1
+
+    # Clamp filter values for template display.
+    if max_reach is None:
+        max_reach = reach_filter_max
+    else:
+        max_reach = min(reach_filter_max, max(0, max_reach))
+    if max_games is None:
+        max_games = games_filter_max
+    else:
+        max_games = min(games_filter_max, max(0, max_games))
+    min_games = max(0, min_games)
+
     if min_reach > max_reach:
         min_reach, max_reach = max_reach, min_reach
-    if min_overlap > max_overlap:
-        min_overlap, max_overlap = max_overlap, min_overlap
     if min_games > max_games:
         min_games, max_games = max_games, min_games
+
     filter_params: dict[str, int | str | list[str]] = {}
     if min_reach > default_min_reach:
         filter_params["min_reach"] = min_reach
     if max_reach < reach_filter_max:
         filter_params["max_reach"] = max_reach
-    if min_overlap > 0:
-        filter_params["min_overlap"] = min_overlap
-    if max_overlap < _OVERLAP_FILTER_MAX:
-        filter_params["max_overlap"] = max_overlap
     if min_games > 0:
         filter_params["min_games"] = min_games
     if max_games < games_filter_max:
@@ -297,6 +302,7 @@ def game_prospects_page(
         navigation_params["status"] = status
     navigation_query = urlencode(navigation_params, doseq=True)
     filter_query_suffix = f"&{navigation_query}" if navigation_query else ""
+
     if is_limited:
         status = "all"
         if page > 1 or filter_query or request.query_params.get("status"):
@@ -306,30 +312,11 @@ def game_prospects_page(
             )
         min_reach = default_min_reach
         max_reach = reach_filter_max
-        min_overlap = 0
-        max_overlap = _OVERLAP_FILTER_MAX
         min_games = 0
         max_games = games_filter_max
         reachable_via = ()
         filter_params = {}
         filter_query_suffix = ""
-    offset = (page - 1) * _PAGE_SIZE
-
-    prospects, total_count, status_counts = service.rank_prospects(
-        game,
-        limit=_PAGE_SIZE,
-        offset=offset,
-        min_reach=min_reach,
-        max_reach=(max_reach if max_reach < reach_filter_max else None),
-        min_overlap_score=min_overlap / 100,
-        max_overlap_score=max_overlap / 100,
-        min_relevant_games=min_games,
-        max_relevant_games=(
-            max_games if max_games < games_filter_max else None
-        ),
-        contact_methods=contact_methods,
-        status_filter=status,
-    )
     log.info(
         "[prospects] GET slug=%s user_id=%s page=%s status=%s total=%s rendered=%s elapsed_ms=%.1f",
         slug,
@@ -404,8 +391,6 @@ def game_prospects_page(
             "min_reach": min_reach,
             "max_reach": max_reach,
             "default_min_reach": default_min_reach,
-            "min_overlap": min_overlap,
-            "max_overlap": max_overlap,
             "min_games": min_games,
             "max_games": max_games,
             "reachable_via": reachable_via,
@@ -413,13 +398,10 @@ def game_prospects_page(
             "filters_active": bool(filter_params),
             "reach_filter_active": min_reach > default_min_reach
             or max_reach < reach_filter_max,
-            "overlap_filter_active": min_overlap > 0
-            or max_overlap < _OVERLAP_FILTER_MAX,
             "games_filter_active": min_games > 0
             or max_games < games_filter_max,
             "contact_filter_active": bool(contact_methods),
             "reach_filter_max": reach_filter_max,
-            "overlap_filter_max": _OVERLAP_FILTER_MAX,
             "games_filter_max": games_filter_max,
             "filter_query_suffix": filter_query_suffix,
         },
@@ -474,12 +456,6 @@ async def update_prospect_workflow(
         _safe_int(payload.get("min_reach"), default_min_reach),
     )
     current_max_reach_raw = payload.get("max_reach")
-    current_min_overlap = max(
-        0, min(100, _safe_int(payload.get("min_overlap"), 0))
-    )
-    current_max_overlap = max(
-        0, min(100, _safe_int(payload.get("max_overlap"), 100))
-    )
     current_min_games = max(0, _safe_int(payload.get("min_games"), 0))
     current_max_games_raw = payload.get("max_games")
     reachable_via_payload = payload.get("reachable_via") or []
@@ -504,8 +480,6 @@ async def update_prospect_workflow(
         game,
         min_reach=current_min_reach,
         max_reach=current_max_reach,
-        min_overlap_score=current_min_overlap / 100,
-        max_overlap_score=current_max_overlap / 100,
         min_relevant_games=current_min_games,
         max_relevant_games=current_max_games,
         contact_methods=reachable_via,

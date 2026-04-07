@@ -67,7 +67,7 @@ def _post_form(
     *,
     get_path: str,
     post_path: str,
-    data: dict[str, str],
+    data: dict[str, str | list[str]],
     follow_redirects: bool = True,
 ):
     payload = dict(data)
@@ -138,7 +138,7 @@ def test_dashboard_game_cards_include_run_discovery_action(
                 "summary": "Arcade racing across collapsing star lanes.",
                 "description": "A longer internal description that should not appear on the dashboard card.",
                 "platforms": "pc",
-                "igdb_genre_ids": "10",
+                "igdb_genre_ids": ["10", "24"],
                 "similar_game_names": "Slay the Spire",
                 "website_url": "",
             },
@@ -184,7 +184,7 @@ def test_create_game_redirects_to_dashboard(monkeypatch, tmp_path):
                 "name": "Orbit Drift",
                 "summary": "Arcade racing across collapsing star lanes.",
                 "description": "Arcade racing across collapsing star lanes.",
-                "igdb_genre_ids": "10",
+                "igdb_genre_ids": ["10", "24"],
                 "website_url": "orbitdrift.example",
             },
             follow_redirects=False,

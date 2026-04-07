@@ -10,7 +10,7 @@ def test_create_game_stores_and_returns_game(game_service, registered_user):
         summary="A puzzle game set in space.",
         description="A puzzle game set in space",
         website_url=None,
-        igdb_genre_ids=[9],  # Puzzle
+        igdb_genre_ids=[9, 24],  # Puzzle, Tactical
     )
     from app.games.models import CustomerGame
 
@@ -50,7 +50,7 @@ def test_create_game_stores_platforms_and_labels(
         description="Testing platform storage.",
         website_url=None,
         platforms=["pc", "switch", "board-game"],
-        igdb_genre_ids=[9],
+        igdb_genre_ids=[9, 24],
     )
     assert game.platforms == ["pc", "switch", "board-game"]
     assert game.platform_labels == [
@@ -69,9 +69,9 @@ def test_create_game_defaults_optional_igdb_fields(
         summary="Minimal game with just a genre.",
         description="Testing defaults",
         website_url=None,
-        igdb_genre_ids=[9],  # Puzzle
+        igdb_genre_ids=[9, 24],  # Puzzle, Tactical
     )
-    assert game.igdb_genre_ids == [9]
+    assert game.igdb_genre_ids == [9, 24]
     assert game.igdb_theme_ids == []
     assert game.igdb_game_mode_ids == []
     assert game.igdb_player_perspective_ids == []
@@ -86,7 +86,7 @@ def test_customer_facing_labels_merge_curated_keyword_buckets(
         summary="Labels include curated buckets.",
         description="Labels include curated buckets.",
         website_url=None,
-        igdb_genre_ids=[12],
+        igdb_genre_ids=[12, 24],
         igdb_theme_ids=[18],
         igdb_keyword_ids=["roguelike", "cozy", "crafting"],
     )
@@ -135,7 +135,7 @@ def test_game_limit_returns_false_after_trial_limit(
             summary="First game summary",
             description="First game description",
             website_url=None,
-            igdb_genre_ids=[9],
+            igdb_genre_ids=[9, 24],
         )
 
     # Should now be at the Indie trial limit (3 games)
@@ -187,7 +187,7 @@ def test_create_game_allows_blank_description(game_service, registered_user):
         summary="A summary is enough for setup.",
         description="",
         website_url=None,
-        igdb_genre_ids=[12],
+        igdb_genre_ids=[12, 24],
     )
 
     assert game.description == ""

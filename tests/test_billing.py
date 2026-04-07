@@ -86,7 +86,7 @@ def test_check_game_limit_returns_false_when_at_limit(
         summary="Short summary",
         description="desc",
         website_url=None,
-        igdb_genre_ids=[9],  # Puzzle
+        igdb_genre_ids=[9, 24],  # Puzzle, Tactical
     )
     assert billing_service.check_game_limit(registered_user.user_id) is False
 

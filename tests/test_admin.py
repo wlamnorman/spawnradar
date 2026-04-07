@@ -134,7 +134,7 @@ class TestGetDashboardData:
             summary="A test game",
             description="A test game description for testing",
             website_url=None,
-            igdb_genre_ids=[9],
+            igdb_genre_ids=[9, 24],
         )
         data = get_dashboard_data(db_path)
         assert data["total_games"] == 1
@@ -165,7 +165,7 @@ class TestGetDashboardData:
             summary="Guest-owned game",
             description="Created before signup",
             website_url=None,
-            igdb_genre_ids=[9],
+            igdb_genre_ids=[9, 24],
         )
 
         data = get_dashboard_data(db_path)
@@ -194,7 +194,7 @@ class TestAdminBypassGameSetup:
             summary="Owner's game",
             description="A game owned by someone else",
             website_url=None,
-            igdb_genre_ids=[9],
+            igdb_genre_ids=[9, 24],
         )
         fetched = game_repo.get_by_slug(game.slug)
         assert fetched is not None
@@ -210,7 +210,7 @@ class TestAdminBypassGameSetup:
             summary="Owner's game",
             description="A game owned by someone else",
             website_url=None,
-            igdb_genre_ids=[9],
+            igdb_genre_ids=[9, 24],
         )
         updated = game_service.update_game(
             customer_game_id=game.customer_game_id,
@@ -219,7 +219,7 @@ class TestAdminBypassGameSetup:
             summary="Admin edited this",
             description="Admin changed the description",
             website_url=None,
-            igdb_genre_ids=[9],
+            igdb_genre_ids=[9, 24],
         )
         assert updated.name == "AdminEdited"
 
@@ -324,7 +324,7 @@ class TestAdminRouteAccessControl:
             summary="Guest summary",
             description="Guest description",
             website_url=None,
-            igdb_genre_ids=[9],
+            igdb_genre_ids=[9, 24],
         )
 
         resp = admin_client.get(

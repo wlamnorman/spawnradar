@@ -155,8 +155,8 @@ class CustomerGameService:
             _validate_game_text_fields(name, summary, description)
         )
 
-        if not genres:
-            raise ValueError("At least one IGDB genre is required.")
+        if len(genres) < 2:
+            raise ValueError("At least 2 IGDB genres are required.")
         _validate_tag_limits(
             igdb_genre_ids=genres,
             igdb_theme_ids=igdb_theme_ids,
@@ -212,7 +212,10 @@ class CustomerGameService:
         if owner_workspace_id is None:
             raise ValueError("workspace_id is required.")
         customer_game = self._customer_games.get_by_id(customer_game_id)
-        if customer_game is None or customer_game.workspace_id != owner_workspace_id:
+        if (
+            customer_game is None
+            or customer_game.workspace_id != owner_workspace_id
+        ):
             raise ValueError("Customer game not found or access denied.")
 
         genres = igdb_genre_ids or []
@@ -222,7 +225,7 @@ class CustomerGameService:
         )
 
         if not genres:
-            raise ValueError("At least one IGDB genre is required.")
+            raise ValueError("At least two genres are required.")
         _validate_tag_limits(
             igdb_genre_ids=genres,
             igdb_theme_ids=igdb_theme_ids,
@@ -258,7 +261,10 @@ class CustomerGameService:
         if owner_workspace_id is None:
             raise ValueError("workspace_id is required.")
         customer_game = self._customer_games.get_by_id(customer_game_id)
-        if customer_game is None or customer_game.workspace_id != owner_workspace_id:
+        if (
+            customer_game is None
+            or customer_game.workspace_id != owner_workspace_id
+        ):
             raise ValueError("Customer game not found or access denied.")
         if self._metrics is not None:
             self._metrics.record_game_deleted(
@@ -280,7 +286,10 @@ class CustomerGameService:
         if owner_workspace_id is None:
             raise ValueError("workspace_id is required.")
         customer_game = self._customer_games.get_by_id(customer_game_id)
-        if customer_game is None or customer_game.workspace_id != owner_workspace_id:
+        if (
+            customer_game is None
+            or customer_game.workspace_id != owner_workspace_id
+        ):
             raise ValueError("Customer game not found or access denied.")
         new_customer_game_id = str(uuid.uuid4())
         new_name = f"Copy of {customer_game.name}"

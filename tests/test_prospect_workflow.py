@@ -97,9 +97,9 @@ def _setup_game_with_creators(
         summary="A tactical RPG for testing.",
         description="A tactical RPG for testing workflows.",
         website_url=None,
-        igdb_genre_ids=[12],  # RPG
+        igdb_genre_ids=[12, 24],  # RPG, Tactical
     )
-    _insert_igdb_game(db_path, 800, "RPG Match", genre_tags=[(12, "RPG")])
+    _insert_igdb_game(db_path, 800, "RPG Match", genre_tags=[(12, "RPG"), (24, "Tactical")])
 
     creator_ids = []
     for i in range(num_creators):
@@ -307,7 +307,7 @@ class TestProspectWorkflowService:
         )
 
         service = ProspectRankingService(db_path)
-        prospects, total, status_counts = service.rank_prospects(game)
+        prospects, total, status_counts, _, _ = service.rank_prospects(game)
 
         contacted = [p for p in prospects if p.workflow.status == "contacted"]
         new = [p for p in prospects if p.workflow.status == "new"]
@@ -332,7 +332,7 @@ class TestProspectWorkflowService:
         )
 
         service = ProspectRankingService(db_path)
-        prospects, total, status_counts = service.rank_prospects(
+        prospects, total, status_counts, _, _ = service.rank_prospects(
             game, status_filter="all",
         )
 
@@ -356,7 +356,7 @@ class TestProspectWorkflowService:
         )
 
         service = ProspectRankingService(db_path)
-        prospects, total, status_counts = service.rank_prospects(
+        prospects, total, status_counts, _, _ = service.rank_prospects(
             game, status_filter="not_pursuing",
         )
 
@@ -391,7 +391,7 @@ class TestProspectWorkflowService:
         )
 
         service = ProspectRankingService(db_path)
-        prospects, total, status_counts = service.rank_prospects(
+        prospects, total, status_counts, _, _ = service.rank_prospects(
             game, status_filter="contacted",
         )
 
@@ -426,7 +426,7 @@ class TestProspectWorkflowService:
         )
 
         service = ProspectRankingService(db_path)
-        _prospects, _total, status_counts = service.rank_prospects(game)
+        _prospects, _total, status_counts, _, _ = service.rank_prospects(game)
 
         assert status_counts["new"] == 2
         assert status_counts["contacted"] == 1
@@ -445,7 +445,7 @@ class TestProspectWorkflowService:
 
         # First query: new
         service = ProspectRankingService(db_path)
-        prospects1, _, _ = service.rank_prospects(game)
+        prospects1, _, _, _, _ = service.rank_prospects(game)
         assert prospects1[0].workflow.status == "new"
 
         # Update status
@@ -457,7 +457,7 @@ class TestProspectWorkflowService:
         )
 
         # Second query: contacted
-        prospects2, _, _ = service.rank_prospects(game)
+        prospects2, _, _, _, _ = service.rank_prospects(game)
         assert prospects2[0].workflow.status == "contacted"
 
     def test_workflow_full_lifecycle(
@@ -493,7 +493,7 @@ class TestProspectWorkflowService:
             summary="First game.",
             description="First game.",
             website_url=None,
-            igdb_genre_ids=[12],
+            igdb_genre_ids=[12, 24],
         )
         game2 = game_service.create_game(
             user_id=registered_user.user_id,
@@ -501,9 +501,9 @@ class TestProspectWorkflowService:
             summary="Second game.",
             description="Second game.",
             website_url=None,
-            igdb_genre_ids=[12],
+            igdb_genre_ids=[12, 24],
         )
-        _insert_igdb_game(db_path, 900, "Shared Game", genre_tags=[(12, "RPG")])
+        _insert_igdb_game(db_path, 900, "Shared Game", genre_tags=[(12, "RPG"), (24, "Tactical")])
         _insert_creator(db_path, "shared-creator", "Shared Creator")
         _insert_game_play(db_path, "shared-creator", "Shared Game", 900)
 

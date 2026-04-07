@@ -13,7 +13,6 @@ from app.database import get_connection
 from app.prospects.models import (
     PROSPECT_DEFAULT_STATUS,
     PROSPECT_WORKFLOW_STATUS_ORDER,
-    CreatorRankingFilterProfile,
     CreatorRankingProfile,
     ProspectWorkflowState,
     ProspectWorkflowStatus,
@@ -48,19 +47,27 @@ class ProspectRepository:
         self,
         *,
         game_tags: Sequence[TagKey],
-        limit: int = 200,
+        account_ids: list[str] | None = None,
     ) -> dict[str, TagCounts]:
-        """Return per-creator counts for the customer game's target tags only."""
+        """Return per-creator counts for the customer game's target tags only.
+
+        When *account_ids* is provided, only those creators are queried
+        (used for page-level hydration).  Otherwise all creators with
+        ``overlap_count >= 2`` are returned.
+        """
         if not game_tags:
             return {}
 
         game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
 
-        sql = f"""
-            WITH game_tags AS (
-                {game_tags_sql}
-            ),
-            creator_target_tag_counts AS (
+        if account_ids is not None:
+            if not account_ids:
+                return {}
+            placeholders = ",".join("?" for _ in account_ids)
+            sql = f"""
+                WITH game_tags AS (
+                    {game_tags_sql}
+                )
                 SELECT
                     cgp.account_id,
                     igt.tag_type,
@@ -71,22 +78,42 @@ class ProspectRepository:
                 JOIN game_tags gt ON gt.tag_type = igt.tag_type
                                   AND gt.tag_id = igt.tag_id
                 WHERE cgp.igdb_game_id IS NOT NULL
+                  AND cgp.account_id IN ({placeholders})
                 GROUP BY cgp.account_id, igt.tag_type, igt.tag_id
-            ),
-            eligible_creators AS (
-                SELECT cttc.account_id, COUNT(*) AS overlap_count
+                ORDER BY cgp.account_id
+            """
+            params: list[object] = [*game_tags_params, *account_ids]
+        else:
+            sql = f"""
+                WITH game_tags AS (
+                    {game_tags_sql}
+                ),
+                creator_target_tag_counts AS (
+                    SELECT
+                        cgp.account_id,
+                        igt.tag_type,
+                        igt.tag_id,
+                        COUNT(*) AS tag_count
+                    FROM creator_games_played cgp
+                    JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                    JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                      AND gt.tag_id = igt.tag_id
+                    WHERE cgp.igdb_game_id IS NOT NULL
+                    GROUP BY cgp.account_id, igt.tag_type, igt.tag_id
+                ),
+                eligible_creators AS (
+                    SELECT cttc.account_id, COUNT(*) AS overlap_count
+                    FROM creator_target_tag_counts cttc
+                    GROUP BY cttc.account_id
+                    HAVING overlap_count >= 2
+                )
+                SELECT cttc.account_id, cttc.tag_type, cttc.tag_id, cttc.tag_count
                 FROM creator_target_tag_counts cttc
-                GROUP BY cttc.account_id
-                ORDER BY overlap_count DESC
-                LIMIT ?
-            )
-            SELECT cttc.account_id, cttc.tag_type, cttc.tag_id, cttc.tag_count
-            FROM creator_target_tag_counts cttc
-            JOIN eligible_creators ec ON ec.account_id = cttc.account_id
-            ORDER BY cttc.account_id
-        """
+                JOIN eligible_creators ec ON ec.account_id = cttc.account_id
+                ORDER BY cttc.account_id
+            """
+            params = [*game_tags_params]
 
-        params: list[object] = [*game_tags_params, limit]
         with get_connection(self._db_path) as conn:
             rows = conn.execute(sql, params).fetchall()
 
@@ -106,84 +133,337 @@ class ProspectRepository:
             )
         return result
 
-    def count_creators_with_overlap(
+    def rank_scored_page(
         self,
         *,
         game_tags: Sequence[TagKey],
+        total_weight: float,
+        customer_game_id: str,
+        min_coverage: float = 0.65,
         min_reach: int = 0,
-    ) -> int:
-        """Count creators with at least one overlapping game tag."""
-        if not game_tags:
-            return 0
+        max_reach: int | None = None,
+        min_relevant_games: int = 0,
+        max_relevant_games: int | None = None,
+        contact_methods: tuple[str, ...] = (),
+        status_filter: str = "all",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[
+        list[tuple[str, float, int]],  # (account_id, coverage_score, reach)
+        int,  # total_count
+        int,  # reach_filter_max
+        dict[ProspectWorkflowStatus, int],  # status_counts
+    ]:
+        """Score, filter, sort, and paginate prospects entirely in SQL.
+
+        Returns ``(page_rows, total_count, reach_filter_max, status_counts)``.
+        """
+        if not game_tags or total_weight <= 0:
+            return [], 0, 0, dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0)
 
         game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
+
+        # --- Dynamic filter clauses ------------------------------------
+        extra_joins: list[str] = []
+        extra_where: list[str] = []
+        extra_params: list[object] = []
+
+        # Contact methods filter
+        if contact_methods:
+            contact_conditions: list[str] = []
+            contact_params: list[object] = []
+            for method in contact_methods:
+                if method == "email":
+                    contact_conditions.append(
+                        "EXISTS (SELECT 1 FROM contact_points cp"
+                        " WHERE cp.account_id = rf.account_id"
+                        " AND cp.contact_type = 'email' AND cp.is_public = 1)"
+                    )
+                elif method == "discord":
+                    contact_conditions.append(
+                        "EXISTS (SELECT 1 FROM contact_points cp"
+                        " WHERE cp.account_id = rf.account_id"
+                        " AND cp.contact_type = 'discord' AND cp.is_public = 1)"
+                    )
+                elif method in ("twitch", "youtube"):
+                    # Match by platform OR by social link containing
+                    # the platform domain.
+                    platform = method
+                    if platform == "twitch":
+                        domains = ("twitch.tv",)
+                    else:
+                        domains = ("youtube.com", "youtu.be")
+                    domain_clauses = " OR ".join(
+                        "cp.contact_value LIKE '%' || ? || '%'"
+                        for _ in domains
+                    )
+                    contact_conditions.append(
+                        f"(EXISTS (SELECT 1 FROM source_accounts sa_rf"
+                        f" WHERE sa_rf.account_id = rf.account_id"
+                        f" AND sa_rf.platform = '{platform}'"
+                        f" AND sa_rf.canonical_url IS NOT NULL)"
+                        f" OR EXISTS (SELECT 1 FROM contact_points cp"
+                        f" WHERE cp.account_id = rf.account_id"
+                        f" AND cp.contact_type = 'social_link'"
+                        f" AND cp.is_public = 1"
+                        f" AND ({domain_clauses})))"
+                    )
+                    contact_params.extend(domains)
+                else:
+                    # Social link platforms (x, instagram, tiktok, bluesky)
+                    domain_map = {
+                        "x": ("x.com", "twitter.com"),
+                        "instagram": ("instagram.com",),
+                        "tiktok": ("tiktok.com",),
+                        "bluesky": ("bsky.app",),
+                    }
+                    domains = domain_map.get(method, ())
+                    if domains:
+                        domain_clauses = " OR ".join(
+                            "cp.contact_value LIKE '%' || ? || '%'"
+                            for _ in domains
+                        )
+                        contact_conditions.append(
+                            "EXISTS (SELECT 1 FROM contact_points cp"
+                            f" WHERE cp.account_id = rf.account_id"
+                            f" AND cp.contact_type = 'social_link'"
+                            f" AND cp.is_public = 1"
+                            f" AND ({domain_clauses}))"
+                        )
+                        contact_params.extend(domains)
+            if contact_conditions:
+                extra_where.append(
+                    "AND (" + " OR ".join(contact_conditions) + ")"
+                )
+                extra_params.extend(contact_params)
+
+        # Relevant games filter
+        relevant_games_cte = ""
+        relevant_games_join = ""
+        relevant_games_where = ""
+        relevant_games_params: list[object] = []
+        if min_relevant_games > 0 or max_relevant_games is not None:
+            relevant_games_cte = """,
+            creator_relevant_game_counts AS (
+                SELECT
+                    cgp2.account_id,
+                    COUNT(DISTINCT cgp2.igdb_game_id) AS relevant_game_count
+                FROM creator_games_played cgp2
+                JOIN igdb_game_tags igt2 ON igt2.igdb_id = cgp2.igdb_game_id
+                JOIN game_tags gt2 ON gt2.tag_type = igt2.tag_type
+                                   AND gt2.tag_id = igt2.tag_id
+                WHERE cgp2.igdb_game_id IS NOT NULL
+                GROUP BY cgp2.account_id
+            )"""
+            relevant_games_join = (
+                "LEFT JOIN creator_relevant_game_counts crgc"
+                " ON crgc.account_id = rf.account_id"
+            )
+            conditions = []
+            if min_relevant_games > 0:
+                conditions.append("COALESCE(crgc.relevant_game_count, 0) >= ?")
+                relevant_games_params.append(min_relevant_games)
+            if max_relevant_games is not None:
+                conditions.append("COALESCE(crgc.relevant_game_count, 0) <= ?")
+                relevant_games_params.append(max_relevant_games)
+            relevant_games_where = "AND " + " AND ".join(conditions)
+
+        # Status filter clause
+        if status_filter == "all":
+            status_where = "AND workflow_status != 'not_pursuing'"
+        elif status_filter in PROSPECT_WORKFLOW_STATUS_ORDER:
+            status_where = "AND workflow_status = ?"
+        else:
+            status_where = ""
+
+        # De-duplicate extra_joins
+        extra_joins_sql = "\n                ".join(
+            dict.fromkeys(extra_joins).keys()
+        )
+        extra_where_sql = "\n                  ".join(extra_where)
+
         sql = f"""
             WITH game_tags AS (
                 {game_tags_sql}
             ),
-            overlapping_accounts AS (
-                SELECT DISTINCT cgp.account_id
+            creator_tag_evidence AS (
+                SELECT
+                    cgp.account_id,
+                    gt.tag_type,
+                    gt.tag_id,
+                    CASE
+                        WHEN COUNT(DISTINCT cgp.igdb_game_id) = 1 THEN 0.93
+                        WHEN COUNT(DISTINCT cgp.igdb_game_id) = 2 THEN 0.967
+                        ELSE 1.0
+                    END AS evidence
                 FROM creator_games_played cgp
                 JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
                 JOIN game_tags gt ON gt.tag_type = igt.tag_type
                                   AND gt.tag_id = igt.tag_id
                 WHERE cgp.igdb_game_id IS NOT NULL
-            )
-            SELECT COUNT(*) AS creator_count
-            FROM (
+                GROUP BY cgp.account_id, gt.tag_type, gt.tag_id
+            ),
+            creator_scores AS (
                 SELECT
-                    oa.account_id,
+                    cte.account_id,
+                    SUM(
+                        CASE WHEN cte.tag_type = 'genre' THEN 3.0 ELSE 1.0 END
+                        * cte.evidence
+                    ) / ? AS coverage_score,
+                    COUNT(*) AS overlap_count
+                FROM creator_tag_evidence cte
+                GROUP BY cte.account_id
+                HAVING coverage_score > ? AND overlap_count >= 2
+            ),
+            scored_with_reach AS (
+                SELECT
+                    cs.account_id,
+                    cs.coverage_score,
                     COALESCE(tp.followers_count, yc.subscriber_count, 0) AS reach
-                FROM overlapping_accounts oa
-                JOIN source_accounts sa ON sa.account_id = oa.account_id
+                FROM creator_scores cs
+                JOIN source_accounts sa ON sa.account_id = cs.account_id
                 LEFT JOIN twitch_profiles_latest tp
                     ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
                 LEFT JOIN youtube_channels_latest yc
                     ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
-            ) ranked_accounts
-            WHERE ranked_accounts.reach >= ?
-        """
-        with get_connection(self._db_path) as conn:
-            row = conn.execute(sql, [*game_tags_params, min_reach]).fetchone()
-        return int(row["creator_count"] or 0) if row is not None else 0
-
-    def max_reach_with_overlap(
-        self,
-        *,
-        game_tags: Sequence[TagKey],
-        min_reach: int = 0,
-    ) -> int:
-        """Return the maximum reach among creators overlapping the game tags."""
-        if not game_tags:
-            return 0
-
-        game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
-        sql = f"""
-            WITH game_tags AS (
-                {game_tags_sql}
+                WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
+            ){relevant_games_cte},
+            reach_filtered AS (
+                SELECT rf.account_id, rf.coverage_score, rf.reach
+                FROM scored_with_reach rf
+                {extra_joins_sql}
+                {relevant_games_join}
+                WHERE (? = -1 OR rf.reach <= ?)
+                  {extra_where_sql}
+                  {relevant_games_where}
             ),
-            overlapping_accounts AS (
-                SELECT DISTINCT cgp.account_id
-                FROM creator_games_played cgp
-                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                JOIN game_tags gt ON gt.tag_type = igt.tag_type
-                                  AND gt.tag_id = igt.tag_id
-                WHERE cgp.igdb_game_id IS NOT NULL
+            with_status AS (
+                SELECT
+                    rf.account_id, rf.coverage_score, rf.reach,
+                    COALESCE(ps.status, 'new') AS workflow_status
+                FROM reach_filtered rf
+                LEFT JOIN prospect_statuses ps
+                    ON ps.account_id = rf.account_id
+                   AND ps.customer_game_id = ?
+            ),
+            status_filtered AS (
+                SELECT account_id, coverage_score, reach
+                FROM with_status
+                WHERE 1=1 {status_where}
             )
-            SELECT MAX(
-                COALESCE(tp.followers_count, yc.subscriber_count, 0)
-            ) AS max_reach
-            FROM overlapping_accounts oa
-            JOIN source_accounts sa ON sa.account_id = oa.account_id
-            LEFT JOIN twitch_profiles_latest tp
-                ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
-            LEFT JOIN youtube_channels_latest yc
-                ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
-            WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
+            SELECT
+                account_id, coverage_score, reach,
+                (SELECT COUNT(*) FROM status_filtered) AS total_count,
+                (SELECT MAX(reach) FROM scored_with_reach) AS reach_filter_max
+            FROM status_filtered
+            ORDER BY coverage_score DESC, reach DESC, account_id DESC
+            LIMIT ? OFFSET ?
         """
+        max_reach_param = max_reach if max_reach is not None else -1
+        params: list[object] = [
+            *game_tags_params,
+            total_weight,
+            min_coverage,
+            min_reach,
+            max_reach_param,
+            max_reach_param,
+            *extra_params,
+            *relevant_games_params,
+            customer_game_id,
+        ]
+        if (
+            status_filter not in ("all", "")
+            and status_filter in PROSPECT_WORKFLOW_STATUS_ORDER
+        ):
+            params.append(status_filter)
+        params.extend([limit, offset])
+
         with get_connection(self._db_path) as conn:
-            row = conn.execute(sql, [*game_tags_params, min_reach]).fetchone()
-        return int(row["max_reach"] or 0) if row is not None else 0
+            rows = conn.execute(sql, params).fetchall()
+
+            # Status counts from the scored set (before status filtering).
+            status_count_sql = f"""
+                WITH game_tags AS (
+                    {game_tags_sql}
+                ),
+                creator_tag_evidence AS (
+                    SELECT
+                        cgp.account_id,
+                        gt.tag_type,
+                        CASE
+                            WHEN COUNT(DISTINCT cgp.igdb_game_id) = 1 THEN 0.93
+                            WHEN COUNT(DISTINCT cgp.igdb_game_id) = 2 THEN 0.967
+                            ELSE 1.0
+                        END AS evidence
+                    FROM creator_games_played cgp
+                    JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
+                    JOIN game_tags gt ON gt.tag_type = igt.tag_type
+                                      AND gt.tag_id = igt.tag_id
+                    WHERE cgp.igdb_game_id IS NOT NULL
+                    GROUP BY cgp.account_id, gt.tag_type, gt.tag_id
+                ),
+                creator_scores AS (
+                    SELECT
+                        cte.account_id,
+                        SUM(
+                            CASE WHEN cte.tag_type = 'genre' THEN 3.0 ELSE 1.0 END
+                            * cte.evidence
+                        ) / ? AS coverage_score,
+                        COUNT(*) AS overlap_count
+                    FROM creator_tag_evidence cte
+                    GROUP BY cte.account_id
+                    HAVING coverage_score > ? AND overlap_count >= 2
+                ),
+                scored_with_reach AS (
+                    SELECT cs.account_id
+                    FROM creator_scores cs
+                    JOIN source_accounts sa ON sa.account_id = cs.account_id
+                    LEFT JOIN twitch_profiles_latest tp
+                        ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
+                    LEFT JOIN youtube_channels_latest yc
+                        ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
+                    WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
+                )
+                SELECT
+                    COALESCE(ps.status, 'new') AS workflow_status,
+                    COUNT(*) AS cnt
+                FROM scored_with_reach swr
+                LEFT JOIN prospect_statuses ps
+                    ON ps.account_id = swr.account_id
+                   AND ps.customer_game_id = ?
+                GROUP BY workflow_status
+            """
+            status_params: list[object] = [
+                *game_tags_params,
+                total_weight,
+                min_coverage,
+                min_reach,
+                customer_game_id,
+            ]
+            status_rows = conn.execute(
+                status_count_sql, status_params
+            ).fetchall()
+
+        status_counts: dict[ProspectWorkflowStatus, int] = dict.fromkeys(
+            PROSPECT_WORKFLOW_STATUS_ORDER, 0
+        )
+        for sr in status_rows:
+            raw_status = str(sr["workflow_status"])
+            if raw_status in PROSPECT_WORKFLOW_STATUS_ORDER:
+                status_counts[raw_status] += int(sr["cnt"])
+            else:
+                status_counts["new"] += int(sr["cnt"])
+
+        if not rows:
+            return [], 0, 0, status_counts
+
+        total_count = int(rows[0]["total_count"])
+        reach_filter_max = int(rows[0]["reach_filter_max"] or 0)
+        page_rows = [
+            (str(r["account_id"]), float(r["coverage_score"]), int(r["reach"]))
+            for r in rows
+        ]
+        return page_rows, total_count, reach_filter_max, status_counts
 
     def count_relevant_games(
         self,
@@ -214,45 +494,6 @@ class ProspectRepository:
         with get_connection(self._db_path) as conn:
             rows = conn.execute(sql, params).fetchall()
         return {str(row["account_id"]): int(row["game_count"]) for row in rows}
-
-    def max_relevant_games_with_overlap(
-        self,
-        *,
-        game_tags: Sequence[TagKey],
-        min_reach: int = 0,
-    ) -> int:
-        """Return the maximum relevant-game count among overlapping creators."""
-        if not game_tags:
-            return 0
-
-        game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
-        sql = f"""
-            WITH game_tags AS (
-                {game_tags_sql}
-            ),
-            creator_relevant_games AS (
-                SELECT
-                    cgp.account_id,
-                    COUNT(DISTINCT cgp.igdb_game_id) AS game_count
-                FROM creator_games_played cgp
-                JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                JOIN game_tags gt ON gt.tag_type = igt.tag_type
-                                  AND gt.tag_id = igt.tag_id
-                WHERE cgp.igdb_game_id IS NOT NULL
-                GROUP BY cgp.account_id
-            )
-            SELECT MAX(crg.game_count) AS max_game_count
-            FROM creator_relevant_games crg
-            JOIN source_accounts sa ON sa.account_id = crg.account_id
-            LEFT JOIN twitch_profiles_latest tp
-                ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
-            LEFT JOIN youtube_channels_latest yc
-                ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
-            WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
-        """
-        with get_connection(self._db_path) as conn:
-            row = conn.execute(sql, [*game_tags_params, min_reach]).fetchone()
-        return int(row["max_game_count"] or 0) if row is not None else 0
 
     def get_relevant_games(
         self,
@@ -313,84 +554,6 @@ class ProspectRepository:
                 cover = cover.replace("/t_cover_big/", "/t_thumb/")
             result.setdefault(aid, []).append(
                 RelevantGame(name=row["name"], cover_url=cover)
-            )
-        return result
-
-    def get_creator_filter_profiles(
-        self,
-        account_ids: list[str],
-        *,
-        include_contacts: bool = False,
-    ) -> dict[str, CreatorRankingFilterProfile]:
-        """Fetch lightweight profile data for ranking/filtering."""
-        if not account_ids:
-            return {}
-
-        placeholders = ",".join("?" for _ in account_ids)
-        sql = f"""
-            SELECT
-                sa.account_id,
-                sa.platform,
-                sa.canonical_url,
-                COALESCE(
-                    tp.recent_avg_live_viewers,
-                    tp.viewer_count,
-                    tp.recent_avg_vod_views,
-                    yc.recent_avg_views,
-                    0
-                ) AS recent_audience,
-                COALESCE(tp.followers_count, yc.subscriber_count, 0) AS reach
-            FROM source_accounts sa
-            LEFT JOIN twitch_profiles_latest tp
-                ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
-            LEFT JOIN youtube_channels_latest yc
-                ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
-            WHERE sa.account_id IN ({placeholders})
-        """
-
-        emails_by_account: dict[str, list[str]] = {}
-        discord_by_account: dict[str, list[str]] = {}
-        socials_by_account: dict[str, list[str]] = {}
-        with get_connection(self._db_path) as conn:
-            rows = conn.execute(sql, account_ids).fetchall()
-            if include_contacts:
-                contact_sql = f"""
-                    SELECT account_id, contact_type, contact_value
-                    FROM contact_points
-                    WHERE account_id IN ({placeholders})
-                      AND contact_type IN ('email', 'discord', 'social_link')
-                      AND is_public = 1
-                """
-                contact_rows = conn.execute(
-                    contact_sql, account_ids
-                ).fetchall()
-                for row in contact_rows:
-                    aid = str(row["account_id"])
-                    ctype = str(row["contact_type"])
-                    cval = str(row["contact_value"])
-                    if ctype == "email":
-                        emails_by_account.setdefault(aid, []).append(cval)
-                    elif ctype == "discord":
-                        discord_by_account.setdefault(aid, []).append(cval)
-                    elif ctype == "social_link":
-                        socials_by_account.setdefault(aid, []).append(cval)
-
-        result: dict[str, CreatorRankingFilterProfile] = {}
-        for row in rows:
-            account_id = str(row["account_id"])
-            result[account_id] = CreatorRankingFilterProfile(
-                account_id=account_id,
-                platform=str(row["platform"]),
-                canonical_url=row["canonical_url"],
-                recent_audience=int(row["recent_audience"] or 0),
-                reach=int(row["reach"] or 0),
-                contact_emails=tuple(emails_by_account.get(account_id, [])),
-                contact_discord_urls=tuple(
-                    discord_by_account.get(account_id, [])
-                ),
-                contact_social_links=tuple(
-                    socials_by_account.get(account_id, [])
-                ),
             )
         return result
 
