@@ -63,24 +63,29 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                         />
                     </label>
                 </div>
-                <div class="prospects-dual-range" data-range-wrapper="reach">
+                <div
+                    class="prospects-dual-range"
+                    data-range-wrapper="reach"
+                    data-range-floor="{{ default_min_reach }}"
+                    data-range-ceiling="{{ reach_filter_max }}"
+                >
                     <div class="prospects-dual-range-track"></div>
                     <div class="prospects-dual-range-active"></div>
                     <input
                         type="range"
                         min="0"
-                        max="{{ reach_filter_max }}"
-                        step="1"
-                        value="{{ min_reach }}"
+                        max="100"
+                        step="0.5"
+                        value="0"
                         data-range-input="min_reach"
                         data-range-kind="reach"
                     />
                     <input
                         type="range"
                         min="0"
-                        max="{{ reach_filter_max }}"
-                        step="1"
-                        value="{{ max_reach }}"
+                        max="100"
+                        step="0.5"
+                        value="100"
                         data-range-input="max_reach"
                         data-range-kind="reach"
                     />
@@ -1226,8 +1231,15 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                 var gamesWrapper = form.querySelector(
                     '[data-range-wrapper="games"]',
                 );
-                var reachCeiling = Number(reachMax.max);
-                var safeReachCeiling = Math.max(reachCeiling, 1);
+                var reachFloor = Math.max(
+                    Number(reachWrapper.dataset.rangeFloor) || 1,
+                    1,
+                );
+                var reachCeiling = Math.max(
+                    Number(reachWrapper.dataset.rangeCeiling) || reachFloor,
+                    reachFloor,
+                );
+                var reachSliderMax = Number(reachMax.max) || 100;
                 var gamesCeiling = Number(gamesMax.max);
                 var safeGamesCeiling = Math.max(gamesCeiling, 1);
 
@@ -1244,45 +1256,122 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                     input.value = input.value.replace(/[^\d]/g, "");
                 }
 
-                function commitNumberInput(numberInput, rangeInput, ceiling) {
+                function sliderToReach(sliderValue) {
+                    var clampedSlider = Math.max(
+                        0,
+                        Math.min(reachSliderMax, Number(sliderValue) || 0),
+                    );
+                    if (reachCeiling <= reachFloor) {
+                        return reachCeiling;
+                    }
+                    var ratio = clampedSlider / reachSliderMax;
+                    var minLog = Math.log10(reachFloor);
+                    var maxLog = Math.log10(reachCeiling);
+                    return Math.round(
+                        Math.pow(10, minLog + ratio * (maxLog - minLog)),
+                    );
+                }
+
+                function reachToSlider(reachValue) {
+                    var clampedReach = Math.max(
+                        reachFloor,
+                        Math.min(reachCeiling, Number(reachValue) || reachFloor),
+                    );
+                    if (reachCeiling <= reachFloor) {
+                        return 0;
+                    }
+                    var minLog = Math.log10(reachFloor);
+                    var maxLog = Math.log10(reachCeiling);
+                    var reachLog = Math.log10(clampedReach);
+                    return (
+                        ((reachLog - minLog) / (maxLog - minLog)) *
+                        reachSliderMax
+                    );
+                }
+
+                function commitNumberInput(
+                    numberInput,
+                    rangeInput,
+                    ceiling,
+                    kind,
+                ) {
                     sanitizeNumericText(numberInput);
                     if (!numberInput.value) {
-                        numberInput.value = rangeInput.value;
+                        if (kind === "reach") {
+                            numberInput.value = String(
+                                sliderToReach(rangeInput.value),
+                            );
+                        } else {
+                            numberInput.value = rangeInput.value;
+                        }
                     }
                     clampInput(numberInput, 0, ceiling);
-                    rangeInput.value = numberInput.value;
+                    if (kind === "reach") {
+                        rangeInput.value = String(
+                            reachToSlider(numberInput.value),
+                        );
+                    } else {
+                        rangeInput.value = numberInput.value;
+                    }
                     render();
                 }
 
-                function clampPair(minInput, maxInput, ceiling) {
+                function clampPair(
+                    minInput,
+                    maxInput,
+                    ceiling,
+                    minNumberInput,
+                    maxNumberInput,
+                ) {
                     clampInput(minInput, 0, ceiling);
                     clampInput(maxInput, 0, ceiling);
                     if (Number(minInput.value) > Number(maxInput.value)) {
                         if (
                             document.activeElement === minInput ||
-                            document.activeElement === numberMinReach
+                            document.activeElement === minNumberInput
                         ) {
-                            maxInput.value = minInput.value;
-                        } else {
                             minInput.value = maxInput.value;
+                        } else {
+                            maxInput.value = minInput.value;
                         }
                     }
                 }
 
                 function render() {
-                    clampPair(reachMin, reachMax, reachCeiling);
-                    clampPair(gamesMin, gamesMax, gamesCeiling);
-                    numberMinReach.value = reachMin.value;
-                    numberMaxReach.value = reachMax.value;
+                    var minReachValue = sliderToReach(reachMin.value);
+                    var maxReachValue = sliderToReach(reachMax.value);
+                    numberMinReach.value = String(minReachValue);
+                    numberMaxReach.value = String(maxReachValue);
+                    if (minReachValue > maxReachValue) {
+                        if (
+                            document.activeElement === reachMin ||
+                            document.activeElement === numberMinReach
+                        ) {
+                            reachMin.value = reachMax.value;
+                            minReachValue = maxReachValue;
+                            numberMinReach.value = String(minReachValue);
+                        } else {
+                            reachMax.value = reachMin.value;
+                            maxReachValue = minReachValue;
+                            numberMaxReach.value = String(maxReachValue);
+                        }
+                    }
+                    clampPair(
+                        gamesMin,
+                        gamesMax,
+                        gamesCeiling,
+                        numberMinGames,
+                        numberMaxGames,
+                    );
                     numberMinGames.value = gamesMin.value;
                     numberMaxGames.value = gamesMax.value;
                     reachWrapper.style.setProperty(
                         "--range-start",
-                        (Number(reachMin.value) / safeReachCeiling) * 100 + "%",
+                        (Number(reachMin.value) / reachSliderMax) * 100 + "%",
                     );
                     reachWrapper.style.setProperty(
                         "--range-end",
-                        (Number(reachMax.value) / safeReachCeiling) * 100 + "%",
+                        (Number(reachMax.value) / reachSliderMax) * 100 + "%",
                     );
                     gamesWrapper.style.setProperty(
                         "--range-start",
@@ -1300,37 +1389,50 @@ including overlap, reach, and contact details.{% endblock %} {% block content %}
                     },
                 );
                 [
-                    [numberMinReach, reachMin, reachCeiling],
-                    [numberMaxReach, reachMax, reachCeiling],
-                    [numberMinGames, gamesMin, gamesCeiling],
-                    [numberMaxGames, gamesMax, gamesCeiling],
+                    [numberMinReach, reachMin, reachCeiling, "reach"],
+                    [numberMaxReach, reachMax, reachCeiling, "reach"],
+                    [numberMinGames, gamesMin, gamesCeiling, "games"],
+                    [numberMaxGames, gamesMax, gamesCeiling, "games"],
                 ].forEach(function (pair) {
                     var numberInput = pair[0];
                     var rangeInput = pair[1];
                     var ceiling = pair[2];
+                    var kind = pair[3];
                     numberInput.addEventListener("input", function () {
                         sanitizeNumericText(numberInput);
                     });
                     numberInput.addEventListener("blur", function () {
-                        commitNumberInput(numberInput, rangeInput, ceiling);
+                        commitNumberInput(
+                            numberInput,
+                            rangeInput,
+                            ceiling,
+                            kind,
+                        );
                     });
                     numberInput.addEventListener("keydown", function (event) {
                         if (event.key === "Enter") {
                             event.preventDefault();
-                            commitNumberInput(numberInput, rangeInput, ceiling);
+                            commitNumberInput(
+                                numberInput,
+                                rangeInput,
+                                ceiling,
+                                kind,
+                            );
                         }
                     });
                 });
                 form.addEventListener("submit", function () {
                     [
-                        [numberMinReach, reachMin, reachCeiling],
-                        [numberMaxReach, reachMax, reachCeiling],
-                        [numberMinGames, gamesMin, gamesCeiling],
-                        [numberMaxGames, gamesMax, gamesCeiling],
+                        [numberMinReach, reachMin, reachCeiling, "reach"],
+                        [numberMaxReach, reachMax, reachCeiling, "reach"],
+                        [numberMinGames, gamesMin, gamesCeiling, "games"],
+                        [numberMaxGames, gamesMax, gamesCeiling, "games"],
                     ].forEach(function (pair) {
-                        commitNumberInput(pair[0], pair[1], pair[2]);
+                        commitNumberInput(pair[0], pair[1], pair[2], pair[3]);
                     });
                 });
+                reachMin.value = String(reachToSlider(numberMinReach.value));
+                reachMax.value = String(reachToSlider(numberMaxReach.value));
                 render();
             });
     })();

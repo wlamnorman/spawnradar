@@ -289,7 +289,9 @@ class TestProspectRepository:
         _insert_game_play(db_path, "creator-1", "Into the Breach", 101)
 
         repo = ProspectRepository(db_path)
-        result = repo.query_creator_tag_counts(game_tags=(("genre", 12), ("genre", 24)))
+        result = repo.query_creator_tag_counts(
+            game_tags=(("genre", 12), ("genre", 24))
+        )
 
         assert "creator-1" in result
         counts = result["creator-1"]
@@ -515,7 +517,9 @@ class TestProspectRepository:
         assert states["workflow-creator"].notes == "Worth reaching out"
         assert "missing-creator" not in states
 
-    def test_query_creator_tag_counts_excludes_single_tag_overlap(self, db_path):
+    def test_query_creator_tag_counts_excludes_single_tag_overlap(
+        self, db_path
+    ):
         """Creators matching only 1 game tag are excluded by the SQL pre-filter."""
         _insert_igdb_game(
             db_path,
@@ -734,9 +738,9 @@ class TestProspectRankingService:
         _insert_creator(db_path, "bucketed", "twitch", "BucketedTags")
         _insert_game_play(db_path, "bucketed", "Keyword Match", 100)
 
-        prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(
-            game
-        )
+        prospects, total, _, _, _ = ProspectRankingService(
+            db_path
+        ).rank_prospects(game)
 
         assert len(prospects) == 1
         assert prospects[0].overlap_tags == (
@@ -795,7 +799,9 @@ class TestProspectRankingService:
         )
         _insert_game_play(db_path, "weak", "Strong Match A", 100)
 
-        prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _, _, _ = ProspectRankingService(
+            db_path
+        ).rank_prospects(
             game,
             min_reach=1000,
             max_reach=10000,
@@ -851,7 +857,9 @@ class TestProspectRankingService:
         )
         _insert_game_play(db_path, "mid-reach", "Max Match A", 200)
 
-        prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _, _, _ = ProspectRankingService(
+            db_path
+        ).rank_prospects(
             game,
             max_reach=100_000,
         )
@@ -895,7 +903,9 @@ class TestProspectRankingService:
         _insert_game_play(db_path, "two-games", "Match One", 300)
         _insert_game_play(db_path, "two-games", "Match Two", 301)
 
-        prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _, _, _ = ProspectRankingService(
+            db_path
+        ).rank_prospects(
             game,
             min_relevant_games=2,
         )
@@ -940,7 +950,9 @@ class TestProspectRankingService:
             "https://discord.gg/example",
         )
 
-        prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _, _, _ = ProspectRankingService(
+            db_path
+        ).rank_prospects(
             game,
             contact_methods=("email", "discord"),
         )
@@ -985,7 +997,9 @@ class TestProspectRankingService:
         _insert_game_play(db_path, "two-games-max", "Relevant One", 500)
         _insert_game_play(db_path, "two-games-max", "Relevant Two", 501)
 
-        prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(
+        prospects, total, _, _, _ = ProspectRankingService(
+            db_path
+        ).rank_prospects(
             game,
             max_relevant_games=1,
         )
@@ -1107,6 +1121,84 @@ class TestProspectRankingService:
         assert count_total == total
         assert count_statuses == status_counts
 
+    def test_rank_prospects_games_filter_max_ignores_current_games_cap(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Games Ceiling Game",
+            summary="Tactical RPG",
+            description="Tactical RPG",
+            website_url=None,
+            igdb_genre_ids=[12, 24],
+            igdb_theme_ids=[18],
+        )
+        for igdb_id in range(720, 725):
+            _insert_igdb_game(
+                db_path,
+                igdb_id,
+                f"Games Ceiling Match {igdb_id}",
+                f"games-ceiling-match-{igdb_id}",
+                genre_tags=[(12, "Role-playing (RPG)"), (24, "Tactical")],
+                theme_tags=[(18, "Science fiction")],
+            )
+
+        _insert_creator(
+            db_path,
+            "small-reach",
+            "twitch",
+            "SmallReach",
+            followers=5_000,
+        )
+        _insert_creator(
+            db_path,
+            "large-reach",
+            "twitch",
+            "LargeReach",
+            followers=500_000,
+        )
+
+        for igdb_id in range(720, 722):
+            _insert_game_play(
+                db_path,
+                "small-reach",
+                f"Games Ceiling Match {igdb_id}",
+                igdb_id,
+            )
+        for igdb_id in range(720, 725):
+            _insert_game_play(
+                db_path,
+                "large-reach",
+                f"Games Ceiling Match {igdb_id}",
+                igdb_id,
+            )
+
+        service = ProspectRankingService(db_path)
+
+        _prospects, total, _status_counts, _reach_max, games_max = (
+            service.rank_prospects(
+                game,
+                max_reach=100_000,
+                max_relevant_games=2,
+            )
+        )
+        assert total == 1
+        assert games_max == 2
+
+        (
+            _prospects,
+            total,
+            _status_counts,
+            _reach_max,
+            games_max,
+        ) = service.rank_prospects(
+            game,
+            max_reach=1_000_000,
+            max_relevant_games=2,
+        )
+        assert total == 1
+        assert games_max == 5
+
     def test_rank_prospects_limits_relevant_games_to_ten_per_creator(
         self, db_path, game_service, registered_user
     ):
@@ -1141,9 +1233,9 @@ class TestProspectRankingService:
                 igdb_id,
             )
 
-        prospects, total, _, _, _ = ProspectRankingService(db_path).rank_prospects(
-            game
-        )
+        prospects, total, _, _, _ = ProspectRankingService(
+            db_path
+        ).rank_prospects(game)
 
         assert total == 1
         assert len(prospects) == 1
@@ -1201,7 +1293,9 @@ class TestProspectRankingService:
             _capture_page_profiles,
         )
 
-        prospects, total, _, _, _ = service.rank_prospects(game, limit=1, offset=1)
+        prospects, total, _, _, _ = service.rank_prospects(
+            game, limit=1, offset=1
+        )
 
         assert total == 3
         assert len(prospects) == 1
@@ -1306,15 +1400,23 @@ class TestProspectRankingService:
             igdb_theme_ids=[18],
         )
         _insert_igdb_game(
-            db_path, 150, "Full Match", "full-match",
+            db_path,
+            150,
+            "Full Match",
+            "full-match",
             genre_tags=[(12, "Strategy"), (24, "Tactical")],
             theme_tags=[(18, "Sci-fi")],
         )
         _insert_igdb_game(
-            db_path, 151, "Weak Match", "weak-match",
+            db_path,
+            151,
+            "Weak Match",
+            "weak-match",
             genre_tags=[(12, "Strategy")],
         )
-        _insert_creator(db_path, "high-cov", "twitch", "HighCov", followers=1000)
+        _insert_creator(
+            db_path, "high-cov", "twitch", "HighCov", followers=1000
+        )
         _insert_game_play(db_path, "high-cov", "Full Match", 150)
         _insert_creator(db_path, "low-cov", "twitch", "LowCov", followers=1000)
         _insert_game_play(db_path, "low-cov", "Weak Match", 151)
@@ -1341,21 +1443,36 @@ class TestProspectRankingService:
             igdb_theme_ids=[18, 33],
         )
         _insert_igdb_game(
-            db_path, 160, "All Tags", "all-tags",
+            db_path,
+            160,
+            "All Tags",
+            "all-tags",
             genre_tags=[(12, "Strategy"), (24, "Tactical")],
             theme_tags=[(18, "Sci-fi"), (33, "Horror")],
         )
         _insert_igdb_game(
-            db_path, 161, "Partial A", "partial-a",
-            genre_tags=[(12, "Strategy")], theme_tags=[(18, "Sci-fi")],
+            db_path,
+            161,
+            "Partial A",
+            "partial-a",
+            genre_tags=[(12, "Strategy")],
+            theme_tags=[(18, "Sci-fi")],
         )
         _insert_igdb_game(
-            db_path, 162, "Partial B", "partial-b",
-            genre_tags=[(12, "Strategy")], theme_tags=[(18, "Sci-fi")],
+            db_path,
+            162,
+            "Partial B",
+            "partial-b",
+            genre_tags=[(12, "Strategy")],
+            theme_tags=[(18, "Sci-fi")],
         )
         _insert_igdb_game(
-            db_path, 163, "Partial C", "partial-c",
-            genre_tags=[(12, "Strategy")], theme_tags=[(18, "Sci-fi")],
+            db_path,
+            163,
+            "Partial C",
+            "partial-c",
+            genre_tags=[(12, "Strategy")],
+            theme_tags=[(18, "Sci-fi")],
         )
         _insert_creator(db_path, "high-cov", "twitch", "HighCov")
         _insert_game_play(db_path, "high-cov", "All Tags", 160)

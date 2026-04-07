@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_product_access
 from app.auth.models import User
+from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
 from app.config import Settings
 from app.dependencies import (
@@ -28,6 +29,8 @@ from app.dependencies import (
 )
 from app.games.repository import CustomerGameRepository
 from app.igdb.taxonomy import IGDBGenre, IGDBTheme, keyword_label_for_value
+from app.metrics.repository import MetricsRepository
+from app.metrics.service import MetricsService
 from app.ownership.dependencies import require_ownership_context
 from app.ownership.service import OwnershipContext
 from app.prospects.models import (
@@ -198,10 +201,6 @@ def game_prospects_page(
 
     # Record page view metric (best-effort)
     try:
-        from app.billing.repository import SubscriptionRepository
-        from app.metrics.repository import MetricsRepository
-        from app.metrics.service import MetricsService
-
         MetricsService(
             MetricsRepository(settings.db_path),
             SubscriptionRepository(settings.db_path),
@@ -211,7 +210,9 @@ def game_prospects_page(
             customer_game_id=game.customer_game_id,
         )
     except Exception:
-        pass
+        log.warning(
+            "Failed to record prospect page view metric", exc_info=True
+        )
 
     service = ProspectRankingService(settings.db_path)
     valid_status_filters = {
@@ -249,16 +250,18 @@ def game_prospects_page(
 
     offset = (page - 1) * _PAGE_SIZE
 
-    prospects, total_count, status_counts, raw_reach_max, raw_games_max = service.rank_prospects(
-        game,
-        limit=_PAGE_SIZE,
-        offset=offset,
-        min_reach=min_reach,
-        max_reach=max_reach,
-        min_relevant_games=min_games,
-        max_relevant_games=max_games,
-        contact_methods=contact_methods,
-        status_filter=status,
+    prospects, total_count, status_counts, raw_reach_max, raw_games_max = (
+        service.rank_prospects(
+            game,
+            limit=_PAGE_SIZE,
+            offset=offset,
+            min_reach=min_reach,
+            max_reach=max_reach,
+            min_relevant_games=min_games,
+            max_relevant_games=max_games,
+            contact_methods=contact_methods,
+            status_filter=status,
+        )
     )
 
     # Derive filter bounds from the ranking return value.

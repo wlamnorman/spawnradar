@@ -1145,6 +1145,178 @@ class TestGameRoutes:
         assert 'name="min_reach"' in response.text
         assert 'value="50"' in response.text
 
+    def test_prospects_page_expands_games_filter_max_when_reach_widens(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "prospects-games-max@example.com", "testpass"
+            )
+            _activate_paid_subscription(
+                db_path, "prospects-games-max@example.com"
+            )
+            _post_form(
+                client,
+                get_path="/games/setup",
+                post_path="/games/setup",
+                data={
+                    "name": "Games Max Prospect Game",
+                    "summary": "Tactical RPG",
+                    "description": "Tactical RPG",
+                    "igdb_genre_ids": ["12", "24"],
+                    "igdb_theme_ids": ["18"],
+                    "website_url": "",
+                },
+                follow_redirects=False,
+            )
+            with get_connection(db_path) as conn:
+                game_row = conn.execute(
+                    """
+                    SELECT customer_game_id, slug
+                    FROM customer_games
+                    WHERE name = ?
+                    """,
+                    ("Games Max Prospect Game",),
+                ).fetchone()
+                assert game_row is not None
+                slug = str(game_row["slug"])
+
+                for igdb_id in range(720, 725):
+                    conn.execute(
+                        """
+                        INSERT INTO igdb_games (
+                            igdb_id, name, slug, summary, first_release_date,
+                            platform_ids_json, platform_names_json,
+                            last_synced_at
+                        ) VALUES (?, ?, ?, NULL, NULL, '[]', '[]', datetime('now'))
+                        """,
+                        (
+                            igdb_id,
+                            f"Games Max Match {igdb_id}",
+                            f"games-max-match-{igdb_id}",
+                        ),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO igdb_game_tags (igdb_id, tag_type, tag_name, tag_id)
+                        VALUES (?, 'genre', 'Role-playing (RPG)', 12)
+                        """,
+                        (igdb_id,),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO igdb_game_tags (igdb_id, tag_type, tag_name, tag_id)
+                        VALUES (?, 'genre', 'Tactical', 24)
+                        """,
+                        (igdb_id,),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO igdb_game_tags (igdb_id, tag_type, tag_name, tag_id)
+                        VALUES (?, 'theme', 'Science fiction', 18)
+                        """,
+                        (igdb_id,),
+                    )
+
+                creator_rows = [
+                    ("small-reach", "smallreach", 5_000),
+                    ("large-reach", "largereach", 500_000),
+                ]
+                for account_id, handle, followers in creator_rows:
+                    conn.execute(
+                        """
+                        INSERT INTO source_accounts (
+                            account_id, platform, external_id, handle_current,
+                            display_name_current, canonical_url,
+                            first_seen_at, last_seen_at, created_at, updated_at
+                        ) VALUES (?, 'twitch', ?, ?, ?, ?, datetime('now'),
+                                  datetime('now'), datetime('now'), datetime('now'))
+                        """,
+                        (
+                            account_id,
+                            f"ext-{account_id}",
+                            handle,
+                            handle.title(),
+                            f"https://twitch.tv/{handle}",
+                        ),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO twitch_profiles_latest (
+                            account_id, broadcaster_id, login, display_name,
+                            followers_count, recent_avg_live_viewers,
+                            fetched_at, expires_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now', '+1 day'))
+                        """,
+                        (
+                            account_id,
+                            f"broadcaster-{account_id}",
+                            handle,
+                            handle.title(),
+                            followers,
+                            100,
+                        ),
+                    )
+
+                for igdb_id in range(720, 722):
+                    conn.execute(
+                        """
+                        INSERT INTO creator_games_played (
+                            account_id, game_name_raw, game_name_key, platform,
+                            first_seen_at, last_seen_at, observation_count, igdb_game_id
+                        ) VALUES (?, ?, ?, 'twitch', datetime('now'), datetime('now'), 1, ?)
+                        """,
+                        (
+                            "small-reach",
+                            f"Games Max Match {igdb_id}",
+                            f"games max match {igdb_id}",
+                            igdb_id,
+                        ),
+                    )
+                for igdb_id in range(720, 725):
+                    conn.execute(
+                        """
+                        INSERT INTO creator_games_played (
+                            account_id, game_name_raw, game_name_key, platform,
+                            first_seen_at, last_seen_at, observation_count, igdb_game_id
+                        ) VALUES (?, ?, ?, 'twitch', datetime('now'), datetime('now'), 1, ?)
+                        """,
+                        (
+                            "large-reach",
+                            f"Games Max Match {igdb_id}",
+                            f"games max match {igdb_id}",
+                            igdb_id,
+                        ),
+                    )
+
+            narrowed = client.get(
+                f"/games/{slug}/prospects?max_reach=100000&max_games=2"
+            )
+            widened = client.get(
+                f"/games/{slug}/prospects?max_reach=1000000&max_games=2"
+            )
+
+        assert narrowed.status_code == 200
+        assert re.search(
+            r'<input[\s\S]*?max="2"[\s\S]*?data-range-input="max_games"',
+            narrowed.text,
+        )
+        assert re.search(
+            r'name="max_games"[\s\S]*?value="2"',
+            narrowed.text,
+        )
+
+        assert widened.status_code == 200
+        assert re.search(
+            r'<input[\s\S]*?max="5"[\s\S]*?data-range-input="max_games"',
+            widened.text,
+        )
+        assert re.search(
+            r'name="max_games"[\s\S]*?value="2"',
+            widened.text,
+        )
+
     def test_prospects_page_excludes_creators_below_minimum_reach(
         self, monkeypatch, tmp_path
     ):

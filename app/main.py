@@ -37,8 +37,8 @@ from app.billing.repository import SubscriptionRepository
 from app.billing.router import router as billing_router
 from app.billing.service import BillingService
 from app.config import Settings
-from app.database import initialize_database
-from app.dependencies import get_billing_service, get_templates
+from app.database import get_connection, initialize_database
+from app.dependencies import get_billing_service, get_settings, get_templates
 from app.email.service import EmailService
 from app.game_import.service import GameImportService
 from app.games.repository import CustomerGameRepository
@@ -74,6 +74,20 @@ _FRONTEND_DIR = _APP_DIR / "frontend"
 _TEMPLATES_DIR = _FRONTEND_DIR / "templates"
 _STATIC_DIR = _FRONTEND_DIR / "static"
 logger = logging.getLogger(__name__)
+
+
+def _active_creator_profile_count(db_path: str) -> int:
+    """Return the number of active creator accounts in the index."""
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS creator_count
+            FROM source_accounts
+            WHERE account_type = 'creator'
+              AND status = 'active'
+            """
+        ).fetchone()
+    return int(row["creator_count"] if row is not None else 0)
 
 
 @cache
@@ -327,12 +341,17 @@ def create_app() -> FastAPI:
         request: Request,
         ownership: OwnershipContext = Depends(get_ownership_context),
         templates: Jinja2Templates = Depends(get_templates),
+        settings: Settings = Depends(get_settings),
     ):
         """Render the public landing page."""
+        creator_profile_count = _active_creator_profile_count(settings.db_path)
         return templates.TemplateResponse(
             request,
             "marketing/home.html",
-            {"user": ownership.actor},
+            {
+                "user": ownership.actor,
+                "creator_profile_count": f"{creator_profile_count:,}",
+            },
         )
 
     @app.get("/pricing")

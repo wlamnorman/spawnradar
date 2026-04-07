@@ -43,7 +43,7 @@
         {% block meta_description %}
         <meta
             name="description"
-            content="SpawnRadar helps game developers discover and prioritize creators who are a strong fit for their game."
+            content="SpawnRadar matches indie game developers with creators who are a strong fit for their game."
         />
         {% endblock %}
 
@@ -102,8 +102,8 @@
                 <div class="navbar-center">
                     {% block game_switcher %}{% endblock %}
                 </div>
-                {% endif %}
-                {% if user is defined and user and not user.is_anonymous %}
+                {% endif %} {% if user is defined and user and not
+                user.is_anonymous %}
                 <div class="navbar-right">
                     <a href="/games" class="nav-link">Dashboard</a>
                     {% set _sub = subscription_for(request) %} {% if _sub and

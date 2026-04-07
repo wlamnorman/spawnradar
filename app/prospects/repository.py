@@ -152,14 +152,22 @@ class ProspectRepository:
         list[tuple[str, float, int]],  # (account_id, coverage_score, reach)
         int,  # total_count
         int,  # reach_filter_max
+        int,  # games_filter_max
         dict[ProspectWorkflowStatus, int],  # status_counts
     ]:
         """Score, filter, sort, and paginate prospects entirely in SQL.
 
-        Returns ``(page_rows, total_count, reach_filter_max, status_counts)``.
+        Returns ``(page_rows, total_count, reach_filter_max, games_filter_max,
+        status_counts)``.
         """
         if not game_tags or total_weight <= 0:
-            return [], 0, 0, dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0)
+            return (
+                [],
+                0,
+                0,
+                0,
+                dict.fromkeys(PROSPECT_WORKFLOW_STATUS_ORDER, 0),
+            )
 
         game_tags_sql, game_tags_params = _game_tags_cte(game_tags)
 
@@ -237,37 +245,6 @@ class ProspectRepository:
                 )
                 extra_params.extend(contact_params)
 
-        # Relevant games filter
-        relevant_games_cte = ""
-        relevant_games_join = ""
-        relevant_games_where = ""
-        relevant_games_params: list[object] = []
-        if min_relevant_games > 0 or max_relevant_games is not None:
-            relevant_games_cte = """,
-            creator_relevant_game_counts AS (
-                SELECT
-                    cgp2.account_id,
-                    COUNT(DISTINCT cgp2.igdb_game_id) AS relevant_game_count
-                FROM creator_games_played cgp2
-                JOIN igdb_game_tags igt2 ON igt2.igdb_id = cgp2.igdb_game_id
-                JOIN game_tags gt2 ON gt2.tag_type = igt2.tag_type
-                                   AND gt2.tag_id = igt2.tag_id
-                WHERE cgp2.igdb_game_id IS NOT NULL
-                GROUP BY cgp2.account_id
-            )"""
-            relevant_games_join = (
-                "LEFT JOIN creator_relevant_game_counts crgc"
-                " ON crgc.account_id = rf.account_id"
-            )
-            conditions = []
-            if min_relevant_games > 0:
-                conditions.append("COALESCE(crgc.relevant_game_count, 0) >= ?")
-                relevant_games_params.append(min_relevant_games)
-            if max_relevant_games is not None:
-                conditions.append("COALESCE(crgc.relevant_game_count, 0) <= ?")
-                relevant_games_params.append(max_relevant_games)
-            relevant_games_where = "AND " + " AND ".join(conditions)
-
         # Status filter clause
         if status_filter == "all":
             status_where = "AND workflow_status != 'not_pursuing'"
@@ -342,21 +319,33 @@ class ProspectRepository:
         with_status_sql = f"""
             WITH game_tags AS (
                 {game_tags_sql}
-            ){relevant_games_cte}
+            ),
+            creator_relevant_game_counts AS (
+                SELECT
+                    cgp2.account_id,
+                    COUNT(DISTINCT cgp2.igdb_game_id) AS relevant_game_count
+                FROM creator_games_played cgp2
+                JOIN igdb_game_tags igt2 ON igt2.igdb_id = cgp2.igdb_game_id
+                JOIN game_tags gt2 ON gt2.tag_type = igt2.tag_type
+                                   AND gt2.tag_id = igt2.tag_id
+                WHERE cgp2.igdb_game_id IS NOT NULL
+                GROUP BY cgp2.account_id
+            )
             SELECT
                 rf.account_id,
                 rf.coverage_score,
                 rf.reach,
+                COALESCE(crgc.relevant_game_count, 0) AS relevant_game_count,
                 COALESCE(ps.status, 'new') AS workflow_status
             FROM temp.prospect_scored_with_reach rf
             {extra_joins_sql}
-            {relevant_games_join}
+            LEFT JOIN creator_relevant_game_counts crgc
+                ON crgc.account_id = rf.account_id
             LEFT JOIN prospect_statuses ps
                 ON ps.account_id = rf.account_id
                AND ps.customer_game_id = ?
             WHERE (? = -1 OR rf.reach <= ?)
               {extra_where_sql}
-              {relevant_games_where}
         """
         with_status_params: list[object] = [
             *game_tags_params,
@@ -364,10 +353,31 @@ class ProspectRepository:
             max_reach_param,
             max_reach_param,
             *extra_params,
-            *relevant_games_params,
         ]
 
-        page_where = "WHERE 1=1 " + status_where
+        filter_clauses: list[str] = []
+        bound_params: list[object] = []
+        if status_where:
+            filter_clauses.append(status_where.removeprefix("AND ").strip())
+            if (
+                status_filter not in ("all", "")
+                and status_filter in PROSPECT_WORKFLOW_STATUS_ORDER
+            ):
+                bound_params.append(status_filter)
+        if min_relevant_games > 0:
+            filter_clauses.append("relevant_game_count >= ?")
+            bound_params.append(min_relevant_games)
+        if max_relevant_games is not None:
+            filter_clauses.append("relevant_game_count <= ?")
+            bound_params.append(max_relevant_games)
+        page_where = (
+            "WHERE " + " AND ".join(filter_clauses) if filter_clauses else ""
+        )
+        status_only_where = (
+            "WHERE " + status_where.removeprefix("AND ").strip()
+            if status_where
+            else ""
+        )
         page_sql = f"""
             SELECT account_id, coverage_score, reach
             FROM temp.prospect_with_status
@@ -380,14 +390,20 @@ class ProspectRepository:
             FROM temp.prospect_with_status
             {page_where}
         """
-        page_params: list[object] = []
+        games_max_sql = f"""
+            SELECT MAX(relevant_game_count) AS games_filter_max
+            FROM temp.prospect_with_status
+            {status_only_where}
+        """
+        page_params: list[object] = [*bound_params]
+        count_params = [*bound_params]
+        page_params.extend([limit, offset])
+        games_max_params = []
         if (
             status_filter not in ("all", "")
             and status_filter in PROSPECT_WORKFLOW_STATUS_ORDER
         ):
-            page_params.append(status_filter)
-        count_params = [*page_params]
-        page_params.extend([limit, offset])
+            games_max_params.append(status_filter)
 
         with get_connection(self._db_path) as conn:
             conn.execute("DROP TABLE IF EXISTS temp.prospect_scored_with_reach")
@@ -433,6 +449,12 @@ class ProspectRepository:
             total_count = int(
                 conn.execute(count_sql, count_params).fetchone()["total_count"]
             )
+            games_filter_max = int(
+                conn.execute(games_max_sql, games_max_params).fetchone()[
+                    "games_filter_max"
+                ]
+                or 0
+            )
             rows = conn.execute(page_sql, page_params).fetchall()
             conn.execute("DROP TABLE IF EXISTS temp.prospect_with_status")
             conn.execute("DROP TABLE IF EXISTS temp.prospect_scored_with_reach")
@@ -448,13 +470,25 @@ class ProspectRepository:
                 status_counts["new"] += int(sr["cnt"])
 
         if not rows:
-            return [], total_count, reach_filter_max, status_counts
+            return (
+                [],
+                total_count,
+                reach_filter_max,
+                games_filter_max,
+                status_counts,
+            )
 
         page_rows = [
             (str(r["account_id"]), float(r["coverage_score"]), int(r["reach"]))
             for r in rows
         ]
-        return page_rows, total_count, reach_filter_max, status_counts
+        return (
+            page_rows,
+            total_count,
+            reach_filter_max,
+            games_filter_max,
+            status_counts,
+        )
 
     def count_relevant_games(
         self,

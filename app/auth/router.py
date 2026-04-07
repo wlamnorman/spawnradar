@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -431,6 +433,7 @@ async def google_callback(
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception:
+        logging.getLogger(__name__).exception("Google OAuth token exchange failed")
         return RedirectResponse(
             url="/auth/login?error=google_failed", status_code=303
         )

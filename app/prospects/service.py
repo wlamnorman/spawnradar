@@ -69,7 +69,13 @@ class ProspectRankingService:
         cg_tags = customer_game_tag_counts(customer_game)
         total_weight = sum(tag_weight(k) for k in cg_tags)
 
-        page_rows, total_count, reach_filter_max, status_counts = (
+        (
+            page_rows,
+            total_count,
+            reach_filter_max,
+            games_filter_max,
+            status_counts,
+        ) = (
             self._repo.rank_scored_page(
                 game_tags=game_tags,
                 total_weight=total_weight,
@@ -97,7 +103,7 @@ class ProspectRankingService:
                 0,
                 status_counts,
                 reach_filter_max,
-                0,
+                games_filter_max,
             )
 
         page_ids = [r[0] for r in page_rows]
@@ -114,7 +120,6 @@ class ProspectRankingService:
             page_ids,
             game_tags,
         )
-        games_filter_max = max(relevant_game_counts.values(), default=0)
 
         # Per-creator tag counts for the overlap-tag display
         page_tag_counts = self._repo.query_creator_tag_counts(
@@ -205,7 +210,7 @@ class ProspectRankingService:
         total_weight = sum(tag_weight(k) for k in cg_tags)
 
         # Use limit=1 so the SQL returns at least one row with total_count.
-        _page_rows, total_count, _reach_max, status_counts = (
+        _page_rows, total_count, _reach_max, _games_max, status_counts = (
             self._repo.rank_scored_page(
                 game_tags=game_tags,
                 total_weight=total_weight,

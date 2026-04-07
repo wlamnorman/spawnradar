@@ -11,12 +11,16 @@ efficient outreach.{% endblock %} {% block content %}
 <section class="marketing-hero">
     <div class="marketing-copy">
         <h1>
-            Build a tailored creator outreach list for your game in minutes.
+            Start efficient creator outreach tailored to your game within
+            minutes.
         </h1>
-        <p class="marketing-lede">
-            SpawnRadar helps game developers discover and prioritize relevant
-            creators for easy and efficient outreach.
-        </p>
+        <div class="marketing-proof">
+            <strong>{{ creator_profile_count }}</strong>
+            <span
+                >active creators with analyzed game interests and contact
+                info</span
+            >
+        </div>
         <div class="marketing-actions">
             {% if user %}
             <a href="/games" class="button">Open Dashboard</a>

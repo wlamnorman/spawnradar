@@ -179,6 +179,7 @@ class BillingService:
                 "Could not eagerly sync subscription from transaction %s; "
                 "webhook will update it shortly.",
                 transaction_id,
+                exc_info=True,
             )
 
     async def get_portal_url(self, workspace_id: str) -> str:

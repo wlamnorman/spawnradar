@@ -36,7 +36,7 @@ def _record_discovery_run(
             creators_found=creators_found,
         )
     except Exception:
-        logger.debug("Failed to record discovery metric", exc_info=True)
+        logger.warning("Failed to record discovery metric", exc_info=True)
 
 
 # On-demand and background discovery share a single pool of 2 slots.

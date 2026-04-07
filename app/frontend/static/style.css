@@ -997,12 +997,25 @@ button.tag-pill-button {
 
 .marketing-proof {
     display: flex;
-    gap: 18px;
-    margin-top: 20px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 18px;
     color: var(--color-hero-proof);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
+    line-height: 1.45;
+}
+
+.marketing-proof strong {
+    color: var(--color-hero-heading);
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.marketing-proof span {
+    max-width: 28ch;
 }
 
 .marketing-panel {
@@ -2013,6 +2026,10 @@ button.tag-pill-button {
         padding: 28px;
     }
 
+    .marketing-proof {
+        margin-top: 4px;
+    }
+
     .marketing-hero h1 {
         max-width: none;
         font-size: 38px;
@@ -2047,6 +2064,14 @@ button.tag-pill-button {
         flex-direction: column;
         align-items: stretch;
         gap: 10px;
+    }
+
+    .marketing-proof {
+        gap: 4px;
+    }
+
+    .marketing-proof strong {
+        font-size: 24px;
     }
 
     .marketing-actions .button {
