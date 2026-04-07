@@ -1033,6 +1033,80 @@ class TestProspectRankingService:
         assert count_total == total
         assert count_statuses == status_counts
 
+    def test_rank_prospect_status_counts_respect_non_status_filters(
+        self, db_path, game_service, registered_user
+    ):
+        game = game_service.create_game(
+            user_id=registered_user.user_id,
+            name="Workflow Filtered Count Game",
+            summary="Tactical RPG",
+            description="Tactical RPG",
+            website_url=None,
+            igdb_genre_ids=[12, 24],
+        )
+        _insert_igdb_game(
+            db_path,
+            710,
+            "Workflow Filtered Match A",
+            "workflow-filtered-match-a",
+            genre_tags=[(12, "Role-playing (RPG)"), (24, "Tactical")],
+        )
+        _insert_igdb_game(
+            db_path,
+            711,
+            "Workflow Filtered Match B",
+            "workflow-filtered-match-b",
+            genre_tags=[(12, "Role-playing (RPG)"), (24, "Tactical")],
+        )
+        _insert_creator(
+            db_path,
+            "creator-in-range",
+            "twitch",
+            "CreatorInRange",
+            followers=5_000,
+        )
+        _insert_creator(
+            db_path,
+            "creator-too-large",
+            "twitch",
+            "CreatorTooLarge",
+            followers=500_000,
+        )
+        _insert_game_play(
+            db_path, "creator-in-range", "Workflow Filtered Match A", 710
+        )
+        _insert_game_play(
+            db_path, "creator-in-range", "Workflow Filtered Match B", 711
+        )
+        _insert_game_play(
+            db_path, "creator-too-large", "Workflow Filtered Match A", 710
+        )
+        _insert_game_play(
+            db_path, "creator-too-large", "Workflow Filtered Match B", 711
+        )
+        _insert_prospect_status(
+            db_path, game.customer_game_id, "creator-in-range", "contacted"
+        )
+        _insert_prospect_status(
+            db_path, game.customer_game_id, "creator-too-large", "covered"
+        )
+
+        service = ProspectRankingService(db_path)
+        _prospects, total, status_counts, _, _ = service.rank_prospects(
+            game,
+            max_reach=100_000,
+        )
+        count_total, count_statuses = service.count_ranked_prospects(
+            game,
+            max_reach=100_000,
+        )
+
+        assert total == 1
+        assert status_counts["contacted"] == 1
+        assert status_counts["covered"] == 0
+        assert count_total == total
+        assert count_statuses == status_counts
+
     def test_rank_prospects_limits_relevant_games_to_ten_per_creator(
         self, db_path, game_service, registered_user
     ):

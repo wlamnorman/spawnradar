@@ -282,7 +282,7 @@ class ProspectRepository:
         )
         extra_where_sql = "\n                  ".join(extra_where)
 
-        sql = f"""
+        scored_with_reach_sql = f"""
             WITH game_tags AS (
                 {game_tags_sql}
             ),
@@ -327,122 +327,115 @@ class ProspectRepository:
                 LEFT JOIN youtube_channels_latest yc
                     ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
                 WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
-            ){relevant_games_cte},
-            reach_filtered AS (
-                SELECT rf.account_id, rf.coverage_score, rf.reach
-                FROM scored_with_reach rf
-                {extra_joins_sql}
-                {relevant_games_join}
-                WHERE (? = -1 OR rf.reach <= ?)
-                  {extra_where_sql}
-                  {relevant_games_where}
-            ),
-            with_status AS (
-                SELECT
-                    rf.account_id, rf.coverage_score, rf.reach,
-                    COALESCE(ps.status, 'new') AS workflow_status
-                FROM reach_filtered rf
-                LEFT JOIN prospect_statuses ps
-                    ON ps.account_id = rf.account_id
-                   AND ps.customer_game_id = ?
-            ),
-            status_filtered AS (
-                SELECT account_id, coverage_score, reach
-                FROM with_status
-                WHERE 1=1 {status_where}
             )
-            SELECT
-                account_id, coverage_score, reach,
-                (SELECT COUNT(*) FROM status_filtered) AS total_count,
-                (SELECT MAX(reach) FROM scored_with_reach) AS reach_filter_max
-            FROM status_filtered
-            ORDER BY coverage_score DESC, reach DESC, account_id DESC
-            LIMIT ? OFFSET ?
+            SELECT account_id, coverage_score, reach
+            FROM scored_with_reach
         """
         max_reach_param = max_reach if max_reach is not None else -1
-        params: list[object] = [
+        scored_with_reach_params: list[object] = [
             *game_tags_params,
             total_weight,
             min_coverage,
             min_reach,
+        ]
+
+        with_status_sql = f"""
+            WITH game_tags AS (
+                {game_tags_sql}
+            ){relevant_games_cte}
+            SELECT
+                rf.account_id,
+                rf.coverage_score,
+                rf.reach,
+                COALESCE(ps.status, 'new') AS workflow_status
+            FROM temp.prospect_scored_with_reach rf
+            {extra_joins_sql}
+            {relevant_games_join}
+            LEFT JOIN prospect_statuses ps
+                ON ps.account_id = rf.account_id
+               AND ps.customer_game_id = ?
+            WHERE (? = -1 OR rf.reach <= ?)
+              {extra_where_sql}
+              {relevant_games_where}
+        """
+        with_status_params: list[object] = [
+            *game_tags_params,
+            customer_game_id,
             max_reach_param,
             max_reach_param,
             *extra_params,
             *relevant_games_params,
-            customer_game_id,
         ]
+
+        page_where = "WHERE 1=1 " + status_where
+        page_sql = f"""
+            SELECT account_id, coverage_score, reach
+            FROM temp.prospect_with_status
+            {page_where}
+            ORDER BY coverage_score DESC, reach DESC, account_id DESC
+            LIMIT ? OFFSET ?
+        """
+        count_sql = f"""
+            SELECT COUNT(*) AS total_count
+            FROM temp.prospect_with_status
+            {page_where}
+        """
+        page_params: list[object] = []
         if (
             status_filter not in ("all", "")
             and status_filter in PROSPECT_WORKFLOW_STATUS_ORDER
         ):
-            params.append(status_filter)
-        params.extend([limit, offset])
+            page_params.append(status_filter)
+        count_params = [*page_params]
+        page_params.extend([limit, offset])
 
         with get_connection(self._db_path) as conn:
-            rows = conn.execute(sql, params).fetchall()
+            conn.execute("DROP TABLE IF EXISTS temp.prospect_scored_with_reach")
+            conn.execute(
+                "CREATE TEMP TABLE temp.prospect_scored_with_reach AS "
+                + scored_with_reach_sql,
+                scored_with_reach_params,
+            )
+            conn.execute(
+                "CREATE INDEX temp.idx_prospect_scored_with_reach_account "
+                "ON prospect_scored_with_reach(account_id)"
+            )
 
-            # Status counts from the scored set (before status filtering).
-            status_count_sql = f"""
-                WITH game_tags AS (
-                    {game_tags_sql}
-                ),
-                creator_tag_evidence AS (
-                    SELECT
-                        cgp.account_id,
-                        gt.tag_type,
-                        CASE
-                            WHEN COUNT(DISTINCT cgp.igdb_game_id) = 1 THEN 0.93
-                            WHEN COUNT(DISTINCT cgp.igdb_game_id) = 2 THEN 0.967
-                            ELSE 1.0
-                        END AS evidence
-                    FROM creator_games_played cgp
-                    JOIN igdb_game_tags igt ON igt.igdb_id = cgp.igdb_game_id
-                    JOIN game_tags gt ON gt.tag_type = igt.tag_type
-                                      AND gt.tag_id = igt.tag_id
-                    WHERE cgp.igdb_game_id IS NOT NULL
-                    GROUP BY cgp.account_id, gt.tag_type, gt.tag_id
-                ),
-                creator_scores AS (
-                    SELECT
-                        cte.account_id,
-                        SUM(
-                            CASE WHEN cte.tag_type = 'genre' THEN 3.0 ELSE 1.0 END
-                            * cte.evidence
-                        ) / ? AS coverage_score,
-                        COUNT(*) AS overlap_count
-                    FROM creator_tag_evidence cte
-                    GROUP BY cte.account_id
-                    HAVING coverage_score > ? AND overlap_count >= 2
-                ),
-                scored_with_reach AS (
-                    SELECT cs.account_id
-                    FROM creator_scores cs
-                    JOIN source_accounts sa ON sa.account_id = cs.account_id
-                    LEFT JOIN twitch_profiles_latest tp
-                        ON tp.account_id = sa.account_id AND sa.platform = 'twitch'
-                    LEFT JOIN youtube_channels_latest yc
-                        ON yc.account_id = sa.account_id AND sa.platform = 'youtube'
-                    WHERE COALESCE(tp.followers_count, yc.subscriber_count, 0) >= ?
-                )
-                SELECT
-                    COALESCE(ps.status, 'new') AS workflow_status,
-                    COUNT(*) AS cnt
-                FROM scored_with_reach swr
-                LEFT JOIN prospect_statuses ps
-                    ON ps.account_id = swr.account_id
-                   AND ps.customer_game_id = ?
-                GROUP BY workflow_status
-            """
-            status_params: list[object] = [
-                *game_tags_params,
-                total_weight,
-                min_coverage,
-                min_reach,
-                customer_game_id,
-            ]
+            conn.execute("DROP TABLE IF EXISTS temp.prospect_with_status")
+            conn.execute(
+                "CREATE TEMP TABLE temp.prospect_with_status AS "
+                + with_status_sql,
+                with_status_params,
+            )
+            conn.execute(
+                "CREATE INDEX temp.idx_prospect_with_status_account "
+                "ON prospect_with_status(account_id)"
+            )
+            conn.execute(
+                "CREATE INDEX temp.idx_prospect_with_status_status "
+                "ON prospect_with_status(workflow_status)"
+            )
+
+            reach_filter_max = int(
+                conn.execute(
+                    "SELECT MAX(reach) AS reach_filter_max "
+                    "FROM temp.prospect_scored_with_reach"
+                ).fetchone()["reach_filter_max"]
+                or 0
+            )
             status_rows = conn.execute(
-                status_count_sql, status_params
+                """
+                SELECT workflow_status, COUNT(*) AS cnt
+                FROM temp.prospect_with_status
+                GROUP BY workflow_status
+                """
             ).fetchall()
+            total_count = int(
+                conn.execute(count_sql, count_params).fetchone()["total_count"]
+            )
+            rows = conn.execute(page_sql, page_params).fetchall()
+            conn.execute("DROP TABLE IF EXISTS temp.prospect_with_status")
+            conn.execute("DROP TABLE IF EXISTS temp.prospect_scored_with_reach")
 
         status_counts: dict[ProspectWorkflowStatus, int] = dict.fromkeys(
             PROSPECT_WORKFLOW_STATUS_ORDER, 0
@@ -455,10 +448,8 @@ class ProspectRepository:
                 status_counts["new"] += int(sr["cnt"])
 
         if not rows:
-            return [], 0, 0, status_counts
+            return [], total_count, reach_filter_max, status_counts
 
-        total_count = int(rows[0]["total_count"])
-        reach_filter_max = int(rows[0]["reach_filter_max"] or 0)
         page_rows = [
             (str(r["account_id"]), float(r["coverage_score"]), int(r["reach"]))
             for r in rows
