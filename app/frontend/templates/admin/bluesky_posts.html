@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Bluesky Draft Queue — SpawnRadar{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ static_asset_url('admin.css') }}" />
+{% endblock %}
+
+{% block content %}
+<div class="admin-toolbar">
+    <a href="/admin?key={{ admin_key }}" class="button secondary">Back to Dashboard</a>
+</div>
+
+<h1>Bluesky Draft Queue</h1>
+
+{% if draft_cards %}
+<div class="admin-draft-list">
+    {% for card in draft_cards %}
+    {% set draft = card.draft %}
+    {% set game = card.game %}
+    <section class="admin-draft-card">
+        <div class="admin-draft-header">
+            <div>
+                <h2>{{ game.name }}</h2>
+                <p class="admin-draft-meta">
+                    Status: <strong>{{ draft.status }}</strong>
+                    {% if draft.creator_handle %} · Mention {{ draft.creator_handle }}{% endif %}
+                    {% if draft.image_filename %} · Image {{ draft.image_filename }}{% endif %}
+                </p>
+            </div>
+            <a href="/games/{{ game.slug }}/setup" class="button secondary">Edit Game</a>
+        </div>
+
+        <form method="post" action="/admin/bluesky-posts/{{ draft.draft_id }}?key={{ admin_key }}" class="admin-draft-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token_for(request) }}" />
+            <label for="draft-body-{{ draft.draft_id }}">Draft body</label>
+            <textarea
+                id="draft-body-{{ draft.draft_id }}"
+                name="body"
+                rows="6"
+                maxlength="300"
+                class="admin-draft-body"
+            >{{ draft.body }}</textarea>
+            <p class="field-hint">
+                Bluesky max: 300 chars. Fixed tags currently include {{ draft.hashtags | join(' ') }}.
+            </p>
+
+            <div class="admin-draft-actions">
+                <button type="submit" name="action" value="save" class="button secondary">
+                    Save Draft
+                </button>
+                <button type="submit" name="action" value="approve" class="button">
+                    Approve
+                </button>
+                <button type="submit" name="action" value="reject" class="button secondary">
+                    Reject
+                </button>
+            </div>
+        </form>
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<p class="admin-no-games">No Bluesky drafts queued.</p>
+{% endif %}
+{% endblock %}

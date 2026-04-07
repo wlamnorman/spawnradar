@@ -16,6 +16,8 @@ user.is_anonymous %}
     <a href="/pricing">Subscribe</a> for up unrestricted access to creators,
     multiple games, smart filters, and outreach workflow tools.
 </div>
+{% endif %} {% if success_message %}
+<div class="alert alert-success">{{ success_message }}</div>
 {% endif %}
 <div class="dashboard-header">
     <div>
@@ -44,6 +46,15 @@ user.is_anonymous %}
                         ⋯
                     </button>
                     <div class="card-menu-dropdown hidden">
+                        {% set bluesky_status =
+                        bluesky_draft_statuses.get(game.customer_game_id) %} {%
+                        if not bluesky_status %}
+                        <a
+                            href="/games/{{ game.slug }}/bluesky-draft"
+                            class="card-menu-item"
+                            >Bluesky post</a
+                        >
+                        {% endif %}
                         <form
                             method="post"
                             action="/games/{{ game.slug }}/duplicate"

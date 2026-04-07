@@ -149,6 +149,31 @@ def _create_game_for_user(client: TestClient, name: str = "Game") -> None:
     )
 
 
+def _create_game_with_bluesky_draft(
+    client: TestClient, name: str = "Game"
+) -> None:
+    _create_game_for_user(client, name)
+    db_path = os.environ.get("DB_PATH", "")
+    assert db_path
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT slug FROM customer_games WHERE name = ?",
+            (name,),
+        ).fetchone()
+    assert row is not None
+    slug = str(row["slug"])
+    client.post(
+        f"/games/{slug}/bluesky-draft",
+        data={
+            "csrf_token": _csrf_token(client, f"/games/{slug}/bluesky-draft"),
+            "creator_summary": "Developer-authored post summary",
+            "creator_handle": "studio.bsky.social",
+        },
+        files={"bluesky_image": ("cover.png", b"png-bytes", "image/png")},
+        follow_redirects=True,
+    )
+
+
 def test_new_game_page_shows_shared_summary_and_description_limits(
     monkeypatch, tmp_path
 ) -> None:
@@ -162,6 +187,7 @@ def test_new_game_page_shows_shared_summary_and_description_limits(
         assert 'maxlength="1000"' in response.text
         assert "/200" in response.text
         assert "/1000" in response.text
+        assert "Bluesky post" not in response.text
 
 
 def _create_game_for_user_and_return_id(
@@ -2317,6 +2343,105 @@ class TestAuthRoutes:
             ).fetchone()
         assert row is not None
         assert str(row["description"]) == ""
+
+    def test_create_bluesky_draft_page_creates_draft(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "bluesky@example.com", "testpass")
+            _create_game_with_bluesky_draft(client, "Bluesky Game")
+
+        with get_connection(db_path) as conn:
+            draft_row = conn.execute(
+                """
+                SELECT creator_summary, status, creator_handle, image_filename, image_media_type, length(image_bytes) AS image_size
+                FROM bluesky_post_drafts
+                WHERE customer_game_id = (
+                    SELECT customer_game_id FROM customer_games WHERE name = ?
+                )
+                """,
+                ("Bluesky Game",),
+            ).fetchone()
+
+        assert draft_row is not None
+        assert (
+            str(draft_row["creator_summary"])
+            == "Developer-authored post summary"
+        )
+        assert str(draft_row["status"]) == "draft"
+        assert str(draft_row["creator_handle"]) == "@studio.bsky.social"
+        assert str(draft_row["image_filename"]) == "cover.png"
+        assert str(draft_row["image_media_type"]) == "image/png"
+        assert int(draft_row["image_size"]) > 0
+
+    def test_games_dashboard_links_to_bluesky_draft_page(
+        self, monkeypatch, tmp_path
+    ):
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "dashboard-bluesky@example.com", "testpass"
+            )
+            _create_game_for_user(client, "Dashboard Game")
+
+            response = client.get("/games")
+
+        assert response.status_code == 200
+        assert "Bluesky post" in response.text
+
+    def test_games_dashboard_hides_bluesky_button_after_draft_exists(
+        self, monkeypatch, tmp_path
+    ):
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "dashboard-bluesky-hide@example.com", "testpass"
+            )
+            _create_game_with_bluesky_draft(client, "Drafted Dashboard Game")
+
+            response = client.get("/games")
+
+        assert response.status_code == 200
+        assert "Bluesky post" not in response.text
+        assert "Bluesky draft:" not in response.text
+
+    def test_bluesky_draft_page_redirects_to_games_after_first_draft(
+        self, monkeypatch, tmp_path
+    ):
+        db_path = str(tmp_path / "test.sqlite3")
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(client, "bluesky-once@example.com", "testpass")
+            _create_game_with_bluesky_draft(client, "One Shot Game")
+            with get_connection(db_path) as conn:
+                row = conn.execute(
+                    "SELECT slug FROM customer_games WHERE name = ?",
+                    ("One Shot Game",),
+                ).fetchone()
+            assert row is not None
+            slug = str(row["slug"])
+
+            response = client.get(
+                f"/games/{slug}/bluesky-draft", follow_redirects=False
+            )
+
+        assert response.status_code == 303
+        assert (
+            response.headers["location"]
+            == "/games?success=Bluesky+draft+created%21"
+        )
+
+    def test_create_bluesky_draft_redirects_to_games_with_success_message(
+        self, monkeypatch, tmp_path
+    ):
+        with _make_client(monkeypatch, tmp_path) as client:
+            _register_and_login(
+                client, "bluesky-success@example.com", "testpass"
+            )
+            _create_game_with_bluesky_draft(client, "Success Message Game")
+
+            response = client.get("/games?success=Bluesky+draft+created%21")
+
+        assert response.status_code == 200
+        assert "Bluesky draft created!" in response.text
 
     def test_import_url_json_returns_draft_without_saving(
         self, monkeypatch, tmp_path

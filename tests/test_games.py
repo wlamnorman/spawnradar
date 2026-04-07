@@ -193,3 +193,82 @@ def test_create_game_allows_blank_description(game_service, registered_user):
     assert game.description == ""
 
 
+def test_bluesky_draft_service_creates_queue_entry(
+    bluesky_draft_service, bluesky_draft_repo, sample_game
+):
+    bluesky_draft_service.create_game_draft(
+        customer_game_id=sample_game.customer_game_id,
+        source_game_slug=sample_game.slug,
+        workspace_id=sample_game.workspace_id,
+        game_name=sample_game.name,
+        default_summary=sample_game.summary,
+        creator_summary="Custom post copy written by the developer.",
+        creator_handle="studio.bsky.social",
+        image_filename="cover.png",
+        image_media_type="image/png",
+        image_bytes=b"fake-image-bytes",
+    )
+
+    draft = bluesky_draft_repo.get_by_game_id(sample_game.customer_game_id)
+    assert draft is not None
+    assert draft.status == "draft"
+    assert (
+        draft.creator_summary == "Custom post copy written by the developer."
+    )
+    assert draft.creator_handle == "@studio.bsky.social"
+    assert draft.image_filename == "cover.png"
+    assert "@studio.bsky.social" in draft.body
+    assert "#gamedev #indiegame" in draft.body
+
+
+def test_bluesky_draft_service_rejects_second_draft_for_same_game(
+    bluesky_draft_service, sample_game
+):
+    bluesky_draft_service.create_game_draft(
+        customer_game_id=sample_game.customer_game_id,
+        source_game_slug=sample_game.slug,
+        workspace_id=sample_game.workspace_id,
+        game_name=sample_game.name,
+        default_summary=sample_game.summary,
+        creator_summary="Initial summary",
+        creator_handle=None,
+        image_filename="cover.png",
+        image_media_type="image/png",
+        image_bytes=b"fake-image-bytes",
+    )
+
+    with pytest.raises(ValueError, match="already been created for this game"):
+        bluesky_draft_service.create_game_draft(
+            customer_game_id=sample_game.customer_game_id,
+            source_game_slug=sample_game.slug,
+            workspace_id=sample_game.workspace_id,
+            game_name=sample_game.name,
+            default_summary=sample_game.summary,
+            creator_summary="Updated summary",
+            creator_handle=None,
+        )
+
+
+def test_bluesky_draft_service_rejects_second_draft_for_same_slug(
+    bluesky_draft_service, sample_game
+):
+    bluesky_draft_service.create_game_draft(
+        customer_game_id=sample_game.customer_game_id,
+        source_game_slug=sample_game.slug,
+        workspace_id=sample_game.workspace_id,
+        game_name=sample_game.name,
+        default_summary=sample_game.summary,
+        creator_summary="Initial summary",
+        creator_handle=None,
+    )
+
+    with pytest.raises(ValueError, match="already been created for this game slug"):
+        bluesky_draft_service.create_game_draft(
+            customer_game_id="another-game-id",
+            source_game_slug=sample_game.slug,
+            workspace_id=sample_game.workspace_id,
+            game_name=sample_game.name,
+            default_summary=sample_game.summary,
+            creator_summary="Another summary",
+            creator_handle=None,
+        )

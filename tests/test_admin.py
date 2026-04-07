@@ -334,3 +334,92 @@ class TestAdminRouteAccessControl:
         assert resp.status_code == 200
         assert "Guest Dashboard Game" in resp.text
         assert guest_actor.guest_id in resp.text
+
+    def test_admin_can_review_bluesky_draft_queue(self, admin_client):
+        _register_and_login(admin_client, "admin3@test.com", "pass123")
+        db_path = os.environ.get("DB_PATH", "")
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "UPDATE users SET is_admin = 1 WHERE email = ?",
+                ("admin3@test.com",),
+            )
+
+        auth_service = admin_client.app.state.auth_service
+        game_service = admin_client.app.state.customer_game_service
+        owner = auth_service.register("owner3@test.com", "pass123")
+        game = game_service.create_game(
+            user_id=owner.user_id,
+            name="Queue Game",
+            summary="Game summary",
+            description="Game description",
+            website_url=None,
+            igdb_genre_ids=[9, 24],
+        )
+        draft_service = admin_client.app.state.bluesky_draft_service
+        draft_service.create_game_draft(
+            customer_game_id=game.customer_game_id,
+            source_game_slug=game.slug,
+            workspace_id=game.workspace_id,
+            game_name=game.name,
+            default_summary=game.summary,
+            creator_summary="Queue body from the developer.",
+            creator_handle=None,
+        )
+
+        queue_resp = admin_client.get(
+            "/admin/bluesky-posts?key=test-admin-secret",
+            follow_redirects=False,
+        )
+
+        assert queue_resp.status_code == 200
+        assert "Queue Game" in queue_resp.text
+        assert "Queue body from the developer." in queue_resp.text
+
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT draft_id
+                FROM bluesky_post_drafts
+                WHERE customer_game_id = ?
+                """,
+                (game.customer_game_id,),
+            ).fetchone()
+        assert row is not None
+        draft_id = str(row["draft_id"])
+
+        edit_page = admin_client.get(
+            "/admin/bluesky-posts?key=test-admin-secret"
+        )
+        import re
+
+        match = re.search(
+            r'name="csrf-token" content="([^"]+)"',
+            edit_page.text,
+        )
+        assert match is not None
+        csrf_token = match.group(1)
+
+        update_resp = admin_client.post(
+            f"/admin/bluesky-posts/{draft_id}?key=test-admin-secret",
+            data={
+                "csrf_token": csrf_token,
+                "body": "Edited by admin for the queue.",
+                "action": "approve",
+            },
+            follow_redirects=False,
+        )
+
+        assert update_resp.status_code == 303
+        with get_connection(db_path) as conn:
+            updated = conn.execute(
+                """
+                SELECT status, body, approved_at
+                FROM bluesky_post_drafts
+                WHERE draft_id = ?
+                """,
+                (draft_id,),
+            ).fetchone()
+        assert updated is not None
+        assert updated["status"] == "approved"
+        assert updated["body"] == "Edited by admin for the queue."
+        assert updated["approved_at"] is not None

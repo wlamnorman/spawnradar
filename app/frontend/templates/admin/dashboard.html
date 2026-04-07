@@ -9,6 +9,12 @@
 {% block content %}
 <h1>Admin Dashboard</h1>
 
+<div class="admin-toolbar">
+    <a href="/admin/bluesky-posts?key={{ admin_key }}" class="button secondary">
+        Bluesky Draft Queue
+    </a>
+</div>
+
 <div class="admin-stats">
     <div class="admin-stat"><strong>{{ total_workspaces }}</strong> workspaces</div>
     <div class="admin-stat"><strong>{{ total_accounts }}</strong> accounts</div>

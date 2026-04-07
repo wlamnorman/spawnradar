@@ -1,0 +1,86 @@
+{% extends "base.html" %} {% block title %}{{ game.name }} — Bluesky Draft —
+SpawnRadar{% endblock %} {% block meta_description %}<meta
+    name="description"
+    content="Draft a Bluesky post for {{ game.name }}."
+/>{% endblock %} {% block og_title %}{{ game.name }} — Bluesky Draft —
+SpawnRadar{% endblock %} {% block og_description %}Draft a Bluesky post for {{
+game.name }}.{% endblock %} {% block twitter_title %}{{ game.name }} — Bluesky
+Draft — SpawnRadar{% endblock %} {% block twitter_description %}Draft a Bluesky
+post for {{ game.name }}.{% endblock %} {% block content %} {% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<section class="setup-section">
+    <h1>Bluesky Draft</h1>
+    <p class="text-muted">
+        Create a draft for <strong>{{ game.name }}</strong>. This stays in the
+        internal Bluesky review queue until approved.
+    </p>
+
+    <form
+        method="post"
+        action="/games/{{ game.slug }}/bluesky-draft"
+        class="game-form"
+        enctype="multipart/form-data"
+    >
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token_for(request) }}"
+        />
+
+        <div class="form-section">
+            <div class="form-group">
+                <label for="creator_summary">Post summary</label>
+                <textarea
+                    id="creator_summary"
+                    name="creator_summary"
+                    class="textarea-compact"
+                    rows="4"
+                    placeholder="Keep this concise. We wrap it with the game title, a SpawnRadar note, and fixed tags."
+                >
+{{ form_state.creator_summary }}</textarea
+                >
+                <p class="field-hint">
+                    Start from your game summary, then tune it for social.
+                </p>
+            </div>
+
+            <div class="form-group">
+                <label for="creator_handle">Bluesky handle to mention</label>
+                <input
+                    type="text"
+                    id="creator_handle"
+                    name="creator_handle"
+                    value="{{ form_state.creator_handle }}"
+                    placeholder="@yourstudio.bsky.social"
+                />
+            </div>
+
+            <div class="form-group">
+                <label for="bluesky_image">Image</label>
+                <input
+                    type="file"
+                    id="bluesky_image"
+                    name="bluesky_image"
+                    accept="image/png,image/jpeg,image/webp"
+                />
+                {% if form_state.image_filename %}
+                <p class="field-hint">
+                    Current image: {{ form_state.image_filename }}
+                </p>
+                {% else %}
+                <p class="field-hint">
+                    Optional PNG, JPEG, or WebP image up to 4 MB.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="button">Save Draft</button>
+            <a href="/games" class="button secondary">Back to Games</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -12,6 +12,8 @@ from app.auth.repository import (
 from app.auth.service import AuthService
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
+from app.bluesky_posts.repository import BlueskyPostDraftRepository
+from app.bluesky_posts.service import BlueskyDraftService
 from app.config import Settings
 from app.email.service import EmailService
 from app.game_import.service import GameImportService
@@ -47,6 +49,14 @@ def get_game_import_service(request: Request) -> GameImportService:
 
 def get_billing_service(request: Request) -> BillingService:
     return request.app.state.billing_service
+
+
+def get_bluesky_draft_service(request: Request) -> BlueskyDraftService:
+    return request.app.state.bluesky_draft_service
+
+
+def get_bluesky_draft_repo(request: Request) -> BlueskyPostDraftRepository:
+    return request.app.state.bluesky_draft_repo
 
 
 def get_metrics_service(request: Request) -> MetricsService:

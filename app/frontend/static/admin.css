@@ -9,6 +9,12 @@
     margin-bottom: 28px;
 }
 
+.admin-toolbar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
 .admin-stat {
     background: var(--color-bg-muted);
     border: 1px solid var(--color-border);
@@ -197,4 +203,51 @@
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 8px;
+}
+
+.admin-draft-list {
+    display: grid;
+    gap: 18px;
+}
+
+.admin-draft-card {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.admin-draft-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.admin-draft-header h2 {
+    margin: 0 0 6px;
+}
+
+.admin-draft-meta {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 14px;
+}
+
+.admin-draft-form {
+    display: grid;
+    gap: 10px;
+}
+
+.admin-draft-body {
+    width: 100%;
+    min-height: 140px;
+    font: inherit;
+}
+
+.admin-draft-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
 }

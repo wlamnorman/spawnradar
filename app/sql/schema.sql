@@ -99,6 +99,30 @@ CREATE TABLE IF NOT EXISTS customer_games (
     updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS bluesky_post_drafts (
+    draft_id            TEXT PRIMARY KEY,
+    customer_game_id    TEXT NOT NULL UNIQUE REFERENCES customer_games(customer_game_id) ON DELETE CASCADE,
+    source_game_slug    TEXT NOT NULL UNIQUE,
+    workspace_id        TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
+    creator_summary     TEXT NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'draft', -- draft | approved | rejected | published | failed
+    body                TEXT NOT NULL,
+    hashtags            TEXT NOT NULL DEFAULT '[]',
+    creator_handle      TEXT,
+    image_filename      TEXT,
+    image_media_type    TEXT,
+    image_bytes         BLOB,
+    image_alt_text      TEXT NOT NULL DEFAULT '',
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_at         TEXT,
+    approved_at         TEXT,
+    rejected_at         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_bluesky_post_drafts_status_updated
+    ON bluesky_post_drafts(status, updated_at);
+
 CREATE TABLE IF NOT EXISTS metric_events (
     event_id    TEXT PRIMARY KEY,
     metric_key  TEXT NOT NULL,

@@ -9,6 +9,8 @@ from app.auth.repository import (
 from app.auth.service import AuthService
 from app.billing.repository import SubscriptionRepository
 from app.billing.service import BillingService
+from app.bluesky_posts.repository import BlueskyPostDraftRepository
+from app.bluesky_posts.service import BlueskyDraftService
 from app.database import initialize_database
 from app.games.repository import CustomerGameRepository
 from app.games.service import CustomerGameService
@@ -72,7 +74,17 @@ def game_repo(db_path):
 
 
 @pytest.fixture
-def game_service(game_repo, metrics_service):
+def bluesky_draft_repo(db_path):
+    return BlueskyPostDraftRepository(db_path)
+
+
+@pytest.fixture
+def bluesky_draft_service(bluesky_draft_repo):
+    return BlueskyDraftService(bluesky_draft_repo)
+
+
+@pytest.fixture
+def game_service(game_repo, metrics_service, bluesky_draft_service):
     return CustomerGameService(game_repo, metrics_service)
 
 

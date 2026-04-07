@@ -24,7 +24,76 @@ def initialize_database(db_path: str) -> None:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(schema_sql)
+        _migrate_schema(conn)
         conn.commit()
+
+
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    """Apply additive schema fixes for existing SQLite databases.
+
+    This project still uses schema.sql as the primary schema definition, but
+    existing SQLite tables are not altered by ``CREATE TABLE IF NOT EXISTS``.
+    This helper performs the small additive migrations needed when new columns
+    are introduced on live tables.
+    """
+    _migrate_bluesky_post_drafts(conn)
+
+
+def _table_columns(
+    conn: sqlite3.Connection, table_name: str
+) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {str(row[1]) for row in rows}
+
+
+def _migrate_bluesky_post_drafts(conn: sqlite3.Connection) -> None:
+    tables = {
+        str(row[0])
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if "bluesky_post_drafts" not in tables:
+        return
+
+    columns = _table_columns(conn, "bluesky_post_drafts")
+
+    if "creator_summary" not in columns:
+        conn.execute(
+            "ALTER TABLE bluesky_post_drafts ADD COLUMN creator_summary TEXT NOT NULL DEFAULT ''"
+        )
+        conn.execute(
+            """
+            UPDATE bluesky_post_drafts
+            SET creator_summary = body
+            WHERE creator_summary = ''
+            """
+        )
+        columns.add("creator_summary")
+
+    if "source_game_slug" not in columns:
+        conn.execute(
+            "ALTER TABLE bluesky_post_drafts ADD COLUMN source_game_slug TEXT"
+        )
+        conn.execute(
+            """
+            UPDATE bluesky_post_drafts
+            SET source_game_slug = (
+                SELECT cg.slug
+                FROM customer_games cg
+                WHERE cg.customer_game_id = bluesky_post_drafts.customer_game_id
+            )
+            WHERE source_game_slug IS NULL OR source_game_slug = ''
+            """
+        )
+
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bluesky_post_drafts_source_game_slug
+        ON bluesky_post_drafts(source_game_slug)
+        WHERE source_game_slug IS NOT NULL AND source_game_slug != ''
+        """
+    )
 
 
 @contextmanager

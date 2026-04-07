@@ -36,6 +36,8 @@ from app.billing.models import (
 from app.billing.repository import SubscriptionRepository
 from app.billing.router import router as billing_router
 from app.billing.service import BillingService
+from app.bluesky_posts.repository import BlueskyPostDraftRepository
+from app.bluesky_posts.service import BlueskyDraftService
 from app.config import Settings
 from app.database import get_connection, initialize_database
 from app.dependencies import get_billing_service, get_settings, get_templates
@@ -130,6 +132,7 @@ async def lifespan(app: FastAPI):
     guest_repo = GuestIdentityRepository(db_path)
     workspace_repo = WorkspaceRepository(db_path)
     customer_game_repo = CustomerGameRepository(db_path)
+    bluesky_draft_repo = BlueskyPostDraftRepository(db_path)
     sub_repo = SubscriptionRepository(db_path)
     metrics_repo = MetricsRepository(db_path)
 
@@ -139,6 +142,7 @@ async def lifespan(app: FastAPI):
         from_address=settings.email_from,
     )
     metrics_service = MetricsService(metrics_repo, sub_repo)
+    bluesky_draft_service = BlueskyDraftService(bluesky_draft_repo)
     auth_service = AuthService(
         user_repo,
         session_repo,
@@ -222,6 +226,8 @@ async def lifespan(app: FastAPI):
     app.state.customer_game_service = customer_game_service
     app.state.game_import_service = game_import_service
     app.state.billing_service = billing_service
+    app.state.bluesky_draft_repo = bluesky_draft_repo
+    app.state.bluesky_draft_service = bluesky_draft_service
     app.state.ownership_service = ownership_service
     app.state.metrics_service = metrics_service
     app.state.user_repo = user_repo

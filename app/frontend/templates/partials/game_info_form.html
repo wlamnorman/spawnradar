@@ -1,4 +1,9 @@
-<form method="post" action="{{ form_action }}" class="game-form" data-game-form>
+<form
+    method="post"
+    action="{{ form_action }}"
+    class="game-form"
+    data-game-form
+>
     <input
         type="hidden"
         name="csrf_token"
@@ -17,14 +22,10 @@
 
     <div class="form-section">
         <div class="form-group">
-            <details
-                class="game-import-menu"
-            >
-                <summary class="button secondary">
+            <details class="game-import-menu">
+                <summary class="button">
                     <span>Import from URL</span>
-                    <span class="game-import-chevron" aria-hidden="true"
-                        >▾</span
-                    >
+                    <span class="game-import-chevron" aria-hidden="true"></span>
                 </summary>
                 <div class="game-import-panel">
                     <div class="game-import-panel-copy">

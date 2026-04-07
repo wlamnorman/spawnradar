@@ -5,9 +5,11 @@ from __future__ import annotations
 from fastapi import (
     APIRouter,
     Depends,
+    File,
     Form,
     HTTPException,
     Request,
+    UploadFile,
 )
 from fastapi.responses import (
     HTMLResponse,
@@ -18,8 +20,12 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth.models import Actor
 from app.billing.models import TIER_LIMITS
+from app.bluesky_posts.repository import BlueskyPostDraftRepository
+from app.bluesky_posts.service import BlueskyDraftService
 from app.config import Settings
 from app.dependencies import (
+    get_bluesky_draft_service,
+    get_bluesky_draft_repo,
     get_customer_game_repo,
     get_customer_game_service,
     get_game_import_service,
@@ -257,6 +263,17 @@ def _platform_values_from_import(platform_labels: list[str]) -> list[str]:
     return []
 
 
+async def _read_optional_upload(
+    upload: UploadFile | None,
+) -> tuple[str | None, str | None, bytes | None]:
+    if upload is None or not upload.filename:
+        return None, None, None
+    data = await upload.read()
+    if not data:
+        return None, None, None
+    return upload.filename, upload.content_type, data
+
+
 # ---------------------------------------------------------------------------
 # Game list / dashboard
 # ---------------------------------------------------------------------------
@@ -267,6 +284,9 @@ def list_games(
     request: Request,
     ownership: OwnershipContext = Depends(get_ownership_context),
     game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    bluesky_draft_repo: BlueskyPostDraftRepository = Depends(
+        get_bluesky_draft_repo
+    ),
     templates: Jinja2Templates = Depends(get_templates),
 ) -> HTMLResponse:
     """Render the dashboard showing all of the user's games."""
@@ -282,8 +302,18 @@ def list_games(
     is_limited = ownership.is_limited
     current_game_limit = ownership.game_limit
     game_match_counts: dict[str, int] = {}
+    bluesky_draft_statuses = (
+        {
+            draft.customer_game_id: draft.status
+            for draft in bluesky_draft_repo.list_queue()
+            if draft.workspace_id == user.workspace_id
+        }
+        if user is not None
+        else {}
+    )
     placeholder_slots = max(0, max_game_slots - len(games))
     unlocked_placeholder_slots = max(0, current_game_limit - len(games))
+    success_message = request.query_params.get("success")
 
     return templates.TemplateResponse(
         request,
@@ -294,9 +324,11 @@ def list_games(
             "subscription": subscription,
             "can_add_game": can_add_game,
             "game_match_counts": game_match_counts,
+            "bluesky_draft_statuses": bluesky_draft_statuses,
             "placeholder_slots": placeholder_slots,
             "unlocked_placeholder_slots": unlocked_placeholder_slots,
             "is_limited": is_limited,
+            "success_message": success_message,
         },
     )
 
@@ -616,6 +648,130 @@ async def update_game_post(
         return response
 
     return RedirectResponse(url="/games", status_code=303)
+
+
+@router.get("/games/{slug}/bluesky-draft", response_class=HTMLResponse)
+def game_bluesky_draft_page(
+    slug: str,
+    request: Request,
+    ownership: OwnershipContext = Depends(require_ownership_context),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    bluesky_draft_repo: BlueskyPostDraftRepository = Depends(
+        get_bluesky_draft_repo
+    ),
+    templates: Jinja2Templates = Depends(get_templates),
+) -> Response:
+    """Render the creator-facing Bluesky draft editor for one game."""
+    user = ownership.require_actor()
+    game = game_repo.get_by_slug(slug)
+    if game is None or not ownership.can_access_workspace(game.workspace_id):
+        raise HTTPException(status_code=404, detail="Game not found.")
+    draft = bluesky_draft_repo.get_by_game_id(game.customer_game_id)
+    if draft is not None:
+        return RedirectResponse(
+            url="/games?success=Bluesky+draft+created%21",
+            status_code=303,
+        )
+    return templates.TemplateResponse(
+        request,
+        "games/bluesky_draft.html",
+        {
+            "user": user,
+            "game": game,
+            "draft": draft,
+            "error": None,
+            "form_state": {
+                "creator_summary": (
+                    draft.creator_summary if draft is not None else game.summary
+                )
+                or "",
+                "creator_handle": (
+                    draft.creator_handle if draft is not None else ""
+                )
+                or "",
+                "image_filename": (
+                    draft.image_filename if draft is not None else ""
+                )
+                or "",
+            },
+        },
+    )
+
+
+@router.post("/games/{slug}/bluesky-draft")
+async def game_bluesky_draft_post(
+    slug: str,
+    request: Request,
+    ownership: OwnershipContext = Depends(require_ownership_context),
+    creator_summary: str = Form(default=""),
+    creator_handle: str = Form(default=""),
+    bluesky_image: UploadFile | None = File(default=None),
+    game_repo: CustomerGameRepository = Depends(get_customer_game_repo),
+    bluesky_draft_repo: BlueskyPostDraftRepository = Depends(
+        get_bluesky_draft_repo
+    ),
+    bluesky_draft_service: BlueskyDraftService = Depends(
+        get_bluesky_draft_service
+    ),
+    templates: Jinja2Templates = Depends(get_templates),
+    _csrf: None = Depends(require_csrf_form),
+) -> Response:
+    """Create one creator-authored Bluesky draft."""
+    user = ownership.require_actor()
+    game = game_repo.get_by_slug(slug)
+    if game is None or not ownership.can_access_workspace(game.workspace_id):
+        raise HTTPException(status_code=404, detail="Game not found.")
+
+    existing_draft = bluesky_draft_repo.get_by_game_id(game.customer_game_id)
+    if existing_draft is not None:
+        return RedirectResponse(
+            url="/games?success=Bluesky+draft+created%21",
+            status_code=303,
+        )
+    image_filename, image_media_type, image_bytes = await _read_optional_upload(
+        bluesky_image
+    )
+
+    try:
+        bluesky_draft_service.create_game_draft(
+            customer_game_id=game.customer_game_id,
+            source_game_slug=game.slug,
+            workspace_id=game.workspace_id,
+            game_name=game.name,
+            default_summary=game.summary,
+            creator_summary=creator_summary,
+            creator_handle=creator_handle,
+            image_filename=image_filename,
+            image_media_type=image_media_type,
+            image_bytes=image_bytes,
+        )
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "games/bluesky_draft.html",
+            {
+                "user": user,
+                "game": game,
+                "draft": existing_draft,
+                "error": str(exc),
+                "form_state": {
+                    "creator_summary": creator_summary,
+                    "creator_handle": creator_handle,
+                    "image_filename": (
+                        existing_draft.image_filename
+                        if existing_draft is not None
+                        else ""
+                    )
+                    or "",
+                },
+            },
+            status_code=400,
+        )
+
+    return RedirectResponse(
+        url="/games?success=Bluesky+draft+created%21",
+        status_code=303,
+    )
 
 
 # ---------------------------------------------------------------------------
