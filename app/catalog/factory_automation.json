@@ -1,0 +1,24 @@
+{
+  "customer_game_name": "Catalog: Factory Automation",
+  "baseline_summary": "An automation sandbox focused on throughput, logistics, and ever-larger production chains.",
+  "broad_igdb_genres": [
+    {"id": 13, "label": "Simulator"},
+    {"id": 15, "label": "Strategy"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 33, "label": "Sandbox"},
+    {"id": 18, "label": "Science fiction"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["factory automation", "logistics", "optimization", "conveyor belts"],
+  "anchor_games": [
+    "Factorio",
+    "Satisfactory",
+    "Dyson Sphere Program",
+    "Shapez 2",
+    "Techtonica"
+  ]
+}

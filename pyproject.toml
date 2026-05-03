@@ -1,0 +1,33 @@
+[project]
+name = "spawnradar"
+version = "0.1.0"
+requires-python = "==3.12.12"
+dynamic = ["dependencies"]
+
+[project.scripts]
+sr = "app.devtools.cli:main"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.package-data]
+app = ["frontend/**/*", "sql/*.sql"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 30
+addopts = "-n auto"
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+include = ["app", "tests"]
+venvPath = "."
+venv = ".venv"

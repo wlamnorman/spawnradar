@@ -1,0 +1,25 @@
+{
+  "customer_game_name": "Catalog: Mech Combat",
+  "baseline_summary": "A mech-focused action game built around customization, heavy combat, and machine mastery.",
+  "broad_igdb_genres": [
+    {"id": 5, "label": "Shooter"},
+    {"id": 31, "label": "Adventure"},
+    {"id": 25, "label": "Hack and slash/Beat 'em up"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 18, "label": "Science fiction"},
+    {"id": 39, "label": "Warfare"},
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["mech combat", "customization", "mission-based", "giant robots"],
+  "anchor_games": [
+    "Armored Core VI: Fires of Rubicon",
+    "MechWarrior 5: Mercenaries",
+    "Brigador",
+    "Daemon X Machina",
+    "Project Nimbus: Complete Edition"
+  ]
+}

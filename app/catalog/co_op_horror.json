@@ -1,0 +1,24 @@
+{
+  "customer_game_name": "Catalog: Co-op Horror",
+  "baseline_summary": "A co-op horror game where tension, teamwork, and live reactions are part of the appeal.",
+  "broad_igdb_genres": [
+    {"id": 31, "label": "Adventure"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 19, "label": "Horror"},
+    {"id": 21, "label": "Survival"}
+  ],
+  "required_game_modes": [
+    {"id": 2, "label": "Multiplayer"},
+    {"id": 3, "label": "Co-operative"}
+  ],
+  "extra_custom_tags": ["co-op horror", "survival horror", "voice chat", "multiplayer horror"],
+  "anchor_games": [
+    "Phasmophobia",
+    "Lethal Company",
+    "Content Warning",
+    "DEVOUR",
+    "Labyrinthine"
+  ]
+}

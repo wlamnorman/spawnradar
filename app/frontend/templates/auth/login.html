@@ -1,0 +1,54 @@
+{% extends "base.html" %} {% import "auth/_macros.html" as auth %} {% block
+title %}SpawnRadar | Sign In{% endblock %} {% block meta_description %}<meta
+    name="description"
+    content="Sign in to access your games, creator matches and subscription details."
+/>{% endblock %} {% block og_title %}SpawnRadar | Sign In{% endblock %} {% block
+og_description %}Sign in to access your games, creator matches and subscription
+details.{% endblock %} {% block twitter_title %}SpawnRadar | Sign In{% endblock
+%} {% block twitter_description %}Sign in to access your games, creator matches,
+and subscription details.{% endblock %} {% block content %}
+<div class="auth-card">
+    {{ auth.auth_header("Sign in to SpawnRadar", "The indie dev creator matching
+    tool.") }} {{ auth.google_auth_button() }} {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/auth/login" class="auth-form">
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token_for(request) }}"
+        />
+        <div class="form-group">
+            <label for="email">Email address</label>
+            <input
+                type="email"
+                id="email"
+                name="email"
+                required
+                autocomplete="email"
+                placeholder="you@example.com"
+            />
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input
+                type="password"
+                id="password"
+                name="password"
+                required
+                autocomplete="current-password"
+                placeholder="••••••••"
+            />
+            <a href="/auth/forgot-password" class="auth-inline-link"
+                >Forgot password?</a
+            >
+        </div>
+        <button type="submit" class="button button-full auth-submit">
+            Sign in
+        </button>
+    </form>
+    {{ auth.auth_switch("No account?", "/auth/register", "Create one — it's
+    free") }}
+</div>
+{% endblock %}

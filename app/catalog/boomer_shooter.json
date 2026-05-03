@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Boomer Shooter",
+  "baseline_summary": "A fast retro-styled FPS focused on movement, weapon feel, and old-school combat flow.",
+  "broad_igdb_genres": [
+    {"id": 5, "label": "Shooter"},
+    {"id": 32, "label": "Indie"},
+    {"id": 33, "label": "Arcade"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["boomer shooter", "retro fps", "movement shooter", "arena fps"],
+  "anchor_games": [
+    "DUSK",
+    "ULTRAKILL",
+    "Turbo Overkill",
+    "Amid Evil",
+    "Warhammer 40,000: Boltgun"
+  ]
+}

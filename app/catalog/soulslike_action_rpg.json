@@ -1,0 +1,24 @@
+{
+  "customer_game_name": "Catalog: Soulslike Action RPG",
+  "baseline_summary": "A challenging action RPG built around deliberate combat, boss fights, and mastery through repetition.",
+  "broad_igdb_genres": [
+    {"id": 12, "label": "Role-playing (RPG)"},
+    {"id": 25, "label": "Hack and slash/Beat 'em up"},
+    {"id": 31, "label": "Adventure"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"},
+    {"id": 17, "label": "Fantasy"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["soulslike", "boss fights", "stamina management", "action rpg"],
+  "anchor_games": [
+    "Elden Ring",
+    "Dark Souls III",
+    "Lies of P",
+    "Nioh 2",
+    "Sekiro: Shadows Die Twice"
+  ]
+}

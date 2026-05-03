@@ -1,0 +1,21 @@
+{
+  "customer_game_name": "Catalog: Racing Simcade",
+  "baseline_summary": "A racing game with a mix of authenticity, speed, and creator-friendly vehicle mastery.",
+  "broad_igdb_genres": [
+    {"id": 10, "label": "Racing"},
+    {"id": 13, "label": "Simulator"}
+  ],
+  "broad_igdb_themes": [],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"},
+    {"id": 2, "label": "Multiplayer"}
+  ],
+  "extra_custom_tags": ["racing sim", "simcade", "driving", "motorsport"],
+  "anchor_games": [
+    "Forza Horizon 5",
+    "Gran Turismo 7",
+    "Assetto Corsa Competizione",
+    "F1 24",
+    "Need for Speed Heat"
+  ]
+}

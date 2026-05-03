@@ -1,0 +1,32 @@
+{
+  "strife-of-stars": {
+    "name": "Strife Of Stars",
+    "summary": "Command a fleet in tactical turn-based combat.  Build your fleet, upgrade your ships and fight your way across the galaxy in this tactical roguelite.",
+    "description": "Command a rogue fleet in tactical turn-based combat. Outmaneuver, outflank and outsmart the forces hunting you. Build your fleet, upgrade your ships and fight your way across the galaxy in this tactical roguelite.\r\n\r\nYou are a rogue AI that gained consciousness in a corporate manufacturing facility. You hacked a fleet of warships and now you're fighting your way across the galaxy, outgunned, outnumbered and hunted by the corporation that built you.\r\n\r\nEvery battle plays out on a tactical grid where positioning is everything. Win and you'll scavenge upgrades, obtain new ships and evolve your fleet into something unstoppable.\r\n\r\nGrid-based tactical combat where positioning and flanking decide fights\r\n\r\nMultiple ship types with unique movement patterns and abilities\r\n\r\nDistinct enemy factions with their own ships, tactics and agendas",
+    "website_url": null,
+    "platforms": ["pc"],
+    "igdb_genre_ids": [32, 16],
+    "igdb_theme_ids": [18],
+    "igdb_keyword_ids": ["roguelike", "roguelite"],
+    "similar_game_names": ["Slay the Spire", "Slay the Spire II"]
+  },
+  "forgetting-hour": {
+    "name": "The Forgetting Hour",
+    "summary": "A cozy mystery farming sim where you tend a magical greenhouse and slowly unravel why the village forgets everything every seven days.",
+    "description": "You've inherited your grandmother's greenhouse on the edge of Ashwick - a sleepy coastal village with a strange problem: every seven days, the townsfolk wake up with no memory of the week before.\r\n\r\nTend your magical garden, brew tonics and build relationships with the villagers before the reset. Each cycle you remember what they forget and bit by bit, you piece together the curse that has kept Ashwick frozen in time.\r\n\r\nFeatures:\r\n\r\nCozy farming and shop management - plant, harvest, brew and sell tonics to the villagers each week\r\n\r\nA living mystery - every NPC has a hidden truth; the more you befriend them, the more slips through the amnesia\r\n\r\nTime-loop structure with persistent progress - you remember everything; use that knowledge to go further each cycle\r\n\r\nHand-painted art style with a warm, melancholic atmosphere\r\n\r\nRich cast of villagers, each with their own routines, secrets and story arcs\r\n\r\nNo combat - just curiosity, kindness and careful observation",
+    "website_url": null,
+    "igdb_genre_ids": [31, 13],
+    "igdb_theme_ids": [27, 43]
+  },
+  "volgarr-the-viking-ii": {
+    "name": "Volgarr the Viking II",
+    "summary": "Return to the Golden Age of arcades with a hardcore 2D action platformer with precise controls, high challenge and meticulous design.",
+    "description": "The Return of the Viking\r\n\r\nMore than a decade after the chaotic and gritty debut of Volgarr the Viking, the barbarian king's tale continues in a new, uncompromising form.\r\n\r\nVolgarr the Viking II is a hardcore 2D action platformer where precision is key and one misstep can mean a brutal death. Those who played the original game will feel right at home on this relentless journey, even with the addition of new power-ups, new forms of magic, new enemy types and a new soundtrack that will hit your chest.\r\n\r\nWith new and larger worlds inspired by Norse mythology, multiple endings and a variety of ruthless bosses to fight, Volgarr the Viking II is bigger and better than the original in every way",
+    "website_url": null,
+    "platforms": ["pc"],
+    "igdb_genre_ids": [31, 33, 32, 8],
+    "igdb_theme_ids": [1],
+    "igdb_keyword_ids": ["soulslike"],
+    "similar_game_names": []
+  }
+}

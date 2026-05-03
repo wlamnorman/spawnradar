@@ -1,0 +1,24 @@
+{
+  "customer_game_name": "Catalog: Cozy Decorating / Home Design",
+  "baseline_summary": "A cozy design-focused game centered on decorating, layout, renovation, and making spaces feel good to inhabit.",
+  "broad_igdb_genres": [
+    {"id": 13, "label": "Simulator"},
+    {"id": 9, "label": "Puzzle"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 33, "label": "Sandbox"},
+    {"id": 27, "label": "Comedy"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["cozy decorating", "home design", "interior design", "renovation"],
+  "anchor_games": [
+    "House Flipper 2",
+    "Tiny Glade",
+    "Unpacking",
+    "Furnish Master",
+    "Townscaper"
+  ]
+}

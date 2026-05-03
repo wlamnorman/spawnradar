@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Precision Platformer",
+  "baseline_summary": "A challenging platformer with tight controls, puzzle elements and exploration.",
+  "broad_igdb_genres": [
+    {"id": 8, "label": "Platform"},
+    {"id": 32, "label": "Indie"},
+    {"id": 9, "label": "Puzzle"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["precision platforming", "puzzle platformer", "first-person platforming", "exploration"],
+  "anchor_games": [
+    "Celeste",
+    "Super Meat Boy",
+    "Ori and the Blind Forest",
+    "Portal 2",
+    "It Takes Two"
+  ]
+}

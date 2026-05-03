@@ -1,0 +1,24 @@
+{
+  "customer_game_name": "Catalog: Immersive Sim",
+  "baseline_summary": "A systemic first-person or third-person game built around player choice, experimentation, and layered problem-solving.",
+  "broad_igdb_genres": [
+    {"id": 31, "label": "Adventure"},
+    {"id": 12, "label": "Role-playing (RPG)"},
+    {"id": 5, "label": "Shooter"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 23, "label": "Stealth"},
+    {"id": 18, "label": "Science fiction"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["immersive sim", "systemic gameplay", "player choice", "stealth"],
+  "anchor_games": [
+    "Prey",
+    "Dishonored 2",
+    "Deus Ex: Human Revolution",
+    "System Shock",
+    "Ctrl Alt Ego"
+  ]
+}

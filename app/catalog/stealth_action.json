@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Stealth Action",
+  "baseline_summary": "A stealth-driven action game where planning, infiltration, and improvisation are core to the appeal.",
+  "broad_igdb_genres": [
+    {"id": 31, "label": "Adventure"},
+    {"id": 25, "label": "Hack and slash/Beat 'em up"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 23, "label": "Stealth"},
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["stealth", "immersive sim", "infiltration", "sandbox stealth"],
+  "anchor_games": [
+    "Hitman 3",
+    "Dishonored 2",
+    "Metal Gear Solid V: The Phantom Pain",
+    "Thief",
+    "Styx: Master of Shadows"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "customer_game_name": "Catalog: ARPG Loot Hunt",
+  "baseline_summary": "A loot-driven action RPG with build crafting, fast combat, and progression depth.",
+  "broad_igdb_genres": [
+    {"id": 12, "label": "Role-playing (RPG)"},
+    {"id": 25, "label": "Hack and slash/Beat 'em up"},
+    {"id": 31, "label": "Adventure"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"},
+    {"id": 17, "label": "Fantasy"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"},
+    {"id": 2, "label": "Multiplayer"}
+  ],
+  "extra_custom_tags": ["arpg", "loot", "build crafting", "hack and slash"],
+  "anchor_games": [
+    "Diablo IV",
+    "Path of Exile",
+    "Last Epoch",
+    "Grim Dawn",
+    "Torchlight II"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "customer_game_name": "Catalog: Competitive FPS",
+  "baseline_summary": "A competitive first-person shooter built around PvP mastery, teamplay, and mechanical skill.",
+  "broad_igdb_genres": [
+    {"id": 5, "label": "Shooter"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"},
+    {"id": 39, "label": "Warfare"}
+  ],
+  "required_game_modes": [
+    {"id": 2, "label": "Multiplayer"}
+  ],
+  "extra_custom_tags": ["competitive fps", "hero shooter", "esports", "pvp"],
+  "anchor_games": [
+    "Counter-Strike 2",
+    "VALORANT",
+    "Tom Clancy's Rainbow Six Siege",
+    "Overwatch 2",
+    "Apex Legends"
+  ]
+}

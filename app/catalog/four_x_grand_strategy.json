@@ -1,0 +1,21 @@
+{
+  "customer_game_name": "Catalog: 4X Grand Strategy",
+  "baseline_summary": "A grand strategy or 4X game built around expansion, planning, and long-form campaign management.",
+  "broad_igdb_genres": [
+    {"id": 15, "label": "Strategy"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 41, "label": "4X (explore, expand, exploit and exterminate)"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["4x", "grand strategy", "empire building", "campaign map"],
+  "anchor_games": [
+    "Sid Meier's Civilization VI",
+    "Stellaris",
+    "Europa Universalis IV",
+    "Old World",
+    "Age of Wonders 4"
+  ]
+}

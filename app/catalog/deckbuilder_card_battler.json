@@ -1,0 +1,21 @@
+{
+  "customer_game_name": "Catalog: Deckbuilder Card Battler",
+  "baseline_summary": "A strategic card battler built around drafting, synergies, and repeat runs.",
+  "broad_igdb_genres": [
+    {"id": 15, "label": "Strategy"},
+    {"id": 35, "label": "Card & Board Game"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["deckbuilder", "card battler", "drafting", "roguelite"],
+  "anchor_games": [
+    "Slay the Spire",
+    "Balatro",
+    "Monster Train",
+    "Inscryption",
+    "Across the Obelisk"
+  ]
+}

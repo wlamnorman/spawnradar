@@ -1,0 +1,261 @@
+{% extends "base.html" %} {% block title %}SpawnRadar | How It Works{% endblock
+%} {% block meta_description %}<meta
+    name="description"
+    content="Learn how SpawnRadar helps indie game developers find relevant creators, prioritize outreach, and manage the workflow without guesswork."
+/>{% endblock %} {% block og_title %}SpawnRadar | How It Works{% endblock %} {%
+block og_description %}Learn how SpawnRadar helps indie game developers find
+relevant creators, prioritize outreach, and manage the workflow without
+guesswork.{% endblock %} {% block twitter_title %}SpawnRadar | How It Works{%
+endblock %} {% block twitter_description %}Learn how SpawnRadar helps indie game
+developers find relevant creators, prioritize outreach, and manage the workflow
+without guesswork.{% endblock %} {% block content %}
+<div class="how-it-works-shell">
+    <header class="how-it-works-page-header">
+        <h1>How it works</h1>
+    </header>
+
+    <section class="how-it-works-section">
+        <div class="how-it-works-steps">
+            <article class="how-it-works-step-card">
+                <div class="how-it-works-step-heading">
+                    <span class="how-it-works-step-number">1.</span>
+                    <h3>Tell us about your game</h3>
+                </div>
+                <p>
+                    A short summary, your game's genre, themes, mechanics, and
+                    similar games.
+                </p>
+            </article>
+            <article class="how-it-works-step-card">
+                <div class="how-it-works-step-heading">
+                    <span class="how-it-works-step-number">2.</span>
+                    <h3>We surface likely creator fits</h3>
+                </div>
+                <p>
+                    See creators ranked by how well their content and audience
+                    matches your game.
+                </p>
+            </article>
+            <article class="how-it-works-step-card">
+                <div class="how-it-works-step-heading">
+                    <span class="how-it-works-step-number">3.</span>
+                    <h3>Efficient outreach with our workflow</h3>
+                </div>
+                <p>
+                    Use our relations manager and advanced filtering to manage
+                    outreach in one place.
+                </p>
+            </article>
+        </div>
+    </section>
+
+    <section class="how-it-works-section">
+        <header class="how-it-works-section-header">
+            <h2>What we look at</h2>
+            <p>
+                SpawnRadar uses several observable signals to estimate how well
+                a creator fits your game. Your game definition directly
+                influence who surfaces. If you play around with the definition
+                of your game you will get different results.
+            </p>
+        </header>
+        <div class="how-it-works-grid">
+            <article class="feature-card">
+                <h3>Your game definition</h3>
+                <p>
+                    Your
+                    <span class="tag-pill tag-genre">genres</span>
+                    <span class="tag-pill tag-theme">themes</span>
+                    <span class="tag-pill tag-mechanic">mechanics</span>
+                    and
+                    <span class="tag-pill tag-similar">similar games</span>
+                    define the profile SpawnRadar matches against. The more
+                    specific you are, the better the results.
+                </p>
+            </article>
+            <article class="feature-card">
+                <h3>What creators play</h3>
+                <p>
+                    SpawnRadar looks at the games a creator has recently played
+                    across Twitch and YouTube. The genres, themes, and mechanics
+                    of those games are compared against yours.
+                </p>
+            </article>
+            <article class="feature-card">
+                <h3>How creators present themselves</h3>
+                <p>
+                    SpawnRadar also looks at how creators describe themselves,
+                    such as their bios and other profile-level signals beyond
+                    the games that they play.
+                </p>
+            </article>
+            <article class="feature-card">
+                <h3>Similar game boost</h3>
+                <p>
+                    When you name specific
+                    <span class="tag-pill tag-similar">similar games</span>,
+                    creators who have actually streamed those titles are ranked
+                    higher. Note that the games must exist on
+                    <a
+                        href="https://www.igdb.com"
+                        target="_blank"
+                        rel="noopener"
+                        >IGDB</a
+                    >.
+                </p>
+            </article>
+        </div>
+    </section>
+
+    <section class="how-it-works-section">
+        <figure class="how-it-works-screenshot">
+            <img
+                src="{{ static_asset_url('matches-example.png') }}"
+                alt="SpawnRadar matches page showing ranked creators, relevant games played, observed matching tags, overlap score, and reach."
+                width="1133"
+                height="646"
+                loading="lazy"
+            />
+            <figcaption>
+                A ranked match list combines fit signals, creator context and
+                workflow status in one place.
+            </figcaption>
+        </figure>
+    </section>
+
+    <section class="how-it-works-section">
+        <header class="how-it-works-section-header">
+            <h2>What a match means</h2>
+        </header>
+        <div class="how-it-works-dual">
+            <article class="how-it-works-card how-it-works-card--positive">
+                <h3>A strong match means</h3>
+                <p>There is proof that the creator could like your game.</p>
+            </article>
+            <article class="how-it-works-card how-it-works-card--caution">
+                <h3>A strong match does not mean</h3>
+                <p>Guaranteed interest, response or coverage.</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="how-it-works-section">
+        <header class="how-it-works-section-header">
+            <h2>How to use the results well</h2>
+        </header>
+        <div class="how-it-works-grid">
+            <article class="feature-card">
+                <h3>Start with the strongest fits</h3>
+                <p>
+                    The list is a prioritization aid. It helps you decide where
+                    to spend attention first.
+                </p>
+            </article>
+            <article class="feature-card">
+                <h3>Use filters deliberately</h3>
+                <p>
+                    Narrow by reach, relevant games played or platform contact
+                    options based on the campaign you are running.
+                </p>
+            </article>
+            <article class="feature-card">
+                <h3>Work from a steady outreach cadence</h3>
+                <p>
+                    A small, consistent daily goal is usually better than large
+                    bursts. It keeps the pipeline moving and makes follow-up
+                    easier to manage.
+                </p>
+            </article>
+            <article class="feature-card">
+                <h3>Be mindful in your outreach</h3>
+                <p>
+                    The list helps you decide who to contact, but good outreach
+                    still depends on context, relevance, and a message that
+                    feels specific to the creator.
+                </p>
+            </article>
+        </div>
+    </section>
+
+    <section class="how-it-works-section">
+        <header class="how-it-works-section-header">
+            <h2>What the workflow statuses mean</h2>
+        </header>
+        <div class="how-it-works-glossary">
+            <div class="how-it-works-status-panel">
+                {% for status in workflow_statuses %}
+                <article class="how-it-works-status-row">
+                    <div class="how-it-works-status-label">
+                        <span
+                            class="match-status-pill match-status--{{ status.value }}"
+                            >{{ status.label }}</span
+                        >
+                    </div>
+                    <p>{{ status.description }}</p>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="how-it-works-section">
+        <header class="how-it-works-section-header">
+            <h2>FAQ</h2>
+        </header>
+        <div class="how-it-works-faq">
+            <article class="how-it-works-faq-item">
+                <h3>Do you guarantee coverage?</h3>
+                <p>
+                    No. SpawnRadar helps you identify likely fits and organize
+                    outreach. It does not guarantee replies, placements or
+                    campaign performance.
+                </p>
+            </article>
+            <article class="how-it-works-faq-item">
+                <h3>Why are some creators ranked higher than others?</h3>
+                <p>
+                    Because the system sees stronger relevance signals between
+                    your game and their observed interests, plus supporting
+                    context like reach and available contact paths.
+                </p>
+            </article>
+            <article class="how-it-works-faq-item">
+                <h3>
+                    Can I use SpawnRadar for both launch and long-tail work?
+                </h3>
+                <p>
+                    Yes. The same matching and workflow tools can support
+                    launch-focused outreach and ongoing marketing after release.
+                </p>
+            </article>
+            <article class="how-it-works-faq-item">
+                <h3>Do you only show big creators?</h3>
+                <p>
+                    No. SpawnRadar is designed to help you find relevant fits
+                    across creator sizes. You can also filter by reach based on
+                    the campaign you are running.
+                </p>
+            </article>
+        </div>
+    </section>
+
+    <section class="how-it-works-cta">
+        <div class="how-it-works-cta-copy">
+            <h2>Try SpawnRadar</h2>
+            <p>
+                Tell us about your game, review creator matches and start
+                building an outreach workflow that is grounded in fit instead of
+                guesswork.
+            </p>
+        </div>
+        <div class="how-it-works-cta-actions">
+            {% if user %}
+            <a href="/games" class="button">Open Dashboard</a>
+            {% else %}
+            <a href="/games" class="button">Try For Free</a>
+            <a href="/pricing" class="button secondary">See Pricing</a>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

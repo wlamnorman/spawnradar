@@ -1,0 +1,22 @@
+{
+  "customer_game_name": "Catalog: Fighting Game",
+  "baseline_summary": "A competitive fighting game with matchup knowledge, execution depth, and regular high-skill play.",
+  "broad_igdb_genres": [
+    {"id": 4, "label": "Fighting"},
+    {"id": 33, "label": "Arcade"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 2, "label": "Multiplayer"}
+  ],
+  "extra_custom_tags": ["fighting game", "1v1", "combo-heavy", "lab game"],
+  "anchor_games": [
+    "Street Fighter 6",
+    "Tekken 8",
+    "Guilty Gear -Strive-",
+    "Mortal Kombat 1",
+    "Granblue Fantasy Versus: Rising"
+  ]
+}

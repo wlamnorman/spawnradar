@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: RTS Base Building",
+  "baseline_summary": "A real-time strategy game centered on macro play, expansion, and army control.",
+  "broad_igdb_genres": [
+    {"id": 11, "label": "Real Time Strategy (RTS)"},
+    {"id": 15, "label": "Strategy"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 39, "label": "Warfare"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"},
+    {"id": 2, "label": "Multiplayer"}
+  ],
+  "extra_custom_tags": ["rts", "base building", "macro", "army management"],
+  "anchor_games": [
+    "StarCraft II",
+    "Age of Empires IV",
+    "Company of Heroes 3",
+    "Warcraft III: Reforged",
+    "They Are Billions"
+  ]
+}

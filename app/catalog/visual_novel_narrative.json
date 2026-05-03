@@ -1,0 +1,25 @@
+{
+  "customer_game_name": "Catalog: Visual Novel Narrative",
+  "baseline_summary": "A narrative-first visual novel built around reading, choices, atmosphere, and emotional payoff.",
+  "broad_igdb_genres": [
+    {"id": 34, "label": "Visual Novel"},
+    {"id": 31, "label": "Adventure"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 43, "label": "Mystery"},
+    {"id": 31, "label": "Drama"},
+    {"id": 44, "label": "Romance"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["visual novel", "narrative", "branching story", "dialogue-heavy"],
+  "anchor_games": [
+    "Doki Doki Literature Club Plus!",
+    "Slay the Princess",
+    "The House in Fata Morgana",
+    "Paranormasight: The Seven Mysteries of Honjo",
+    "428: Shibuya Scramble"
+  ]
+}

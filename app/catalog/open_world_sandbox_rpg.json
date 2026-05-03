@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Open-World Sandbox RPG",
+  "baseline_summary": "An open-world RPG built around exploration, player freedom, and long-form character progression.",
+  "broad_igdb_genres": [
+    {"id": 12, "label": "Role-playing (RPG)"},
+    {"id": 31, "label": "Adventure"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 38, "label": "Open world"},
+    {"id": 17, "label": "Fantasy"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["open world rpg", "sandbox rpg", "exploration", "player freedom"],
+  "anchor_games": [
+    "The Elder Scrolls V: Skyrim",
+    "Kingdom Come: Deliverance",
+    "Gothic II",
+    "Outward",
+    "Dragon's Dogma 2"
+  ]
+}

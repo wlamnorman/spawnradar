@@ -1,0 +1,16 @@
+{% extends "base.html" %} {% block title %}SpawnRadar | Activating Subscription{% endblock %} {% block content %}
+<section class="billing-page">
+    <div class="card billing-launch-card">
+        <span class="marketing-kicker">Billing</span>
+        <h1 id="status-heading">Activating your subscription...</h1>
+        <p class="subtle" id="status-message">
+            This usually takes just a few seconds.
+        </p>
+        <a href="/billing" class="button" id="fallback-link" hidden>
+            Go to billing →
+        </a>
+    </div>
+</section>
+{% endblock %} {% block scripts %}
+<script src="{{ static_asset_url('billing-success.js') }}"></script>
+{% endblock %}

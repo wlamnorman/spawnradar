@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Tactical Combat",
+  "baseline_summary": "A tactical turn-based combat game with dungeon crawling and strategic depth.",
+  "broad_igdb_genres": [
+    {"id": 15, "label": "Strategy"},
+    {"id": 24, "label": "Tactical"},
+    {"id": 12, "label": "Role-playing (RPG)"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 17, "label": "Fantasy"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["turn-based tactics", "dungeon crawler", "inventory management", "resource management"],
+  "anchor_games": [
+    "XCOM 2",
+    "Darkest Dungeon",
+    "Into the Breach",
+    "The Last Spell",
+    "Stoneshard"
+  ]
+}

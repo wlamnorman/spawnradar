@@ -1,0 +1,22 @@
+{
+  "customer_game_name": "Catalog: MMO RPG",
+  "baseline_summary": "A massively multiplayer RPG with persistent progression, social systems, and long-term engagement.",
+  "broad_igdb_genres": [
+    {"id": 12, "label": "Role-playing (RPG)"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 17, "label": "Fantasy"}
+  ],
+  "required_game_modes": [
+    {"id": 2, "label": "Multiplayer"},
+    {"id": 5, "label": "Massively Multiplayer Online (MMO)"}
+  ],
+  "extra_custom_tags": ["mmo", "raids", "guilds", "live service"],
+  "anchor_games": [
+    "World of Warcraft",
+    "Final Fantasy XIV",
+    "Guild Wars 2",
+    "The Elder Scrolls Online",
+    "Lost Ark"
+  ]
+}

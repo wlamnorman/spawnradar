@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Bullet Heaven Survivors",
+  "baseline_summary": "A survivors-style action game built around hordes, builds, and escalating run pressure.",
+  "broad_igdb_genres": [
+    {"id": 5, "label": "Shooter"},
+    {"id": 32, "label": "Indie"},
+    {"id": 33, "label": "Arcade"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["bullet heaven", "survivors-like", "horde survival", "run-based"],
+  "anchor_games": [
+    "Vampire Survivors",
+    "Brotato",
+    "Soulstone Survivors",
+    "Halls of Torment",
+    "Death Must Die"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Multiplayer Action",
+  "baseline_summary": "A co-op or competitive multiplayer action game.",
+  "broad_igdb_genres": [
+    {"id": 5, "label": "Shooter"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 2, "label": "Multiplayer"},
+    {"id": 3, "label": "Co-operative"}
+  ],
+  "extra_custom_tags": ["looter shooter", "asymmetrical multiplayer"],
+  "anchor_games": [
+    "Deep Rock Galactic",
+    "Lethal Company",
+    "Risk of Rain 2",
+    "Valheim",
+    "Among Us"
+  ]
+}

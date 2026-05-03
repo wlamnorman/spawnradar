@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Roguelite Strategy",
+  "baseline_summary": "A tactical roguelite with strategic depth and permadeath.",
+  "broad_igdb_genres": [
+    {"id": 15, "label": "Strategy"},
+    {"id": 16, "label": "Turn-based strategy (TBS)"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 17, "label": "Fantasy"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["roguelike", "roguelite", "deckbuilder"],
+  "anchor_games": [
+    "Slay the Spire",
+    "FTL: Faster Than Light",
+    "Into the Breach",
+    "Hades",
+    "Balatro"
+  ]
+}

@@ -1,0 +1,71 @@
+{% extends "base.html" %} {% block title %}SpawnRadar | Creator Outreach for
+Indie Game Developers{% endblock %} {% block meta_description %}<meta
+    name="description"
+    content="SpawnRadar helps indie game developers find relevant YouTubers, streamers, and creators for their game, rank the best matches, and manage outreach in one place."
+/> {% endblock %} {% block og_title %}SpawnRadar | Creator Outreach for Indie
+Game Developers{% endblock %} {% block og_description %}SpawnRadar helps indie
+game developers find relevant YouTubers, streamers, and creators for their game,
+rank the best matches, and manage outreach in one place.{% endblock %} {% block
+twitter_title %}SpawnRadar | Creator Outreach for Indie Game Developers{% endblock %} {% block
+twitter_description %}SpawnRadar helps indie game developers find relevant
+YouTubers, streamers, and creators for their game, rank the best matches, and
+manage outreach in one place.{% endblock %} {% block content %}
+<section class="marketing-hero">
+    <div class="marketing-copy">
+        <h1>Creator outreach for indie game developers</h1>
+        <p class="marketing-lede">
+            SpawnRadar helps indie game developers find creators (streamers,
+            YouTubers and more) whose content and audiences fit their game for
+            launch and ongoing marketing, and manage outreach in one place.
+        </p>
+        <div class="marketing-proof">
+            <strong>{{ creator_profile_count }}</strong>
+            <span
+                >active creators with analyzed game interests and contact
+                info</span
+            >
+        </div>
+        <div class="marketing-actions">
+            {% if user %}
+            <a href="/games" class="button">Open Dashboard</a>
+            {% else %}
+            <a href="/games" class="button">Try For Free</a>
+            <a href="/pricing" class="button secondary">See Pricing</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="marketing-panel">
+        <div class="marketing-stat-card">
+            <div class="marketing-step-heading">
+                <span class="marketing-step-number">1.</span>
+                <strong>Tell us about your game</strong>
+            </div>
+            <p>
+                A short summary, your game's genre, themes, mechanics, and
+                similar games.
+            </p>
+        </div>
+        <div class="marketing-stat-card">
+            <div class="marketing-step-heading">
+                <span class="marketing-step-number">2.</span>
+                <strong>We surface likely creator fits</strong>
+            </div>
+            <p>
+                See creators ranked by how well their content and audience
+                matches your game.
+            </p>
+        </div>
+        <div class="marketing-stat-card">
+            <div class="marketing-step-heading">
+                <span class="marketing-step-number">3.</span>
+                <strong>Efficient outreach with our workflow</strong>
+            </div>
+            <p>
+                Use our relations manager and advanced filtering to manage
+                outreach in one place.
+            </p>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

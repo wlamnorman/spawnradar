@@ -1,0 +1,30 @@
+{% extends "base.html" %} {% block title %}SpawnRadar | Billing{% endblock %} {%
+block head %}
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+{% endblock %} {% block content %}
+<section class="billing-page">
+    <div
+        class="card billing-launch-card"
+        data-paddle-environment="{{ paddle_environment }}"
+        data-paddle-token="{{ paddle_client_side_token }}"
+        data-price-id="{{ price_id }}"
+        data-success-url="{{ success_url }}"
+        data-customer-email="{{ customer_email or '' }}"
+        data-custom-data="{{ custom_data | tojson | forceescape }}"
+    >
+        <span class="marketing-kicker">Billing</span>
+        <h1>Opening checkout...</h1>
+        <p class="subtle">
+            If the checkout does not open automatically, use the button below.
+        </p>
+        <button type="button" class="button" id="paddle-checkout-button">
+            Open checkout
+        </button>
+        <p class="subtle billing-help-text">
+            Subscriptions are processed securely via Paddle Checkout.
+        </p>
+    </div>
+</section>
+{% endblock %} {% block scripts %}
+<script src="{{ static_asset_url('billing-pay.js') }}"></script>
+{% endblock %}

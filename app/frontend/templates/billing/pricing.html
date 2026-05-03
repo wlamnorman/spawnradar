@@ -1,0 +1,96 @@
+{% extends "base.html" %} {% block title %}SpawnRadar | Pricing{% endblock %} {%
+block meta_description %}<meta
+    name="description"
+    content="Simple pricing for creator discovery and outreach workflow for game developers."
+/>{% endblock %} {% block og_title %}SpawnRadar | Pricing{% endblock %} {% block
+og_description %}Simple pricing for creator discovery and outreach workflow for
+game developers.{% endblock %} {% block twitter_title %}SpawnRadar | Pricing{%
+endblock %} {% block twitter_description %}Simple pricing for creator discovery
+and outreach workflow for game developers.{% endblock %} {% block content %} {%
+set tier = tiers[0] %} {% set limits = tier_limits[tier] %} {% set price =
+tier_prices[tier] %}
+<section class="pricing-header">
+    <h1>Simple pricing for creator outreach.</h1>
+</section>
+
+<section class="pricing-shell">
+    <div class="pricing-cards">
+        <div class="plan-card">
+            <div class="plan-card-top">
+                <div>
+                    <h2 class="plan-name">Free</h2>
+                    <p class="plan-summary">
+                        Start tracking one game and preview creator matches.
+                    </p>
+                </div>
+                <div class="plan-price">Free</div>
+            </div>
+            <ul class="plan-features">
+                <li><strong>{{ free_limits.games }}</strong> active game</li>
+                <li>Preview creator matches</li>
+                <li>No payment method required</li>
+                <li>No expiry</li>
+            </ul>
+            <div class="plan-card-footer">
+                {% if user and not user.is_anonymous %}
+                <a href="/games" class="button button-full">
+                    Go to dashboard →
+                </a>
+                {% else %}
+                <a href="/auth/register" class="button button-full">
+                    Create free account →
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="plan-card plan-card-featured">
+            <div class="plan-card-top">
+                <div>
+                    <h2 class="plan-name">Paid</h2>
+                    <p class="plan-summary">
+                        Unlock the full creator discovery and workflow toolkit.
+                    </p>
+                </div>
+                <div class="plan-price">
+                    <div>
+                        ${{ price }}<span class="plan-price-period"
+                            >/month</span
+                        >
+                    </div>
+                    <div class="plan-price-note">+ applicable tax</div>
+                </div>
+            </div>
+            <ul class="plan-features">
+                <li>Up to <strong>{{ limits.games }}</strong> active games</li>
+                <li>Full creator results</li>
+                <li>Advanced creator filtering</li>
+                <li>Creator relations workflow</li>
+            </ul>
+            <div class="plan-card-footer">
+                {% if _sub and (_sub.has_subscription or _sub.is_comped) %}
+                <a href="/billing" class="button button-full">
+                    Manage subscription →
+                </a>
+                {% elif billing_enabled and user and not user.is_anonymous %}
+                <a href="/billing/pay" class="button button-full">
+                    Subscribe →
+                </a>
+                {% elif billing_enabled %}
+                <a href="/auth/register" class="button button-full">
+                    Create account to subscribe →
+                </a>
+                {% else %}
+                <button type="button" class="button button-full" disabled>
+                    Billing unavailable
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+<p class="pricing-note">
+    Questions before subscribing? Email
+    <a href="mailto:contact@spawnradar.com">contact@spawnradar.com</a>.
+</p>
+{% endblock %}

@@ -1,0 +1,254 @@
+"""Application configuration loaded from environment variables."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from urllib.parse import urlparse
+
+from app.email.service import DEFAULT_FROM_ADDRESS
+
+_DEV_SECRET_KEY = "dev-secret-key-change-in-production"
+
+
+class ConfigError(ValueError):
+    """Raised when required environment configuration is missing or invalid."""
+
+
+def _load_dotenv() -> None:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+
+def _env_str(name: str, default: str = "") -> str:
+    return os.environ.get(name, default).strip()
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be an integer.") from exc
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_csv(name: str) -> tuple[str, ...]:
+    raw = os.environ.get(name)
+    if raw is None:
+        return ()
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
+@dataclass(frozen=True)
+class Settings:
+    """All runtime configuration for Spawnradar.
+
+    Loaded from environment variables with sensible defaults.
+    """
+
+    db_path: str
+    log_level: str
+    secret_key: str
+    paddle_api_key: str
+    paddle_client_side_token: str
+    paddle_webhook_secret: str
+    paddle_indie_price_id: str
+    paddle_environment: str
+    base_url: str
+    resend_api_key: str
+    email_from: str
+    google_client_id: str
+    google_client_secret: str
+    twitch_client_id: str
+    twitch_client_secret: str
+    dev_auto_login: bool
+    youtube_api_key: str
+    youtube_cache_dir: str
+    anthropic_api_key: str
+    local_llm_game_suggestions_enabled: bool
+    scheduler_enabled: bool
+    creator_index_game_names: tuple[str, ...]
+    creator_index_bootstrap_enabled: bool
+    creator_index_twitch_min_live_viewers: int
+    creator_index_twitch_min_followers: int
+    creator_index_customer_game_twitch_probe_limit: int
+    admin_secret_key: str
+    catalog_discovery_enabled: bool
+
+    @property
+    def uses_https(self) -> bool:
+        return self.base_url.startswith("https://")
+
+    @property
+    def parsed_base_url(self):
+        return urlparse(self.base_url)
+
+    @property
+    def base_hostname(self) -> str:
+        return self.parsed_base_url.hostname or ""
+
+    @property
+    def base_origin(self) -> str:
+        parsed = self.parsed_base_url
+        return f"{parsed.scheme}://{parsed.netloc}"
+
+    @property
+    def is_local_base_url(self) -> bool:
+        return self.base_hostname in {"localhost", "127.0.0.1"}
+
+    @property
+    def www_redirect_hostname(self) -> str | None:
+        if self.is_local_base_url or not self.base_hostname:
+            return None
+        if self.base_hostname.startswith("www."):
+            return None
+        return f"www.{self.base_hostname}"
+
+    @property
+    def llm_game_suggestions_enabled(self) -> bool:
+        """Whether background LLM anchor-game suggestions should run.
+
+        Local development defaults this off even when an Anthropic API key is
+        present, to avoid accidental paid calls during normal `make dev` usage.
+        It can be explicitly re-enabled with
+        ``LOCAL_LLM_GAME_SUGGESTIONS_ENABLED=1``.
+        """
+        if not self.anthropic_api_key:
+            return False
+        return not (
+            self.is_local_base_url
+            and not self.local_llm_game_suggestions_enabled
+        )
+
+    def validate(self) -> Settings:
+        if not self.secret_key:
+            raise ConfigError("SECRET_KEY must be set.")
+        if self.secret_key == _DEV_SECRET_KEY and not self.is_local_base_url:
+            raise ConfigError(
+                "SECRET_KEY must be set to a non-default value outside local development."
+            )
+
+        if not self.base_url:
+            raise ConfigError("BASE_URL must be set.")
+        parsed_base = urlparse(self.base_url)
+        if (
+            parsed_base.scheme not in {"http", "https"}
+            or not parsed_base.netloc
+        ):
+            raise ConfigError("BASE_URL must be a valid absolute http(s) URL.")
+
+        if not self.log_level:
+            raise ConfigError("LOG_LEVEL must be set.")
+        if self.log_level not in {
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL",
+        }:
+            raise ConfigError(
+                "LOG_LEVEL must be one of DEBUG, INFO, WARNING, ERROR or CRITICAL."
+            )
+
+        if self.paddle_environment and self.paddle_environment not in {
+            "sandbox",
+            "production",
+        }:
+            raise ConfigError(
+                "PADDLE_ENVIRONMENT must be either 'sandbox' or 'production'."
+            )
+
+        paddle_values = [
+            self.paddle_api_key,
+            self.paddle_client_side_token,
+            self.paddle_webhook_secret,
+            self.paddle_indie_price_id,
+            self.paddle_environment,
+        ]
+        if any(paddle_values) and not all(paddle_values):
+            raise ConfigError(
+                "Paddle configuration is partial. Set PADDLE_API_KEY, PADDLE_CLIENT_SIDE_TOKEN, "
+                "PADDLE_WEBHOOK_SECRET, PADDLE_INDIE_PRICE_ID and PADDLE_ENVIRONMENT together."
+            )
+
+        if bool(self.google_client_id) != bool(self.google_client_secret):
+            raise ConfigError(
+                "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must either both be set or both be empty."
+            )
+
+        if bool(self.twitch_client_id) != bool(self.twitch_client_secret):
+            raise ConfigError(
+                "TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET must either both be set or both be empty."
+            )
+
+        if self.creator_index_customer_game_twitch_probe_limit < 1:
+            raise ConfigError(
+                "CREATOR_INDEX_CUSTOMER_GAME_TWITCH_PROBE_LIMIT must be at least 1."
+            )
+
+        return self
+
+    @classmethod
+    def from_env(cls) -> Settings:
+        """Load and validate settings from environment variables."""
+        _load_dotenv()
+
+        settings = cls(
+            db_path=_env_str("DB_PATH", "data/spawnradar.sqlite3"),
+            log_level=_env_str("LOG_LEVEL", "INFO").upper(),
+            secret_key=_env_str("SECRET_KEY", _DEV_SECRET_KEY),
+            paddle_api_key=_env_str("PADDLE_API_KEY"),
+            paddle_client_side_token=_env_str("PADDLE_CLIENT_SIDE_TOKEN"),
+            paddle_webhook_secret=_env_str("PADDLE_WEBHOOK_SECRET"),
+            paddle_indie_price_id=_env_str("PADDLE_INDIE_PRICE_ID"),
+            paddle_environment=_env_str("PADDLE_ENVIRONMENT"),
+            base_url=_env_str("BASE_URL", "http://localhost:8000"),
+            resend_api_key=_env_str("RESEND_API_KEY"),
+            email_from=DEFAULT_FROM_ADDRESS,
+            google_client_id=_env_str("GOOGLE_CLIENT_ID"),
+            google_client_secret=_env_str("GOOGLE_CLIENT_SECRET"),
+            twitch_client_id=_env_str("TWITCH_CLIENT_ID"),
+            twitch_client_secret=_env_str("TWITCH_CLIENT_SECRET"),
+            dev_auto_login=_env_bool("DEV_AUTO_LOGIN"),
+            youtube_api_key=_env_str("YOUTUBE_API_KEY"),
+            youtube_cache_dir="data/yt_cache",
+            anthropic_api_key=_env_str("ANTHROPIC_API_KEY"),
+            local_llm_game_suggestions_enabled=_env_bool(
+                "LOCAL_LLM_GAME_SUGGESTIONS_ENABLED"
+            ),
+            scheduler_enabled=_env_bool("SCHEDULER_ENABLED"),
+            creator_index_game_names=_env_csv("CREATOR_INDEX_GAME_NAMES"),
+            creator_index_bootstrap_enabled=_env_bool(
+                "CREATOR_INDEX_BOOTSTRAP_ENABLED", True
+            ),
+            creator_index_twitch_min_live_viewers=_env_int(
+                "CREATOR_INDEX_TWITCH_MIN_LIVE_VIEWERS", 10
+            ),
+            creator_index_twitch_min_followers=_env_int(
+                "CREATOR_INDEX_TWITCH_MIN_FOLLOWERS", 50
+            ),
+            creator_index_customer_game_twitch_probe_limit=_env_int(
+                "CREATOR_INDEX_CUSTOMER_GAME_TWITCH_PROBE_LIMIT", 10
+            ),
+            admin_secret_key=_env_str("ADMIN_SECRET_KEY"),
+            catalog_discovery_enabled=_env_bool("USE_CATALOG", False),
+        )
+        try:
+            return settings.validate()
+        except ValueError as exc:
+            if isinstance(exc, ConfigError):
+                raise
+            raise ConfigError(str(exc)) from exc

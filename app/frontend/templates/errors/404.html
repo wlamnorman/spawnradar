@@ -1,0 +1,19 @@
+{% extends "base.html" %} {% block title %}SpawnRadar | Page Not Found{%
+endblock %} {% block meta_description %}<meta
+    name="description"
+    content="The page you requested could not be found."
+/>{% endblock %} {% block og_title %}SpawnRadar | Page Not Found{% endblock %}
+{% block og_description %}The page you requested could not be found.{% endblock
+%} {% block twitter_title %}SpawnRadar | Page Not Found{% endblock %} {% block
+twitter_description %}The page you requested could not be found.{% endblock %}
+{% block content %}
+<section class="not-found-panel">
+    <span class="not-found-kicker">404</span>
+    <h1>Oops! That page does not exist.</h1>
+    <p>The page you tried to open may have moved, expired or never existed.</p>
+    <div class="marketing-actions not-found-actions">
+        <a href="/" class="button">Back to home</a>
+        <a href="/pricing" class="button secondary">See pricing</a>
+    </div>
+</section>
+{% endblock %}

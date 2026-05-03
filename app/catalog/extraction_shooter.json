@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Extraction Shooter",
+  "baseline_summary": "A high-stakes extraction shooter where survival, loot, and tactical decision-making drive the tension.",
+  "broad_igdb_genres": [
+    {"id": 5, "label": "Shooter"},
+    {"id": 31, "label": "Adventure"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"},
+    {"id": 21, "label": "Survival"}
+  ],
+  "required_game_modes": [
+    {"id": 2, "label": "Multiplayer"}
+  ],
+  "extra_custom_tags": ["extraction shooter", "tactical shooter", "loot extraction", "high stakes pvp"],
+  "anchor_games": [
+    "Escape from Tarkov",
+    "Hunt: Showdown 1896",
+    "Marauders",
+    "Gray Zone Warfare",
+    "The Cycle: Frontier"
+  ]
+}

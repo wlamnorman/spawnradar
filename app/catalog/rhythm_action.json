@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Rhythm Action",
+  "baseline_summary": "A rhythm-forward action game where timing, music, and flow are tightly connected.",
+  "broad_igdb_genres": [
+    {"id": 7, "label": "Music"},
+    {"id": 25, "label": "Hack and slash/Beat 'em up"},
+    {"id": 31, "label": "Adventure"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 1, "label": "Action"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["rhythm action", "timing-based combat", "music game", "flow state"],
+  "anchor_games": [
+    "Hi-Fi Rush",
+    "BPM: Bullets Per Minute",
+    "Crypt of the NecroDancer",
+    "Thumper",
+    "Metal: Hellsinger"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "customer_game_name": "Catalog: Party Game",
+  "baseline_summary": "A party-focused multiplayer game designed around social chaos, minigames, and quick rounds.",
+  "broad_igdb_genres": [
+    {"id": 33, "label": "Arcade"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 40, "label": "Party"},
+    {"id": 27, "label": "Comedy"}
+  ],
+  "required_game_modes": [
+    {"id": 2, "label": "Multiplayer"},
+    {"id": 3, "label": "Co-operative"},
+    {"id": 4, "label": "Split screen"}
+  ],
+  "extra_custom_tags": ["party game", "couch co-op", "social play", "minigames"],
+  "anchor_games": [
+    "Fall Guys",
+    "Party Animals",
+    "Pummel Party",
+    "Mario Party Superstars",
+    "The Jackbox Party Pack 10"
+  ]
+}

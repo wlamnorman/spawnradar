@@ -1,0 +1,22 @@
+{
+  "customer_game_name": "Catalog: Puzzle Adventure",
+  "baseline_summary": "A puzzle-forward adventure game where discovery, logic, and atmosphere are central to the experience.",
+  "broad_igdb_genres": [
+    {"id": 9, "label": "Puzzle"},
+    {"id": 31, "label": "Adventure"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 43, "label": "Mystery"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["puzzle adventure", "environmental puzzles", "mystery", "exploration"],
+  "anchor_games": [
+    "Portal 2",
+    "The Witness",
+    "Cocoon",
+    "Return of the Obra Dinn",
+    "Outer Wilds"
+  ]
+}

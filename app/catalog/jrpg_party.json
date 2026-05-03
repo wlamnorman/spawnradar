@@ -1,0 +1,22 @@
+{
+  "customer_game_name": "Catalog: JRPG Party RPG",
+  "baseline_summary": "A party-based JRPG with turn-based combat and rich storytelling.",
+  "broad_igdb_genres": [
+    {"id": 12, "label": "Role-playing (RPG)"},
+    {"id": 16, "label": "Turn-based strategy (TBS)"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 17, "label": "Fantasy"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["jrpg", "party-based rpg", "party-based", "turn-based rpg"],
+  "anchor_games": [
+    "Persona 5 Royal",
+    "Final Fantasy VII Remake",
+    "Xenoblade Chronicles: Definitive Edition",
+    "Sea of Stars",
+    "Clair Obscur: Expedition 33"
+  ]
+}

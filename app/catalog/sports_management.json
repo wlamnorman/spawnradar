@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Sports Management",
+  "baseline_summary": "A management sim built around team building, tactics, transfers, and long-form sports planning.",
+  "broad_igdb_genres": [
+    {"id": 14, "label": "Sport"},
+    {"id": 13, "label": "Simulator"},
+    {"id": 15, "label": "Strategy"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 28, "label": "Business"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["sports management", "team building", "tactics", "transfer market"],
+  "anchor_games": [
+    "Football Manager 2024",
+    "Out of the Park Baseball 25",
+    "F1 Manager 2024",
+    "Motorsport Manager",
+    "WE ARE FOOTBALL 2024"
+  ]
+}

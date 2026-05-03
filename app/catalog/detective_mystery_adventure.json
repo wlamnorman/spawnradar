@@ -1,0 +1,23 @@
+{
+  "customer_game_name": "Catalog: Detective Mystery Adventure",
+  "baseline_summary": "A mystery-driven adventure where observation, deduction, and interpretation are core to the experience.",
+  "broad_igdb_genres": [
+    {"id": 9, "label": "Puzzle"},
+    {"id": 31, "label": "Adventure"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 43, "label": "Mystery"},
+    {"id": 20, "label": "Thriller"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["detective", "deduction", "investigation", "narrative mystery"],
+  "anchor_games": [
+    "Return of the Obra Dinn",
+    "The Case of the Golden Idol",
+    "Shadows of Doubt",
+    "Disco Elysium",
+    "Pentiment"
+  ]
+}

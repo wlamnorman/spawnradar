@@ -1,0 +1,27 @@
+{
+  "customer_game_name": "Catalog: Survival Crafting",
+  "baseline_summary": "An open-ended survival crafting game with gathering, base building, and co-op exploration.",
+  "broad_igdb_genres": [
+    {"id": 31, "label": "Adventure"},
+    {"id": 13, "label": "Simulator"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 21, "label": "Survival"},
+    {"id": 33, "label": "Sandbox"},
+    {"id": 38, "label": "Open world"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"},
+    {"id": 2, "label": "Multiplayer"},
+    {"id": 3, "label": "Co-operative"}
+  ],
+  "extra_custom_tags": ["survival crafting", "base building", "resource gathering", "open world survival"],
+  "anchor_games": [
+    "Valheim",
+    "Rust",
+    "Raft",
+    "Sons of the Forest",
+    "Enshrouded"
+  ]
+}

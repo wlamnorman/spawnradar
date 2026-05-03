@@ -1,0 +1,22 @@
+{
+  "customer_game_name": "Catalog: Indie Horror",
+  "baseline_summary": "A first-person indie horror game with psychological tension.",
+  "broad_igdb_genres": [
+    {"id": 31, "label": "Adventure"},
+    {"id": 32, "label": "Indie"}
+  ],
+  "broad_igdb_themes": [
+    {"id": 19, "label": "Horror"}
+  ],
+  "required_game_modes": [
+    {"id": 1, "label": "Single player"}
+  ],
+  "extra_custom_tags": ["psychological horror"],
+  "anchor_games": [
+    "Lethal Company",
+    "Phasmophobia",
+    "Amnesia: The Dark Descent",
+    "Inscryption",
+    "Dredge"
+  ]
+}
