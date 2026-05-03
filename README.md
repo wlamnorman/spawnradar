@@ -4,26 +4,6 @@ SpawnRadar was a creator discovery and outreach SaaS for indie game developers.
 
 I am shutting it down as a business and keeping this repository as a product and engineering showcase.
 
-## Tech stack
-
-- Backend: Python, FastAPI, Jinja2, APScheduler
-- Frontend: Server-rendered HTML, vanilla JavaScript, CSS
-- Database: SQLite
-- Email: Resend
-- Payments: Paddle
-- Deployment: Docker + Fly.io
-
-## Local development
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r dev-requirements.txt
-pip install -r requirements.txt
-cp env-example .env
-make dev
-```
-
 ## Postmortem
 
 ### What I built
@@ -87,3 +67,23 @@ Unless and until I add a LICENSE file, this repository is provided as a public c
 Indie game developers may study the code and use it privately for their own internal projects, experiments, or learning.
 
 Redistribution, resale, sublicensing, public reposting, and use as part of a competing commercial product or service are not permitted without explicit permission.
+
+## Tech stack
+
+- Backend: Python, FastAPI, Jinja2, APScheduler
+- Frontend: Server-rendered HTML, vanilla JavaScript, CSS
+- Database: SQLite
+- Email: Resend
+- Payments: Paddle
+- Deployment: Docker + Fly.io
+
+## Local development
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r dev-requirements.txt
+pip install -r requirements.txt
+cp env-example .env
+make dev
+```
